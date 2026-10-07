@@ -84,8 +84,8 @@ DYNAMODB_DATA_ACTIONS = [
     "dynamodb:PartiQLInsert",
     "dynamodb:PartiQLUpdate",
     "dynamodb:PartiQLDelete",
-    "dynamodb:GetRecords",
-    "dynamodb:GetShardIterator",
+    # No stream actions (GetRecords, GetShardIterator): the tables have no streams, and a table
+    # resource policy rejects them ("Invalid policy document"), which failed the first beta deploy.
 ]
 AUDIT_MUTATION_ACTIONS = ["dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:BatchWriteItem", "dynamodb:PartiQLUpdate", "dynamodb:PartiQLDelete"]
 

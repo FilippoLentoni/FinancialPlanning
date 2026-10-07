@@ -182,6 +182,15 @@ def test_metadata_tables_on_demand_pitr_kms_tagged(foundation_synth: dict[str, A
         assert p["DeletionProtectionEnabled"] is (env == "prod")
     audit = by_name[table_name(env, "audit_event")]["Properties"]
     assert "DenyAuditMutation" in {s["Sid"] for s in audit["ResourcePolicy"]["PolicyDocument"]["Statement"]}
+    # Regression: DynamoDB rejects stream actions in a table resource policy (first beta deploy failed),
+    # and no table has a stream that would need them.
+    stream_actions = {"dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:DescribeStream", "dynamodb:ListStreams"}
+    for v in tables.values():
+        p = v["Properties"]
+        assert "StreamSpecification" not in p
+        for s in p["ResourcePolicy"]["PolicyDocument"]["Statement"]:
+            actions = s["Action"] if isinstance(s["Action"], list) else [s["Action"]]
+            assert not stream_actions & set(actions), s["Sid"]
 
 
 def test_idempotency_ttl_and_retention_at_least_seven_days() -> None:
