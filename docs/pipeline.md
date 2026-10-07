@@ -118,8 +118,50 @@ Data is never rolled back. The gamma rollback drill is task 11.4 and depends on 
 - **prod:** `tests/smoke`.
 
 `FINPLAN_TARGET_ENV` and `FINPLAN_SUITE` tell the tests where they run, and the opt-in
-live-provider test is always excluded. A prod smoke run that executes no test fails. The
-integration suites are tasks 11.1 to 11.3.
+live-provider test is always excluded. Every stage fails when its suite executes fewer than one
+test (nothing collected, or everything skipped), in beta and gamma as in prod.
+
+The beta and gamma suites are `tests/integration/test_deployed_environment.py` (tasks 11.1 to
+11.3). They run in the pipeline only, as the stage role
+`finplan-<env>-financialplanning-operator-pipeline-stage`, calling the plan API with SigV4 at the
+endpoint in `/finplan/<env>/financialplanning/api/plan-endpoint`
+(`tests/smoke/transport.py`). The lifecycle flow is `tests/integration/lifecycle_suite.py`. Each
+run creates a fresh synthetic portfolio and plan and uses run-unique idempotency keys. The flow:
+
+1. It ingests a fixture snapshot through `POST /v1/ingestions`.
+2. It creates a root version, retries it with the same key, and reuses the key with another
+   body, which must fail with `IDEMPOTENCY_KEY_REUSED`.
+3. It creates a `no_effect` override and two concurrent overrides on one revision (exactly one
+   commits, the other gets `CONFLICT`). A stale `expected_revision` must also get `CONFLICT`.
+4. It checks that an unvalidated version cannot be published, then validates and publishes.
+5. It records a paper execution and its retry. A `live` execution must get
+   `OPERATION_NOT_PERMITTED`.
+6. It reads everything back. The `plan_version_id` and checksum must match the direct read and
+   the downloaded bytes.
+
+The suites run four tests in gamma and three in beta. The extra gamma test is the isolation check
+(ENV-03): the gamma stage role must be denied the prod SSM segment, the prod tables and the prod
+buckets. A credential probe checks that the deployed suite kept the stage role's credentials. The
+same flow runs offline against the deployment double (`tests/unit/ops/test_integration_double.py`).
+
+### Incident: false pass in beta and gamma (first pipeline run)
+
+The first pipeline run passed the beta and gamma test actions with zero executed tests.
+`tests/integration` then held only the opt-in live yfinance test, which the stage always
+excludes, and the stage runner only required executed tests for prod smoke. The same run's prod
+smoke failed with `UnrecognizedClientException`. The cause was `tests/conftest.py`, which
+replaced the real AWS credentials with offline fakes for every suite, deployed ones included.
+
+There were two fixes:
+
+- `scripts/stage_runner.py` now requires at least one executed test in every environment
+  (`tests/unit/ops/test_smoke_double.py`).
+- The offline-safety environment (fake credentials, metadata service disabled, no profile or
+  config files; `tests/offline_env.py`) now applies only to offline suites. `tests/unit` and
+  `tests/contract` always apply it. The root `tests/conftest.py` skips it when the stage runner
+  sets `FINPLAN_TARGET_ENV` (`tests/unit/test_offline_env.py`).
+
+Run deployed suites on their own directory, as the stage runner does.
 
 The smoke suite is `tests/smoke/smoke_suite.py`:
 

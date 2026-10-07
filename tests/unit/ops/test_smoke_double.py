@@ -188,13 +188,14 @@ def test_stage_runner_selects_the_environment_suite() -> None:
     assert seen[1]["env"]["FINPLAN_SUITE"] == "integration-beta" and "tests/integration" in seen[1]["cmd"]
 
 
-def test_prod_smoke_that_executes_nothing_fails_PIPE_05() -> None:
-    assert stage_runner.tests_action("prod", run=_runner(0, 1, 1, []), environ={}) == 1
-    assert stage_runner.tests_action("prod", run=_runner(5, 0, 0, []), environ={}) == 1
-    assert stage_runner.tests_action("prod", run=_runner(1, 1, 0, []), environ={}) == 1
-    # integration suites (tasks 11.x) may still be empty; failures always fail
-    assert stage_runner.tests_action("gamma", run=_runner(5, 0, 0, []), environ={}) == 0
-    assert stage_runner.tests_action("gamma", run=_runner(1, 3, 0, []), environ={}) == 1
+@pytest.mark.parametrize("env", ["beta", "gamma", "prod"])
+def test_a_stage_suite_that_executes_nothing_fails_PIPE_05(env: str) -> None:
+    """Every environment suite must execute at least one test (the beta/gamma false-pass incident)."""
+    assert stage_runner.tests_action(env, run=_runner(0, 1, 1, []), environ={}) == 1  # all skipped
+    assert stage_runner.tests_action(env, run=_runner(5, 0, 0, []), environ={}) == 1  # nothing collected
+    assert stage_runner.tests_action(env, run=_runner(0, 0, 0, []), environ={}) == 1
+    assert stage_runner.tests_action(env, run=_runner(1, 3, 0, []), environ={}) == 1  # failures always fail
+    assert stage_runner.tests_action(env, run=_runner(0, 4, 1, []), environ={}) == 0
 
 
 def test_downloaded_content_hash_matches(double: ApiApp) -> None:

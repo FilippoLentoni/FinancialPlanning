@@ -13,9 +13,11 @@ checkout, never ``cdk synth``):
     The environment suite: ``integration-beta`` (beta) and ``gamma`` (gamma) run
     ``tests/integration``; ``smoke`` (prod) runs ``tests/smoke``. ``FINPLAN_TARGET_ENV`` and
     ``FINPLAN_SUITE`` tell the tests where they run; the opt-in live-provider test is always
-    excluded (``-m "not live_provider"``). The smoke suite must execute at least one test (a smoke
-    stage that skipped everything fails). The integration suites are tasks 11.1-11.3 (blocked by
-    the bootstrap); until they exist the stage reports that it ran zero tests.
+    excluded (``-m "not live_provider"``). Every suite must execute at least one test: a stage
+    whose suite collected nothing or skipped everything FAILS. (The first pipeline run passed beta
+    and gamma with zero executed tests because ``tests/integration`` then held only the excluded
+    live-provider test; see docs/pipeline.md "False pass in beta and gamma".) The integration
+    suites are ``tests/integration/test_deployed_environment.py`` (tasks 11.1-11.3).
 """
 
 from __future__ import annotations
@@ -40,8 +42,8 @@ __all__ = ["SUITES", "main", "publish_action", "suite_counts", "tests_action"]
 
 SUITES: dict[str, tuple[str, list[str], bool]] = {
     # env -> (suite name, pytest paths, must execute at least one test)
-    "beta": ("integration-beta", ["tests/integration"], False),
-    "gamma": ("gamma", ["tests/integration"], False),
+    "beta": ("integration-beta", ["tests/integration"], True),
+    "gamma": ("gamma", ["tests/integration"], True),
     "prod": ("smoke", ["tests/smoke"], True),
 }
 
@@ -77,11 +79,11 @@ def tests_action(env: str, *, root: Path = ROOT, release_id: str | None = None, 
         rc = int(getattr(proc, "returncode", 1))
         counts = suite_counts(junit) if junit.is_file() else {"tests": 0, "executed": 0, "failures": 0, "errors": 0, "skipped": 0}
     print(f"{suite}: {counts}")
-    if rc == 5 or counts["executed"] == 0:  # pytest 5 = nothing collected
+    if rc == 5 or counts["executed"] < 1:  # pytest 5 = nothing collected
         if must_execute:
-            print(f"FAIL: the {suite} suite executed no test", file=sys.stderr)
+            print(f"FAIL: the {suite} suite executed no test (a stage with zero executed tests is a false pass)", file=sys.stderr)
             return 1
-        print(f"NOTE: the {suite} suite executed no test yet (environment suites are tasks 11.1-11.3)")
+        print(f"NOTE: the {suite} suite executed no test")
         return 0
     return 0 if rc == 0 else 1
 

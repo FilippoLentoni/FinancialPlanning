@@ -111,17 +111,17 @@
 
 ## 11. Environment integration checks (after bootstrap)
 
-- [ ] 11.1 Beta integration suite against deployed beta resources (BLOCKED by 10.6):
-  - create, override, validate, publish and paper-execute;
-  - concurrent overrides;
-  - duplicate requests;
-  - scheduled and on-demand ingestion via the fixture provider;
-  - staged-output fixtures (valid, partial, failed, infeasible);
-  - Excel round trip.
+- [ ] 11.1 Beta integration suite against deployed beta resources. It runs in the pipeline: the beta stage's tests action (`scripts/stage_runner.py tests --env beta`, suite `integration-beta`) runs `tests/integration/test_deployed_environment.py` as the stage role `finplan-beta-financialplanning-operator-pipeline-stage`. It calls the plan API with SigV4 at the endpoint in `/finplan/beta/financialplanning/api/plan-endpoint` (`tests/smoke/transport.py`). It is never run with write routes from a workstation. The stage fails if fewer than one test executes. The suite covers:
+  - create, override, validate, publish and paper-execute (implemented: `tests/integration/lifecycle_suite.py`, on a fresh synthetic portfolio and plan per run with run-unique idempotency keys; root version on a fixture snapshot from `POST /v1/ingestions`, a `no_effect` override, read-back `plan_version_id` and checksum equal to the direct read and the downloaded bytes, `OPERATION_NOT_PERMITTED` for a live execution);
+  - concurrent overrides (implemented: exactly one of two overrides on one revision commits; a stale `expected_revision` gets `CONFLICT`);
+  - duplicate requests (implemented: retries of version create, validate, publish and execution replay the original; key reuse with another body gets `IDEMPOTENCY_KEY_REUSED`);
+  - scheduled and on-demand ingestion via the fixture provider (on-demand implemented; scheduled pending);
+  - staged-output fixtures (valid, partial, failed, infeasible) (pending);
+  - Excel round trip (pending).
 
-  Verify that every integration-beta row in the mapping table passes.
-- [ ] 11.2 Website versus agent equivalence in beta and gamma: the website-path role and the tool-role stand-in read the same version. Verify API-01 (identical `plan_version_id`, checksum and bytes).
-- [ ] 11.3 Gamma isolation and production-like suite: gamma roles are denied prod buckets, tables and API, and the full lifecycle runs on gamma. Verify the gamma rows plus contract ENV-03.
+  The implemented checks are proven offline against the deployment double (`tests/unit/ops/test_integration_double.py`). Verify that every integration-beta row in the mapping table passes in the pipeline's beta stage.
+- [ ] 11.2 Website versus agent equivalence in beta and gamma: the website-path role and the tool-role stand-in read the same version. This runs in the pipeline's beta and gamma stages. The stage-role read-back (identical `plan_version_id` and checksum between the create response, the direct read, the version list and the download) is implemented in the lifecycle suite. The second principal (website-path role, tool-role stand-in) is pending. Verify API-01 (identical `plan_version_id`, checksum and bytes).
+- [ ] 11.3 Gamma isolation and production-like suite. This runs in the pipeline: the gamma stage's tests action (suite `gamma`) runs the same lifecycle suite as the gamma stage role, plus the isolation checks. The gamma role must be denied the prod SSM segment (and so the prod API endpoint), the prod tables and the prod buckets. Direct calls to the prod API by gamma principals are covered by the resource-policy simulation, because the gamma role cannot discover the prod endpoint. Verify the gamma rows plus contract ENV-03 in the pipeline's gamma stage.
 - [ ] 11.4 Rollback drill in gamma (redeploy previous `release_id`, read records written by the newer release). Verify PIPE-06 and contract ENV-11.
 - [ ] 11.5 After prod approval, run smoke and confirm digest equality across environments. Verify PIPE-03 and PIPE-05, and contract ENV-10.
 

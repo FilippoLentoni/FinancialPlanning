@@ -1,10 +1,12 @@
 """Shared, offline test fixtures (FOUNDATION-owned; other suites build on these).
 
-Guarantees for every test:
+Guarantees for every offline test (``tests/unit``, ``tests/contract``; see ``tests/offline_env.py``):
 
 * no real AWS credentials or endpoints are reachable: fake credentials are forced, the
   instance metadata service is disabled and ``AWS_PROFILE`` is removed, so an
-  accidental un-mocked boto3 call fails instead of reaching an account;
+  accidental un-mocked boto3 call fails instead of reaching an account. The deployed suites
+  (``tests/integration``, ``tests/smoke``, run by ``scripts/stage_runner.py`` with
+  ``FINPLAN_TARGET_ENV`` set) keep the stage role's real credentials;
 * time comes from :class:`FrozenClock` (``clock`` fixture);
 * metadata tests run against the in-memory fake (``ddb``), and the ``ddb_any``
   fixture parametrizes a test over the fake AND moto, proving the fake matches the
@@ -19,22 +21,19 @@ Fixtures: ``clock``, ``ctx``, ``ctx_factory``, ``ddb``, ``ddb_any``, ``repo``,
 
 from __future__ import annotations
 
-import os
 import socket
 from typing import Any, Callable, Iterator
 
 import pytest
 
 # ---------------------------------------------------------------- hermetic AWS environment
-for _var in ("AWS_PROFILE", "AWS_SESSION_TOKEN", "AWS_SECURITY_TOKEN", "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "AWS_CONTAINER_CREDENTIALS_FULL_URI", "AWS_WEB_IDENTITY_TOKEN_FILE", "AWS_ROLE_ARN"):
-    os.environ.pop(_var, None)
-os.environ["AWS_ACCESS_KEY_ID"] = "testing-fake-key"
-os.environ["AWS_SECRET_ACCESS_KEY"] = "testing-fake-secret"
-os.environ["AWS_DEFAULT_REGION"] = "us-east-2"
-os.environ["AWS_REGION"] = "us-east-2"
-os.environ["AWS_EC2_METADATA_DISABLED"] = "true"
-os.environ["AWS_CONFIG_FILE"] = os.devnull
-os.environ["AWS_SHARED_CREDENTIALS_FILE"] = os.devnull
+# Offline suites get fake credentials and no metadata service (tests/offline_env.py). A deployed
+# suite started by scripts/stage_runner.py (FINPLAN_TARGET_ENV set) keeps the stage role's real
+# credentials; tests/unit and tests/contract apply the offline environment again unconditionally.
+from tests.offline_env import apply_offline_environment, deployed_suite_mode  # noqa: E402
+
+if not deployed_suite_mode():
+    apply_offline_environment()
 
 from moto import mock_aws  # noqa: E402
 
