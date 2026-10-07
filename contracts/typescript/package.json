@@ -1,6 +1,6 @@
 {
   "name": "@finplan/contracts",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "FinancialPlanning cross-repo contract package: JSON Schemas, synthetic fixtures, validators, RFC 8785 identifiers and the conformance runner (TypeScript).",
   "private": false,
   "type": "module",

@@ -244,6 +244,14 @@ The platform change verified its synthesized templates against contracts 0.1.0. 
   - The direct-test principal for FinanceLambdasTool is the project owner only, one per environment, referenced through SSM.
   - Both are registered in the SSM convention (D4).
 
+### D14. Dead deny entries and pipeline log groups (contracts 0.2.1, 2026-10-07)
+
+A patch release before the first bootstrap; no schema changes.
+
+- **Live-financial deny list.** The `bedrock-agentcore-control:*` entries are removed. The AWS Service Authorization Reference documents one IAM service prefix for Amazon Bedrock AgentCore, `bedrock-agentcore`, covering its control-plane and data-plane APIs; `bedrock-agentcore-control` is an SDK client name, so those entries matched no action. The `bedrock-agentcore:*Payment*`, `*Wallet*` and `*Funds*` entries keep the coverage. Rejected: keeping the dead entries "for safety", because a deny that names no action protects nothing and suggests coverage that does not exist.
+- **Budget enforcement deny list.** `bedrock:Converse*` is removed: no IAM action has that name. Converse and ConverseStream are authorized by `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`, both denied by `bedrock:InvokeModel*`.
+- **Ownership matrix.** The `pipeline-financialplanning` row lists `AWS::Logs::LogGroup` for the explicit 30-day CodeBuild project log groups (tagged `pipeline-build-project`). A named log group references no template resource, so it cannot be parent-attributed; the budget-state writer's log group already matches the `project-budget` row. The checker is not relaxed.
+
 ## Risks / Trade-offs
 
 - [Single account (decided) has a weaker blast-radius boundary than multi-account] → naming, env tags, IAM permission boundaries with env-tag denies, separate per-env resources and the gamma isolation test suite. Multi-account remains a possible future migration that changes configuration only.

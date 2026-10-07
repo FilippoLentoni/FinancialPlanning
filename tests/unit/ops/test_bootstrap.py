@@ -229,6 +229,27 @@ def test_bootstrap_assembly_contains_no_environment_stack(ops_assembly: Path, tm
         assert all(d in manifest["artifacts"] for d in art.get("dependencies", []))
 
 
+def test_bootstrap_assembly_needs_no_cdk_toolkit_roles(ops_assembly: Path, tmp_path: Path) -> None:
+    # Regression: the store stack once carried the default cdk-hnb659fds role ARNs, so the first
+    # bootstrap failed in an account without the CDKToolkit stack.
+    out = bootstrap.bootstrap_assembly(ops_assembly, tmp_path / "b")
+    manifest = json.loads((out / "manifest.json").read_text())
+    stacks = [a for a in manifest["artifacts"].values() if a.get("type") == "aws:cloudformation:stack"]
+    assert stacks
+    for art in stacks:
+        props = art.get("properties", {})
+        for key in ("assumeRoleArn", "cloudFormationExecutionRoleArn", "lookupRole", "requiresBootstrapStackVersion"):
+            assert not props.get(key), (art, key)
+    assert "cdk-hnb659fds" not in json.dumps(manifest)
+    # nothing may be staged in a CDK asset bucket: only the tooling template, in the pipeline store
+    for path in out.glob("*.assets.json"):
+        for asset in json.loads(path.read_text())["files"].values():
+            for dest in asset["destinations"].values():
+                assert dest["bucketName"].startswith("finplan-shared-financialplanning-pipeline-store-"), (path.name, dest)
+    store = manifest["artifacts"]["PipelineStore"]["properties"]
+    assert not store.get("stackTemplateAssetObjectUrl")
+
+
 # ------------------------------------------------------------------ COST-06
 def test_default_allocation_written_when_absent_COST_06(ssm: Any) -> None:
     res = bootstrap.ensure_budget_allocation(ssm, 50.0)

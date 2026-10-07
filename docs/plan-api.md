@@ -9,7 +9,7 @@ routes; no client writes plan state any other way.
   `platform/finplan_platform/core/{plans,versions,validation,publication,execution,upgrade,contract_io,snapshot_reads}.py`;
   stack in `infra/stacks/api.py`.
 - **Tests:** `tests/unit/test_api_*.py` and `tests/contract/test_api_contract.py` (all offline).
-- **Contract package:** `finplan-contracts` pinned at **0.2.0** (a 0.x pre-release, beta only;
+- **Contract package:** `finplan-contracts` pinned at **0.2.1** (a 0.x pre-release, beta only;
   see `contracts-pin.json`). The served contract major is therefore `0` until 1.0.0 is published
   and pinned.
 
@@ -253,7 +253,7 @@ Create a synthetic portfolio (`POST /v1/portfolios`):
   "synthetic": true,
   "revision": 1,
   "created_at": "2026-01-12T14:30:00Z",
-  "contract_version": "0.2.0"
+  "contract_version": "0.2.1"
 }
 ```
 
@@ -284,7 +284,7 @@ revision, the `expected_revision` of the first publish) and the portfolio's new 
   "synthetic": true,
   "publication_revision": 1,
   "portfolio_revision": 2,
-  "contract_version": "0.2.0"
+  "contract_version": "0.2.1"
 }
 ```
 
@@ -333,7 +333,7 @@ Create a root version (`POST /v1/plans/pl_01KES9T7J0ABJ4V9ZJ6W6SW9K7/versions`):
     "domain": "finance",
     "synthetic": true
   },
-  "contract_version": "0.2.0",
+  "contract_version": "0.2.1",
   "synthetic": true
 }
 ```
@@ -371,7 +371,7 @@ key (`POST /v1/plans/pl_01KES9T7J0ABJ4V9ZJ6W6SW9K7/versions`):
   "checksum": "sha256:0e15cc2242b8ae44106be5c7754a24ea2e3fdbea235b4c7807a0026432cbeace",
   "no_effect": false,
   "revision": 3,
-  "contract_version": "0.2.0",
+  "contract_version": "0.2.1",
   "synthetic": true
 }
 ```
@@ -424,7 +424,7 @@ Publish the validated root (`POST /v1/plans/pl_01KES9T7J0ABJ4V9ZJ6W6SW9K7/public
   "supersedes_publication_id": null,
   "published_at": "2026-01-12T14:30:00Z",
   "publication_revision": 2,
-  "contract_version": "0.2.0",
+  "contract_version": "0.2.1",
   "synthetic": true
 }
 ```
@@ -447,7 +447,7 @@ Record a paper execution (`POST /v1/publications/pub_01KES9T7J0ABJ4V9ZJ6W6SW9KM/
   "status": "recorded",
   "publication_superseded": false,
   "requested_at": "2026-01-12T14:30:00Z",
-  "contract_version": "0.2.0",
+  "contract_version": "0.2.1",
   "synthetic": true
 }
 ```
@@ -465,7 +465,7 @@ Plan head as a tool `reader` sees it (`GET /v1/plans/pl_01KES9T7J0ABJ4V9ZJ6W6SW9
     "current_publication_id": "pub_01KES9T7J0ABJ4V9ZJ6W6SW9KM",
     "publication_revision": 2,
     "created_at": "2026-01-12T14:30:00Z",
-    "contract_version": "0.2.0",
+    "contract_version": "0.2.1",
     "synthetic": true
   },
   "current_publication": {
@@ -476,7 +476,7 @@ Plan head as a tool `reader` sees it (`GET /v1/plans/pl_01KES9T7J0ABJ4V9ZJ6W6SW9
     "plan_version_status": "validated",
     "supersedes_publication_id": null,
     "published_at": "2026-01-12T14:30:00Z",
-    "contract_version": "0.2.0",
+    "contract_version": "0.2.1",
     "synthetic": true
   },
   "synthetic": true
@@ -527,7 +527,7 @@ The snapshot covers 2026-01-02 to 2026-01-09, so 2026-01-10 to 2026-01-13 is rep
       {"artifact_id": "art_01KES9T7J0GRHJS1P0A0T03EHZ", "owner": "financialplanning", "kind": "snapshot_payload", "checksum": "sha256:36591fde97d80e8bab8ac81bf3278449aa1b111f79cbb009bf7b7397fe59dd8e", "content_type": "application/json", "size_bytes": 712, "synthetic": true}
     ],
     "created_at": "2026-01-12T14:30:00Z",
-    "contract_version": "0.2.0",
+    "contract_version": "0.2.1",
     "synthetic": true
   },
   "observation_kinds": ["completed_daily"],
@@ -557,7 +557,7 @@ Error envelopes:
   "retryable": false,
   "details": {"pointer": "/input_snapshot_id", "field": "input_snapshot_id"},
   "correlation_id": "cor_docexample0001",
-  "contract_version": "0.2.0"
+  "contract_version": "0.2.1"
 }
 ```
 
@@ -569,7 +569,7 @@ Error envelopes:
   "retryable": false,
   "details": {"record_type": "plan", "expected_revision": 1, "current_revision": 2},
   "correlation_id": "cor_docexample0001",
-  "contract_version": "0.2.0"
+  "contract_version": "0.2.1"
 }
 ```
 
@@ -581,7 +581,7 @@ Error envelopes:
   "retryable": false,
   "details": {"served_contract_majors": [0], "declared_contract_version": "2.0.0"},
   "correlation_id": "cor_docexample0001",
-  "contract_version": "0.2.0"
+  "contract_version": "0.2.1"
 }
 ```
 
@@ -593,7 +593,7 @@ Error envelopes:
   "retryable": false,
   "details": {"pointer": "/mode", "field": "mode"},
   "correlation_id": "cor_docexample0001",
-  "contract_version": "0.2.0"
+  "contract_version": "0.2.1"
 }
 ```
 

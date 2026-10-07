@@ -125,9 +125,11 @@ LIVE_FINANCIAL_DENY_ACTIONS: list[str] = [
     "bedrock-agentcore:*Payment*",
     "bedrock-agentcore:*Wallet*",
     "bedrock-agentcore:*Funds*",
-    "bedrock-agentcore-control:*Payment*",
-    "bedrock-agentcore-control:*Wallet*",
-    "bedrock-agentcore-control:*Funds*",
+    # 0.2.1: the former ``bedrock-agentcore-control:*`` entries were removed. The AWS Service
+    # Authorization Reference documents one IAM prefix for Amazon Bedrock AgentCore,
+    # ``bedrock-agentcore``, covering both its control-plane and data-plane APIs; the
+    # ``bedrock-agentcore-control`` name is the SDK client name, not an IAM service prefix, so those
+    # entries matched no action. The ``bedrock-agentcore:`` entries above already cover them.
 ]
 #: Secret names that would hold live-financial credentials (brokerage, trading, exchanges such as Coinbase, wallets, payments).
 LIVE_FINANCIAL_SECRET_PATTERNS: list[str] = [

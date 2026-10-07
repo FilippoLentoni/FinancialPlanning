@@ -14,7 +14,7 @@ Rules implemented here:
   lack filled with read-time defaults (:data:`READ_DEFAULTS`). The stored item and its
   checksum are never touched; a record under an unserved major is refused.
 
-The 0.x caveat: the pinned package is 0.2.0 (a 0.x pre-release, beta only), so the served
+The 0.x caveat: the pinned package is 0.2.1 (a 0.x pre-release, beta only), so the served
 major is ``0`` until contracts 1.0.0 is published and pinned. Within 0.x a minor may break, so the platform pins the
 exact version and treats the major as the compatibility unit, exactly as for 1.x.
 """

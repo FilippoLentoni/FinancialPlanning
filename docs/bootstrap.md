@@ -25,8 +25,8 @@ Exactly two account-level stacks (environment `shared`), and never an environmen
 
 | Stack | Contents |
 |---|---|
-| `finplan-shared-financialplanning-pipeline-store` | The pipeline store bucket `finplan-shared-financialplanning-pipeline-store-<account-id>` (SSE-S3, TLS only, Block Public Access, versioned). It holds the pipeline artifacts, the content-addressed CDK file assets (`assets/`), the release ledger (`releases/`) and the staged tooling template (`bootstrap/`) |
-| `finplan-shared-financialplanning-tooling` | Permission boundaries (`finplan-<env>-permission-boundary`, `finplan-<env>-research-permission-boundary` for beta, gamma and prod, and `finplan-shared-permission-boundary`); the project budget, its alerts and the SNS topic; the deny policy and the budget action; the budget-state writer Lambda; the pipeline with its scoped roles and CodeBuild projects |
+| `finplan-shared-financialplanning-pipeline-store` | The pipeline store bucket `finplan-shared-financialplanning-pipeline-store-<account-id>` (SSE-S3, TLS only, Block Public Access, versioned). It holds the pipeline artifacts, the content-addressed CDK file assets (`assets/`), the release ledger (`releases/`) and the staged tooling template (`bootstrap/`). Lifecycle: pipeline artifacts, `assets/` and `bootstrap/` expire after 30 days, the build cache (`cache/`) after 14, noncurrent versions after 7, and incomplete multipart uploads are aborted after 7; `releases/` never expires. The bucket is **retained** when the stack is deleted (see [Teardown](#teardown)) |
+| `finplan-shared-financialplanning-tooling` | Permission boundaries (`finplan-<env>-permission-boundary`, `finplan-<env>-research-permission-boundary` for beta, gamma and prod, and `finplan-shared-permission-boundary`); the project budget, its alerts and the SNS topic; the deny policy and the budget action; the budget-state writer Lambda; the pipeline with its scoped roles and CodeBuild projects. The writer and the four CodeBuild projects (build, and one stage project per environment) log to explicit log groups (`/aws/lambda/<function>`, `/aws/codebuild/<project>`) with 30-day retention, deleted with the stack |
 
 Scoped roles created. The account-level roles carry `environment=shared` and
 `finplan-shared-permission-boundary`; the per-environment deploy, execution and stage roles carry
@@ -83,7 +83,7 @@ using the operator's own credentials.
 uv run python scripts/synth.py --out cdk.out
 
 # 2. bootstrap (interactive; this is task 10.6)
-uv run python scripts/bootstrap.py --assembly cdk.out
+AWS_REGION=us-east-2 uv run --with "botocore[crt]" python scripts/bootstrap.py --assembly cdk.out   # botocore[crt] reads `aws login` sessions
 ```
 
 `scripts/bootstrap.py` drives the contract sequence
@@ -125,6 +125,40 @@ the dry run has fetched `main`, the pipeline exists and its first run reaches be
   any redeploy. Automation cannot detach the policy, because every permission boundary denies it.
 - **Pipeline changes** (the tooling stack itself) are deployed only by rerunning the bootstrap.
   The pipeline never updates itself.
+
+## Teardown
+
+Only when the whole project is retired. Delete the environment stacks first (beta and gamma
+through CloudFormation; prod buckets and tables are retained by design), then the two
+account-level stacks, newest first. Both carry termination protection. Run these from an
+authenticated CLI session; `<account-id>` and `<region>` come from your local untracked
+configuration and are never committed.
+
+```bash
+for stack in finplan-shared-financialplanning-tooling finplan-shared-financialplanning-pipeline-store; do
+  aws cloudformation update-termination-protection --region <region> --stack-name "$stack" --no-enable-termination-protection
+  aws cloudformation delete-stack --region <region> --stack-name "$stack"
+  aws cloudformation wait stack-delete-complete --region <region> --stack-name "$stack"
+done
+```
+
+Deleting the tooling stack also deletes its log groups (`RemovalPolicy.DESTROY`). The pipeline
+store bucket has `DeletionPolicy: Retain`: deleting its stack leaves the bucket and every object
+version in place, because it holds the release ledger (`releases/`). To remove it, first keep
+any release records you still need, then delete **every object version and delete marker** (the
+bucket is versioned, so `aws s3 rm --recursive` alone leaves noncurrent versions behind) and
+finally the bucket:
+
+```bash
+BUCKET=finplan-shared-financialplanning-pipeline-store-<account-id>
+uv run python -c "import boto3, sys; boto3.resource('s3').Bucket(sys.argv[1]).object_versions.delete()" "$BUCKET"
+aws s3api list-object-versions --bucket "$BUCKET" --max-items 1   # expect no Versions and no DeleteMarkers
+aws s3api delete-bucket --region <region> --bucket "$BUCKET"
+```
+
+If the store is deleted while the tooling stack still exists, the pipeline has nowhere to write
+artifacts and the next bootstrap cannot stage the tooling template; rerun the bootstrap, which
+recreates the store stack first.
 
 ## Tests (no AWS)
 

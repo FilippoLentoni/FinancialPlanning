@@ -125,6 +125,12 @@ Scope: deliverables that FinancialPlanning owns for the cross-repo contract base
 - [x] 15.5 Bump `contracts/VERSION` to 0.2.0. Verify that the compatibility gate against the 0.1.0 wheel lists only additive and annotation changes, apart from the documented 0.x-exempt change in `tools/refresh-market-data-response`. Verify that it passes with `--allow-zero-major-breaking` and that two digest builds are identical (CS-03, CS-04).
 - [x] 15.6 Record D13 in the design, specs and `contracts/README.md`. Verify `openspec validate establish-cross-repo-contracts --strict` and the leak scan.
 
+## 16. Dead deny entries and pipeline log groups (contracts 0.2.1, design D14)
+
+- [x] 16.1 Remove the `bedrock-agentcore-control:*` entries from the live-financial deny list (no such IAM prefix; `bedrock-agentcore` covers AgentCore control and data planes) and `bedrock:Converse*` from the budget enforcement deny list (Converse is authorized by `bedrock:InvokeModel*`); regenerate `contracts/templates/` and the infra test data. Verify the contracts pytest, ENV-05 live-permission tests and that no generated template names either prefix.
+- [x] 16.2 Add `AWS::Logs::LogGroup` to the `pipeline-financialplanning` matrix row for the explicit CodeBuild project log groups. Verify `finplan-conformance ownership-check` reports zero problems on the platform's synthesized templates (OWN-01, OWN-09, ENV-16).
+- [x] 16.3 Bump `contracts/VERSION` to 0.2.1 (patch). Verify the compatibility gate against the 0.2.0 schema tarball passes as a patch, Python and TypeScript producer conformance pass, `npm test` passes, and record D14 in `contracts/README.md` (CS-03, CS-10).
+
 ## Requirement-to-test mapping
 
 Test types: unit, contract (schema/conformance with fixtures), integration-beta, gamma, smoke. "Runs in" names the repo whose pipeline executes the test. Tests outside FinancialPlanning use tooling shipped in the contract package.

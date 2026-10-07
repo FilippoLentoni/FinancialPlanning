@@ -24,7 +24,6 @@
           "codebuild:StartBuildBatch",
           "codebuild:RetryBuild",
           "bedrock:InvokeModel*",
-          "bedrock:Converse*",
           "bedrock:InvokeAgent",
           "bedrock-agentcore:InvokeAgentRuntime",
           "ec2:RunInstances",

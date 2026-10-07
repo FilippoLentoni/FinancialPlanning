@@ -40,6 +40,9 @@ role), ``deploy-role-<env>-exec`` (CloudFormation execution role, scoped to
 ``finplan-<env>-financialplanning-operator-pipeline-stage`` that publishes the manifest and runs
 the tests (it matches the environment's configured operator principal, so the plan API admits it).
 
+Each of the four CodeBuild projects (build plus one stage project per environment) logs to an
+explicit ``/aws/codebuild/<project>`` log group with 30-day retention, deleted with the stack.
+
 The check :func:`finplan_contracts.pipeline_check.check_pipeline_template` (ENV-09) runs on the
 synthesized template in the unit suite and in the build stage.
 """
@@ -67,6 +70,7 @@ from .tooling import (
     RELEASES_PREFIX,
     REPO,
     ToolingStack,
+    add_log_group,
     get_tooling_stack,
     pipeline_store_bucket_name,
     shared_name,
@@ -314,6 +318,17 @@ def _scope_to_environment(scope: ToolingStack, role: iam.Role, env: str) -> None
     iam.PermissionsBoundary.of(role).apply(boundary)
 
 
+def _project_logging(scope: ToolingStack, cid: str, project_name: str) -> codebuild.LoggingOptions:
+    """CloudWatch logging of a CodeBuild project into its explicit ``/aws/codebuild/<project>`` group (30 days, DESTROY).
+
+    The name is the CodeBuild default, so the project role's log grant and the environment
+    boundaries see the same ARN as before; the group is attributed to the pipeline row by its
+    ``pipeline-build-project`` logical role.
+    """
+    group = add_log_group(scope, cid, f"/aws/codebuild/{project_name}", "pipeline-build-project")
+    return codebuild.LoggingOptions(cloud_watch=codebuild.CloudWatchLoggingOptions(log_group=group))
+
+
 def add_pipeline(tooling: ToolingStack, stages: Mapping[str, Any], shared: Mapping[str, Any]) -> PipelineResources:
     res = PipelineResources(tooling)
     st = tooling
@@ -335,16 +350,18 @@ def add_pipeline(tooling: ToolingStack, stages: Mapping[str, Any], shared: Mappi
     # ------------------------------------------------------------ projects
     env_common = {"FINPLAN_PIPELINE_STORE": codebuild.BuildEnvironmentVariable(value=store.bucket_name)}
     build_env = codebuild.BuildEnvironment(build_image=codebuild.LinuxArmBuildImage.AMAZON_LINUX_2023_STANDARD_3_0, compute_type=codebuild.ComputeType.SMALL, privileged=False)
+    build_project_name = shared_name("pipeline-build-project")
     build_project = codebuild.PipelineProject(
         st,
         "BuildProject",
-        project_name=shared_name("pipeline-build-project"),
+        project_name=build_project_name,
         role=build_role,
         environment=build_env,
         environment_variables=env_common,
         build_spec=codebuild.BuildSpec.from_object(build_spec()),
         timeout=Duration.minutes(30),
         cache=codebuild.Cache.local(codebuild.LocalCacheMode.CUSTOM),
+        logging=_project_logging(st, "BuildProjectLogGroup", build_project_name),
         description="Build stage: gates, cdk synth, assets, digest, release_id",
     )
     tag_role(build_project, "pipeline-build-project")
@@ -422,16 +439,18 @@ def _add_env_stage(res: PipelineResources, env: str, ctx: Any, build_output: cod
         _scope_to_environment(st, role, env)
     res.roles.update({f"deploy-{env}": deploy_role, f"exec-{env}": exec_role, f"stage-{env}": stage_role})
 
+    project_name = shared_name("pipeline-build-project", f"{env}-stage")
     project = codebuild.PipelineProject(
         st,
         f"StageProject{cap}",
-        project_name=shared_name("pipeline-build-project", f"{env}-stage"),
+        project_name=project_name,
         role=stage_role,
         environment=build_env,
         environment_variables={**env_common, "FINPLAN_ENV": codebuild.BuildEnvironmentVariable(value=env)},
         build_spec=codebuild.BuildSpec.from_object(stage_spec()),
         timeout=Duration.minutes(30),
         cache=codebuild.Cache.local(codebuild.LocalCacheMode.CUSTOM),
+        logging=_project_logging(st, f"StageProject{cap}LogGroup", project_name),
         description=f"{env}: publish the release manifest and run the {ENV_SUITES[env]} suite",
     )
     tag_role(project, "pipeline-build-project")

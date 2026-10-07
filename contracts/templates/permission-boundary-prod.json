@@ -149,10 +149,7 @@
                 "crypto-exchange:*",
                 "bedrock-agentcore:*Payment*",
                 "bedrock-agentcore:*Wallet*",
-                "bedrock-agentcore:*Funds*",
-                "bedrock-agentcore-control:*Payment*",
-                "bedrock-agentcore-control:*Wallet*",
-                "bedrock-agentcore-control:*Funds*"
+                "bedrock-agentcore:*Funds*"
               ],
               "Resource": "*"
             },

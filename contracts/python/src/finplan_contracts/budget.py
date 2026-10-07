@@ -101,8 +101,9 @@ ENFORCED_DENY_ACTIONS: list[str] = [
     "codebuild:StartBuild",
     "codebuild:StartBuildBatch",
     "codebuild:RetryBuild",
+    # Covers InvokeModel and InvokeModelWithResponseStream, which also authorize the Converse and
+    # ConverseStream APIs. 0.2.1 removed ``bedrock:Converse*``: no IAM action has that name.
     "bedrock:InvokeModel*",
-    "bedrock:Converse*",
     "bedrock:InvokeAgent",
     "bedrock-agentcore:InvokeAgentRuntime",
     "ec2:RunInstances",

@@ -216,10 +216,15 @@ Contracts 0.2.0 (design D13) resolved the gaps this change first recorded:
    with the partition, region and account pseudo parameters (CloudFormation `Fn::Sub`). cfn-lint
    no longer reports `E3510`.
 
+Contracts 0.2.1 (design D14) adds the `AWS::Logs::LogGroup` type to the FinancialPlanning
+pipeline row, for the explicit 30-day log groups of the four CodeBuild projects (the
+budget-state writer's group already matches the budget row), and drops two deny entries that
+named no IAM action (`bedrock-agentcore-control:*`, `bedrock:Converse*`).
+
 Still open:
 
 - **Image assets.** There is no FinancialPlanning image-repository row.
-- **Contracts version.** The pin is 0.2.0, which is beta-only. Gamma and prod need 1.0.0 once it
+- **Contracts version.** The pin is 0.2.1, which is beta-only. Gamma and prod need 1.0.0 once it
   is published (task 1.2).
 
 ### CloudFormation lint
@@ -229,9 +234,12 @@ assemblies) reports no errors. The remaining warnings were reviewed and none ind
 failure:
 
 - `W3005`: an explicit `DependsOn` that a `Ref`/`GetAtt` already implies (CDK-generated).
-- `W3037`: action names cfn-lint does not know in the contract's deny lists (the live-financial
-  deny of every boundary and `bedrock:Converse*` in the budget deny policy). IAM accepts unknown
-  actions in a policy; a deny on an action that does not exist has no effect.
+- `W3037`: action names cfn-lint does not know in the live-financial deny of every boundary
+  (speculative prefixes such as `brokerage:*` or `wallet:*`, and `bedrock-agentcore:*Wallet*` and
+  `*Funds*`, which match no current AgentCore action). IAM accepts unknown actions in a policy; a
+  deny on an action that does not exist has no effect. Contracts 0.2.1 removed the two entries
+  that could never match (`bedrock-agentcore-control:*`, not an IAM prefix, and
+  `bedrock:Converse*`, not an IAM action).
 
 ## Interfaces for other modules
 

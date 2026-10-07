@@ -31,8 +31,9 @@ and the design differ, the design wins.
 8. [Round 2 user decisions (D12)](#round-2-user-decisions-d12) (task 14.2)
 9. [Planned phase 2 contract minors and OQ-12](#planned-phase-2-contract-minors-and-oq-12) (task 12.5)
 10. [Contracts 0.2.0: platform verification fixes (D13)](#contracts-020-platform-verification-fixes-d13) (tasks 15.x)
-11. [Open-questions register](#open-questions-register) (task 10.4)
-12. Procedures in [`docs/`](docs/):
+11. [Contracts 0.2.1: dead deny entries and pipeline log groups (D14)](#contracts-021-dead-deny-entries-and-pipeline-log-groups-d14) (tasks 16.x)
+12. [Open-questions register](#open-questions-register) (task 10.4)
+13. Procedures in [`docs/`](docs/):
     - [Local, credential-free testing with fixtures](docs/local-testing.md) (task 6.6)
     - [Consumer pinning and the 0.x beta-only rule](docs/consumer-pinning.md) (task 7.4)
     - [Pipeline standard](docs/pipeline-standard.md) (task 10.1)
@@ -638,6 +639,26 @@ was published to the registry.
   passes with `--allow-zero-major-breaking`, the semver initial-development rule for 0.x. It
   reports this schema's two entries as its only breaking changes. Such a change after 1.0.0 would
   need a new major.
+
+## Contracts 0.2.1: dead deny entries and pipeline log groups (D14)
+
+A patch release before the first bootstrap. No schema changes; the compatibility gate against
+0.2.0 passes as a patch.
+
+- **Live-financial deny list.** The `bedrock-agentcore-control:*Payment*`, `*Wallet*` and
+  `*Funds*` entries are removed. The AWS Service Authorization Reference documents one IAM service
+  prefix for Amazon Bedrock AgentCore, `bedrock-agentcore`, which covers its control-plane and
+  data-plane APIs. `bedrock-agentcore-control` is an SDK client name, not an IAM prefix, so those
+  entries matched no action. The existing `bedrock-agentcore:*Payment*`, `*Wallet*` and `*Funds*`
+  entries keep the same coverage. Every permission boundary and `templates/live-financial-deny.json`
+  are regenerated.
+- **Budget enforcement deny list.** `bedrock:Converse*` is removed: no IAM action has that name.
+  The Converse and ConverseStream APIs are authorized by `bedrock:InvokeModel` and
+  `bedrock:InvokeModelWithResponseStream`, which `bedrock:InvokeModel*` already denies.
+- **Ownership matrix.** The `pipeline-financialplanning` row lists `AWS::Logs::LogGroup`: the
+  explicit 30-day log groups of the FinancialPlanning CodeBuild projects, tagged with the
+  `pipeline-build-project` logical role. A named log group references no template resource, so it
+  cannot be a parent-attributed helper. The checker is not relaxed.
 
 ## Open-questions register
 

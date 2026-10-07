@@ -511,14 +511,17 @@ resources:
   # ------------------------------------------------------------------ Per-repository pipelines
   - id: pipeline-financialplanning
     resource: >-
-      FinancialPlanning CodePipeline, CodeBuild projects, pipeline artifact bucket and its policy, and the
+      FinancialPlanning CodePipeline, CodeBuild projects and their log groups, pipeline artifact bucket and its policy, and the
       account-level pipeline, build and deploy roles (tagged environment shared, shared boundary)
     owner: financialplanning
     consumers: []
     reference: n/a
     scope: shared
     environment_data: false
-    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role]
+    # AWS::Logs::LogGroup (0.2.1): the explicit 30-day CodeBuild project log groups, tagged
+    # logical-role pipeline-build-project (their names reference no template resource, so they
+    # cannot be parent-attributed helpers)
+    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role, AWS::Logs::LogGroup]
     logical_roles: [pipeline, pipeline-build-project, pipeline-artifact-bucket, pipeline-role, deploy-role]
     decisions: [D1, D6]
 

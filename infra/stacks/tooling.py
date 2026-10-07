@@ -35,14 +35,20 @@ pipeline it defines. Contents:
   ``/finplan/shared/financialplanning/config/budget-state`` to ``enforced`` on an ACTUAL alert at
   or above the budgeted amount or an executed budget action. Its role may write that one
   parameter only (:func:`finplan_contracts.iam.budget_state_writer_policy`). Ingestion and
-  FinanceModel pre-flight checks read the flag (``core/budget.py``, COST-05).
+  FinanceModel pre-flight checks read the flag (``core/budget.py``, COST-05). Its log group
+  ``/aws/lambda/<function>`` is declared explicitly (:func:`add_log_group`: 30-day retention,
+  deleted with the stack), as are the CodeBuild project log groups of :mod:`infra.stacks.pipeline`.
 
 Two account-level stacks, both deployed only by the bootstrap (never by the pipeline):
 
 * ``finplan-shared-financialplanning-pipeline-store`` (:class:`StoreStack`): the pipeline store
   bucket (CodePipeline artifacts, content-addressed CDK file assets under ``assets/``, the release
-  ledger under ``releases/``, the staged tooling template under ``bootstrap/``). It is small and
-  uses :class:`aws_cdk.BootstraplessSynthesizer`, so the CLI deploys it with no staging bucket.
+  ledger under ``releases/``, the staged tooling template under ``bootstrap/``). Versioned;
+  pipeline artifacts, ``assets/`` and ``bootstrap/`` expire after 30 days, the build cache after
+  14, noncurrent versions after 7, and incomplete multipart uploads are aborted after 7. The
+  ledger under ``releases/`` never expires. Retained on stack deletion (``docs/bootstrap.md``,
+  "Teardown"). It is small and has no assets; it uses :class:`aws_cdk.LegacyStackSynthesizer`, so the
+  CLI deploys it inline with the operator's credentials, no staging bucket and no role.
 * ``finplan-shared-financialplanning-tooling`` (:class:`ToolingStack`): everything above plus the
   pipeline (:mod:`infra.stacks.pipeline` adds it to this stack). Its template exceeds the
   51,200-byte inline limit, so it uses a :class:`aws_cdk.CliCredentialsStackSynthesizer` that stages
@@ -69,6 +75,7 @@ from aws_cdk import Aws, CfnCondition, CfnParameter, Duration, Fn, Tags
 from aws_cdk import aws_budgets as budgets
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_logs as logs
 from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_sns as sns
 from aws_cdk import aws_sns_subscriptions as subs
@@ -92,6 +99,7 @@ __all__ = [
     "TOOLING_STACK_NAME",
     "StoreStack",
     "ToolingStack",
+    "add_log_group",
     "add_to_app",
     "budget_state_writer_source",
     "deployment_synthesizer",
@@ -124,6 +132,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WRITER_SOURCE = REPO_ROOT / "platform" / "finplan_platform" / "handlers" / "budget_state.py"
 #: CloudFormation inline (ZipFile) code limit.
 INLINE_CODE_LIMIT = 4096
+#: Retention of every tooling log group (budget-state writer, CodeBuild projects).
+LOG_RETENTION = logs.RetentionDays.ONE_MONTH
+#: Lifecycle of the pipeline store (StoreStack).
+STORE_PREFIX_EXPIRY_DAYS = 30
+STORE_NONCURRENT_EXPIRY_DAYS = 7
+STORE_ABORT_MULTIPART_DAYS = 7
 
 
 def shared_name(logical: str, suffix: str | None = None) -> str:
@@ -208,6 +222,18 @@ def _cost_tags(logical_role: str) -> dict[str, str]:
     return contract_ssm.cost_allocation_tags(REPO, contract_ssm.SHARED, logical_role)
 
 
+def add_log_group(scope: Construct, cid: str, name: str, logical_role: str) -> logs.LogGroup:
+    """An explicit log group: 30-day retention, deleted with the stack, tagged with its owner's logical role.
+
+    Declaring the group (instead of letting the service create it on first write) bounds the
+    retention and lets the stack remove it. The ``logical-role`` tag attributes it to the owning
+    matrix row (the group's name references no template resource, so it cannot be parent-attributed).
+    """
+    group = logs.LogGroup(scope, cid, log_group_name=name, retention=LOG_RETENTION, removal_policy=cdk.RemovalPolicy.DESTROY)
+    tag_role(group, logical_role)
+    return group
+
+
 def _shared_tags(stack: cdk.Stack) -> None:
     base = contract_ssm.cost_allocation_tags(REPO, contract_ssm.SHARED, "placeholder")
     for key in ("project", "owner-repo", "environment"):
@@ -223,7 +249,12 @@ class StoreStack(cdk.Stack):
             construct_id,
             stack_name=STORE_STACK_NAME,
             env=cdk.Environment(region=str(shared["region"])),
-            synthesizer=cdk.BootstraplessSynthesizer(),
+            # Not BootstraplessSynthesizer: in this CDK version it still writes the default
+            # cdk-hnb659fds deploy/exec role ARNs into the manifest, which needs CDKToolkit.
+            # Not CliCredentialsStackSynthesizer: it stages the template in a cdk-<qualifier>-assets
+            # bucket that does not exist. The legacy synthesizer sends this small, asset-free
+            # template inline with the operator's credentials and references no role.
+            synthesizer=cdk.LegacyStackSynthesizer(),
             termination_protection=True,
             description="FinancialPlanning pipeline store (environment shared): pipeline artifacts, content-addressed CDK assets, release ledger. Deployed only by the authenticated bootstrap.",
             **kwargs,
@@ -238,12 +269,17 @@ class StoreStack(cdk.Stack):
             object_ownership=s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
             enforce_ssl=True,
             versioned=True,
+            # Retained on stack deletion (it holds the release ledger); docs/bootstrap.md "Teardown"
+            # describes emptying (every version) and deleting it by hand.
             removal_policy=cdk.RemovalPolicy.RETAIN,
             lifecycle_rules=[
                 # CodePipeline stores artifacts under the first 20 characters of the pipeline name
-                s3.LifecycleRule(id="pipeline-artifacts", prefix=PIPELINE_NAME[:20] + "/", expiration=Duration.days(30)),
+                s3.LifecycleRule(id="pipeline-artifacts", prefix=PIPELINE_NAME[:20] + "/", expiration=Duration.days(STORE_PREFIX_EXPIRY_DAYS)),
                 s3.LifecycleRule(id="build-cache", prefix=CACHE_PREFIX, expiration=Duration.days(14)),
-                s3.LifecycleRule(id="noncurrent", noncurrent_version_expiration=Duration.days(7), abort_incomplete_multipart_upload_after=Duration.days(1)),
+                # content-addressed CDK file assets (republished by every build) and the staged tooling template
+                s3.LifecycleRule(id="assets", prefix=ASSET_PREFIX, expiration=Duration.days(STORE_PREFIX_EXPIRY_DAYS)),
+                s3.LifecycleRule(id="bootstrap", prefix=BOOTSTRAP_PREFIX, expiration=Duration.days(STORE_PREFIX_EXPIRY_DAYS)),
+                s3.LifecycleRule(id="noncurrent", noncurrent_version_expiration=Duration.days(STORE_NONCURRENT_EXPIRY_DAYS), abort_incomplete_multipart_upload_after=Duration.days(STORE_ABORT_MULTIPART_DAYS)),
             ],
         )
         tag_role(self.bucket, "pipeline-artifact-bucket")
@@ -452,6 +488,7 @@ class ToolingStack(cdk.Stack):
             inline_policies={"budget-state-writer": writer_doc},
         )
         tag_role(self.writer_role, WRITER_FUNCTION_LOGICAL)
+        self.writer_log_group = add_log_group(self, "BudgetStateWriterLogGroup", f"/aws/lambda/{shared_name(WRITER_FUNCTION_LOGICAL)}", WRITER_FUNCTION_LOGICAL)
         self.writer = lambda_.Function(
             self,
             "BudgetStateWriter",
@@ -461,6 +498,7 @@ class ToolingStack(cdk.Stack):
             handler="index.handler",
             code=lambda_.Code.from_inline(budget_state_writer_source()),
             role=self.writer_role,
+            log_group=self.writer_log_group,
             memory_size=128,
             timeout=Duration.seconds(30),
             environment={"FINPLAN_BUDGET_STATE_PARAMETER": contract_budget.STATE_PARAMETER},
