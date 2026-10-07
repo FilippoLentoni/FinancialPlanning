@@ -131,6 +131,11 @@ Scope: deliverables that FinancialPlanning owns for the cross-repo contract base
 - [x] 16.2 Add `AWS::Logs::LogGroup` to the `pipeline-financialplanning` matrix row for the explicit CodeBuild project log groups. Verify `finplan-conformance ownership-check` reports zero problems on the platform's synthesized templates (OWN-01, OWN-09, ENV-16).
 - [x] 16.3 Bump `contracts/VERSION` to 0.2.1 (patch). Verify the compatibility gate against the 0.2.0 schema tarball passes as a patch, Python and TypeScript producer conformance pass, `npm test` passes, and record D14 in `contracts/README.md` (CS-03, CS-10).
 
+## 17. Budget action reset (contracts 0.2.2, design D15)
+
+- [x] 17.1 Exempt only the budget action execution role (`aws:PrincipalArn` like `finplan-shared-*-budget-action-role`, built with pseudo parameters) from the shared boundary's detach deny of `finplan-budget-enforcement-deny`, and deny shared-boundary principals creating, re-trusting, re-permissioning or passing a role under that name. Verify the policy simulation: the budget action role can detach the deny policy and nothing else; pipeline, research, environment and look-alike roles cannot; `budgets:ExecuteBudgetAction` stays denied (ENV-19).
+- [x] 17.2 Bump `contracts/VERSION` to 0.2.2 (patch) and regenerate `contracts/templates/` and the infra test data. Verify the compatibility gate against 0.2.1 passes as a patch, the contracts pytest, `npm test` and Python and TypeScript producer conformance (CS-03, CS-10), and record D15 in `contracts/README.md`.
+
 ## Requirement-to-test mapping
 
 Test types: unit, contract (schema/conformance with fixtures), integration-beta, gamma, smoke. "Runs in" names the repo whose pipeline executes the test. Tests outside FinancialPlanning use tooling shipped in the contract package.

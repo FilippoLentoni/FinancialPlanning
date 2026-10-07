@@ -190,3 +190,36 @@ def test_only_a_human_removes_the_deny():
         env_permission_boundary("gamma"),
     )
     assert r.decision == EXPLICIT_DENY
+
+
+def test_budget_action_role_policy_is_limited_to_the_deny_policy(tpl):
+    """The action role may attach and detach exactly the deny policy, nothing else (0.2.2, D15)."""
+    role = tpl["Resources"]["BudgetActionExecutionRole"]["Properties"]
+    (pol,) = role["Policies"]
+    (stmt,) = pol["PolicyDocument"]["Statement"]
+    assert stmt["Effect"] == "Allow" and sorted(stmt["Action"]) == ["iam:AttachRolePolicy", "iam:DetachRolePolicy"]
+    assert stmt["Condition"] == {"ArnEquals": {"iam:PolicyARN": {"Ref": "BudgetEnforcementDenyPolicy"}}}
+    assert role["AssumeRolePolicyDocument"]["Statement"][0]["Principal"] == {"Service": "budgets.amazonaws.com"}
+
+
+def test_budget_action_role_can_reset_its_own_action(tpl):
+    """Incident 2026-10-07: the reset failed with RESET_FAILURE because the shared boundary denied the
+    action role the detach. Now the action role detaches the deny policy; pipeline roles still cannot."""
+    from finplan_contracts.boundaries import shared_permission_boundary
+
+    deny_arn = f"arn:aws:iam::{ACCT}:policy/finplan-budget-enforcement-deny"
+    role = tpl["Resources"]["BudgetActionExecutionRole"]["Properties"]
+    identity = concrete_boundary(role["Policies"][0]["PolicyDocument"])
+    identity = {**identity, "Statement": [{**s, "Condition": {"ArnEquals": {"iam:PolicyARN": deny_arn}}} for s in identity["Statement"]]}
+    boundary = concrete_boundary(shared_permission_boundary())
+    target = f"arn:aws:iam::{ACCT}:role/finplan-gamma-financeagent-runtime-role"
+    action_role = f"arn:aws:iam::{ACCT}:role/" + role["RoleName"]
+    for action in ("iam:AttachRolePolicy", "iam:DetachRolePolicy"):
+        assert evaluate(Request(action, target, {"iam:PolicyARN": deny_arn, "aws:PrincipalArn": action_role}), {"identity": identity}, boundary).allowed, action
+    # never another policy
+    other = "arn:aws:iam::aws:policy/AdministratorAccess"
+    assert not evaluate(Request("iam:DetachRolePolicy", target, {"iam:PolicyARN": other, "aws:PrincipalArn": action_role}), {"identity": identity}, boundary).allowed
+    # a pipeline role under the same boundary with allow-all still cannot lift the cap
+    pipeline = f"arn:aws:iam::{ACCT}:role/finplan-shared-financialplanning-pipeline-role"
+    r = evaluate(Request("iam:DetachRolePolicy", target, {"iam:PolicyARN": deny_arn, "aws:PrincipalArn": pipeline}), {"identity": ALLOW_ALL}, boundary)
+    assert r.decision == EXPLICIT_DENY

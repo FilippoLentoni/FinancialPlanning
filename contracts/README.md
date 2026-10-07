@@ -32,8 +32,9 @@ and the design differ, the design wins.
 9. [Planned phase 2 contract minors and OQ-12](#planned-phase-2-contract-minors-and-oq-12) (task 12.5)
 10. [Contracts 0.2.0: platform verification fixes (D13)](#contracts-020-platform-verification-fixes-d13) (tasks 15.x)
 11. [Contracts 0.2.1: dead deny entries and pipeline log groups (D14)](#contracts-021-dead-deny-entries-and-pipeline-log-groups-d14) (tasks 16.x)
-12. [Open-questions register](#open-questions-register) (task 10.4)
-13. Procedures in [`docs/`](docs/):
+12. [Contracts 0.2.2: the budget action can reset its own action (D15)](#contracts-022-the-budget-action-can-reset-its-own-action-d15) (tasks 17.x)
+13. [Open-questions register](#open-questions-register) (task 10.4)
+14. Procedures in [`docs/`](docs/):
     - [Local, credential-free testing with fixtures](docs/local-testing.md) (task 6.6)
     - [Consumer pinning and the 0.x beta-only rule](docs/consumer-pinning.md) (task 7.4)
     - [Pipeline standard](docs/pipeline-standard.md) (task 10.1)
@@ -659,6 +660,26 @@ A patch release before the first bootstrap. No schema changes; the compatibility
   explicit 30-day log groups of the FinancialPlanning CodeBuild projects, tagged with the
   `pipeline-build-project` logical role. A named log group references no template resource, so it
   cannot be a parent-attributed helper. The checker is not relaxed.
+
+## Contracts 0.2.2: the budget action can reset its own action (D15)
+
+A patch release after a production incident. No schema changes; the compatibility gate against
+0.2.1 passes as a patch.
+
+- **Incident (2026-10-07).** The budget action attached `finplan-budget-enforcement-deny` to 11
+  pipeline roles, then its reset failed with `RESET_FAILURE`: the shared permission boundary,
+  which also bounds the action's own execution role, denied that role `iam:DetachRolePolicy` of
+  the deny policy.
+- **Fix.** In `finplan-shared-permission-boundary` only, the role detach deny exempts principals
+  whose `aws:PrincipalArn` matches
+  `arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-shared-*-budget-action-role`. The
+  role's own policy allows attach and detach of exactly the deny policy. Every other principal
+  under a boundary is still denied the detach, user and group detaches are never exempt, and
+  `budgets:ExecuteBudgetAction` stays denied, so lifting the cap is still a human decision.
+- **Guard.** `ProtectBudgetActionRole` denies shared-boundary principals `iam:CreateRole`,
+  `UpdateAssumeRolePolicy`, `PutRolePolicy`, `AttachRolePolicy`, `PutRolePermissionsBoundary`
+  and `PassRole` on that name pattern, so no automation can obtain a role that matches the
+  exemption.
 
 ## Open-questions register
 

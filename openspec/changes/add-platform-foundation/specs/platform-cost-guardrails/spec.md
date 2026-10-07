@@ -44,7 +44,7 @@ At 100% of actual spend, a budget action SHALL attach a deny policy to the roles
 - **THEN** the deny policy is attached, a new on-demand ingestion fails with `BUDGET_EXCEEDED`, and plan version reads still succeed
 
 #### Scenario: Release after review
-- **WHEN** a human detaches the deny policy after raising the ceiling
+- **WHEN** a human, after raising the ceiling, reverses the budget action or detaches the deny policy
 - **THEN** ingestion and deployments resume without any redeploy
 
 ### Requirement: Cost-allocation tagging

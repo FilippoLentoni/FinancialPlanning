@@ -3,7 +3,7 @@
 ## Scope and conventions
 
 - **Scope:** phase 1 of the platform, plus the `yfinance` provider adapter and the XNYS calendar (round 2 user decision 2026-10-07; OQ-5 and PQ-5 RESOLVED). Phase 1 deployments and CI use the fixture provider and mock only; `yfinance` is enabled per environment by phase 2 configuration. No model compute, no live trading.
-- **Dependencies:** contracts from `establish-cross-repo-contracts` (`finplan-contracts`, pinned by exact version and digest). Until 1.0.0 is published the pin is the 0.x pre-release, currently **0.2.1**, which is beta-only; version references below that name 1.0.0 mean the release the platform re-pins to in task 1.2. Error codes, IDs and SSM paths come from that change.
+- **Dependencies:** contracts from `establish-cross-repo-contracts` (`finplan-contracts`, pinned by exact version and digest). Until 1.0.0 is published the pin is the 0.x pre-release, currently **0.2.2**, which is beta-only; version references below that name 1.0.0 mean the release the platform re-pins to in task 1.2. Error codes, IDs and SSM paths come from that change.
 - **Bootstrap-dependent tasks:** tasks that deploy wait on the bootstrap (task 10.6). The user approved it in principle on 2026-10-07; it runs only after the bootstrap IaC is implemented, with the exact stacks and a cost estimate shown first. No deployment happens during spec work. OQ-11 is resolved (existing CLI credentials) and OQ-2 is non-blocking (existing connection plus source-stage dry run), per contracts D11. Until the bootstrap runs, the tasks before it are verified offline.
 - **Test IDs:** STO (platform-storage), MDS (plan-metadata-store), API (plan-lifecycle-api), ING (market-data-ingestion), STG (staged-output-acceptance), XLS (excel-plan-import), COST (platform-cost-guardrails) and PIPE (platform-pipeline). See the mapping table at the end.
 
@@ -17,7 +17,7 @@
   - `infra/` (CDK app: tooling, storage, metadata, api, ingestion stacks)
   - `config/{beta,gamma,prod}.json`
   - `tests/{unit,contract,integration,smoke}/`
-- [ ] 1.2 Pin `finplan-contracts` 1.0.0 by exact version and digest once it is published (until then the pin is the 0.x pre-release, currently 0.2.1, beta-only; the pin file, `scripts/check_contracts_pin.py` and the digest check are in place). Verify that a digest mismatch fails the build (CS-04 consumer case).
+- [ ] 1.2 Pin `finplan-contracts` 1.0.0 by exact version and digest once it is published (until then the pin is the 0.x pre-release, currently 0.2.2, beta-only; the pin file, `scripts/check_contracts_pin.py` and the digest check are in place). Verify that a digest mismatch fails the build (CS-04 consumer case).
 - [x] 1.3 Define the environment configuration schema: region, ingest schedule (`09:00`/`09:30`, default `09:00`), phase (`1` or `2`), provider (`fixture` in phase 1; `fixture` or `yfinance` in phase 2), provider rate-limit and backoff settings, settle delay, dataset (`etf-daily` with the configured S&P 500 tracking-ETF ticker, daily only), retention values, staging window, size limits and consumer principal reference keys. All values must be placeholders or SSM keys, never identifiers. Verify unit tests that reject an invalid schedule value (ING-02), a non-fixture provider in a phase 1 configuration (ING-10) and an intraday granularity (ING-13), and that the leak scan passes on `config/`.
 
 ## 2. Platform storage
@@ -138,6 +138,11 @@
 - [x] 13.1 Give the budget-state writer Lambda and the four CodeBuild projects explicit `AWS::Logs::LogGroup` resources (30-day retention, `RemovalPolicy.DESTROY`): the Lambda's `logGroup` and the projects' CloudWatch logging configuration point at them. Verify CDK template assertions (retention, deletion policy, references) and that the ownership check reports zero problems on the tooling template.
 - [x] 13.2 Add pipeline-store lifecycle expiry for `assets/` and `bootstrap/` (30 days) and abort incomplete multipart uploads after 7 days, keeping versioning, the 7-day noncurrent expiry and `DeletionPolicy: Retain`; document emptying and deleting the bucket at teardown in `docs/bootstrap.md`. Verify template assertions on the store stack.
 - [x] 13.3 Re-pin `finplan-contracts` 0.2.1 (contracts D14: dead deny entries removed, `AWS::Logs::LogGroup` on the pipeline row). Verify `scripts/check_contracts_pin.py --rebuild`, the full unit suite, a fresh synth, `scripts/build_gates.py --stage pre --rebuild-contracts` and `--stage post`, `uvx cfn-lint` with no errors and the leak scan.
+
+## 14. Budget action reset failure (contracts 0.2.2, local, no AWS)
+
+- [x] 14.1 Re-pin `finplan-contracts` 0.2.2 (contracts D15: the shared boundary lets only the budget action role detach the deny policy). Verify `scripts/check_contracts_pin.py --rebuild` and the policy simulation that the budget action role can detach the deny policy while every other tooling role and a research role cannot (COST-02).
+- [x] 14.2 Replace the budget action stuck in `RESET_FAILURE` by changing its logical ID to `BudgetEnforcementActionV2`, and document lifting the cap (`REVERSE_BUDGET_ACTION` or a manual detach), the incident and the expected replacement in `docs/bootstrap.md`. Verify the template test on the new logical ID and that the boundary exemption names only the budget action role, the full unit suite, a fresh synth, `scripts/build_gates.py --stage pre --rebuild-contracts` and `--stage post`, `uvx cfn-lint` with no errors and the leak scan.
 
 ## Requirement-to-test mapping
 

@@ -13,7 +13,7 @@ from finplan_contracts import boundaries as contract_boundaries
 from finplan_contracts import budget as contract_budget
 
 from infra.policy_sim import Principal, simulate
-from infra.stacks.tooling import BUDGET_NAME, WRITER_SOURCE
+from infra.stacks.tooling import BUDGET_ACTION_LOGICAL_ID, BUDGET_NAME, WRITER_SOURCE
 from tests.unit.ops.conftest import resources_of, tags_of
 
 ALLOW_ALL = {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}]}
@@ -154,11 +154,58 @@ def test_only_a_human_removes_the_deny_COST_02(tooling_template: dict[str, Any],
     target = "arn:aws:iam::<account-id>:role/finplan-shared-financialplanning-pipeline-role"
     assert simulate("iam:AttachRolePolicy", target, action_role, context={"iam:PolicyARN": deny_arn}).allowed
     assert not simulate("iam:AttachRolePolicy", target, action_role, context={"iam:PolicyARN": "arn:aws:iam::aws:policy/AdministratorAccess"}).allowed
-    # every boundary forbids detaching the deny policy, so automation never lifts the cap
-    assert not simulate("iam:DetachRolePolicy", target, action_role, context={"iam:PolicyARN": deny_arn}).allowed
+    # contracts 0.2.2 (D15, incident 2026-10-07): the action role itself may detach the deny policy, so
+    # AWS Budgets can reset or reverse its action; it still cannot detach any other policy
+    assert simulate("iam:DetachRolePolicy", target, action_role, context={"iam:PolicyARN": deny_arn}).allowed
+    assert not simulate("iam:DetachRolePolicy", target, action_role, context={"iam:PolicyARN": "arn:aws:iam::aws:policy/AdministratorAccess"}).allowed
+    # every other principal under a boundary is denied the detach, so automation never lifts the cap
+    for name, lid in roles.items():
+        if name == "finplan-shared-financialplanning-budget-action-role":
+            continue
+        env = tags_of(tooling_template["Resources"][lid])["environment"]
+        boundary = contract_boundaries.shared_permission_boundary() if env == "shared" else contract_boundaries.env_permission_boundary(env)
+        other = Principal.role(name, ALLOW_ALL, boundary=boundary)
+        assert not simulate("iam:DetachRolePolicy", target, other, context={"iam:PolicyARN": deny_arn}).allowed, name
+    research = Principal.role("finplan-beta-financemodel-research-role", ALLOW_ALL, boundary=contract_boundaries.research_permission_boundary("beta"))
+    assert not simulate("iam:DetachRolePolicy", target, research, context={"iam:PolicyARN": deny_arn}).allowed
+    # nor may a principal execute (reverse) the budget action: lifting the cap is a human decision
+    assert not simulate("budgets:ExecuteBudgetAction", "*", action_role).allowed
     assert "finplan-shared-financialplanning-budget-action-role" in roles
     _, action = _one(tooling_template, "AWS::Budgets::BudgetsAction")
     assert action["Properties"]["ApprovalModel"] == "AUTOMATIC"
+
+
+def test_budget_action_is_replaced_after_the_reset_failure_COST_02(tooling_template: dict[str, Any]) -> None:
+    """Incident 2026-10-07: the first action is stuck in RESET_FAILURE. The V2 logical ID makes the next
+    bootstrap replace it with a fresh action in STANDBY (CloudFormation deletes the old one)."""
+    actions = resources_of(tooling_template, "AWS::Budgets::BudgetsAction")
+    assert list(actions) == [BUDGET_ACTION_LOGICAL_ID] == ["BudgetEnforcementActionV2"]
+    assert "BudgetEnforcementAction" not in tooling_template["Resources"]
+
+
+def test_boundary_detach_exemption_names_only_the_budget_action_role_COST_02(tooling_template: dict[str, Any], tooling_resolver: Any) -> None:
+    """The only aws:PrincipalArn exemption in any synthesized boundary is the shared boundary's
+    detach of the deny policy, and its pattern matches the budget action role and no other role."""
+    pols = {r["Properties"]["ManagedPolicyName"]: r["Properties"]["PolicyDocument"] for r in resources_of(tooling_template, "AWS::IAM::ManagedPolicy").values()}
+    exempting = {name: doc for name, doc in pols.items() if "aws:PrincipalArn" in json.dumps(doc)}
+    assert list(exempting) == [contract_boundaries.boundary_name("shared")]
+    stmts = [s for s in exempting[contract_boundaries.boundary_name("shared")]["Statement"] if "aws:PrincipalArn" in json.dumps(s)]
+    assert len(stmts) == 1
+    (stmt,) = stmts
+    assert stmt["Effect"] == "Deny" and stmt["Action"] == ["iam:DetachRolePolicy"]
+    assert stmt["Condition"]["ArnLike"]["iam:PolicyARN"].endswith(":policy/" + contract_boundaries.BUDGET_DENY_POLICY_NAME)
+    pattern = stmt["Condition"]["ArnNotLike"]["aws:PrincipalArn"]
+    assert pattern == {"Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-shared-*-budget-action-role"}
+    from finplan_contracts.iam import policy_glob_matches
+
+    rendered = pattern["Fn::Sub"].replace("${AWS::Partition}", "aws").replace("${AWS::AccountId}", "<account-id>")
+    names = [tooling_resolver.resolve({"Ref": lid}, "tooling") for lid in resources_of(tooling_template, "AWS::IAM::Role")]
+    matched = [n for n in names if policy_glob_matches(rendered, f"arn:aws:iam::<account-id>:role/{n}")]
+    assert matched == ["finplan-shared-financialplanning-budget-action-role"]
+    # the action uses that role
+    _, action = _one(tooling_template, "AWS::Budgets::BudgetsAction")
+    role_lid = action["Properties"]["ExecutionRoleArn"]["Fn::GetAtt"][0]
+    assert tooling_resolver.resolve({"Ref": role_lid}, "tooling") == "finplan-shared-financialplanning-budget-action-role"
 
 
 def test_budget_state_writer_writes_only_the_flag_COST_02(tooling_template: dict[str, Any], tooling_resolver: Any) -> None:

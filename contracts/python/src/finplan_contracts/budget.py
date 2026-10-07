@@ -30,7 +30,10 @@ published at ``/finplan/<env>/<repo>/config/budget-enforced-role-names`` (this
 includes the FinanceAgent runtime role, so Bedrock invocations stop). The action
 uses ``ApprovalModel: AUTOMATIC``; reverting it is a human step (every
 permission boundary denies ``budgets:ExecuteBudgetAction`` and detaching the deny
-policy). CDK wiring happens in the add-platform-foundation change.
+policy). The one exception is the action's own execution role: the shared boundary lets it
+detach the deny policy (and its own policy grants attach/detach of that policy only), so a
+human-initiated ``REVERSE_BUDGET_ACTION`` or a budget reset succeeds (0.2.2, design D15). CDK
+wiring happens in the add-platform-foundation change.
 """
 
 from __future__ import annotations

@@ -27,7 +27,12 @@ Each boundary allows everything except (statements in order):
 * ``ProtectBoundaries``: removing or swapping permission boundaries, and creating
   roles without the environment boundary;
 * ``ProtectBudgetEnforcement``: detaching the budget deny policy or executing a
-  budget action (only a human may remove the deny, ENV-19);
+  budget action (only a human may remove the deny, ENV-19). In the shared boundary alone the
+  role detach deny exempts the AWS Budgets action execution role
+  (``finplan-shared-*-budget-action-role``, matched on ``aws:PrincipalArn``) so AWS Budgets can
+  reset or reverse its own action; ``ProtectBudgetActionRole`` stops every other shared-boundary
+  principal from creating, re-trusting, re-permissioning or passing a role under that name
+  (0.2.2, design D15);
 * research boundaries only (ENV-04): ``DenyPlatformMetadataTables`` (all DynamoDB
   access to FinancialPlanning tables), ``DenyPlanApiWrites`` (write methods on
   the plan API paths: plans, plan versions, publications, executions, portfolios,
@@ -81,6 +86,8 @@ __all__ = [
     "LIVE_FINANCIAL_DENY_ACTIONS",
     "LIVE_FINANCIAL_SECRET_PATTERNS",
     "BUDGET_DENY_POLICY_NAME",
+    "BUDGET_ACTION_ROLE_NAME_PATTERN",
+    "budget_action_role_arn_pattern",
     "boundary_name",
     "research_boundary_name",
     "resource_name",
@@ -106,6 +113,9 @@ SHARED = "shared"
 BOUNDARY_TEMPLATE = "finplan-{env}-permission-boundary"
 RESEARCH_BOUNDARY_TEMPLATE = "finplan-{env}-research-permission-boundary"
 BUDGET_DENY_POLICY_NAME = "finplan-budget-enforcement-deny"
+#: Name pattern of the AWS Budgets action execution role (tooling stack, environment ``shared``);
+#: the only principal the shared boundary lets detach the budget deny policy (0.2.2, design D15).
+BUDGET_ACTION_ROLE_NAME_PATTERN = "finplan-shared-*-budget-action-role"
 
 #: Live trading, brokerage/exchange, payments and wallet actions (ENV-05).
 LIVE_FINANCIAL_DENY_ACTIONS: list[str] = [
@@ -309,6 +319,55 @@ def _protect_statements(allowed_boundaries: list[str]) -> list[dict[str, Any]]:
     ]
 
 
+def budget_action_role_arn_pattern(*, partition: str = PARTITION, account: str = ACCOUNT) -> str:
+    """ARN pattern of the budget action execution role (:data:`BUDGET_ACTION_ROLE_NAME_PATTERN`)."""
+    return f"arn:{partition}:iam::{account}:role/{BUDGET_ACTION_ROLE_NAME_PATTERN}"
+
+
+def _shared_budget_statements(partition: str, account: str) -> list[dict[str, Any]]:
+    """Budget protection of the shared boundary (0.2.2, design D15).
+
+    Incident 2026-10-07: the budget action's reset failed (``RESET_FAILURE``) because this boundary,
+    applied to the action's own execution role, denied ``iam:DetachRolePolicy`` of the deny policy.
+    The role detach deny now exempts that one role (``aws:PrincipalArn``), so AWS Budgets can reset
+    or reverse its action; the role's own policy grants attach/detach of the deny policy only. Every
+    other principal stays denied, users and groups are never exempt, and no other shared-boundary
+    principal may create, re-trust, re-permission or pass a role under the exempt name.
+    """
+    exempt = budget_action_role_arn_pattern(partition=partition, account=account)
+    deny_policy = _boundary_arn_pattern(BUDGET_DENY_POLICY_NAME)
+    return [
+        {
+            "Sid": "ProtectBudgetEnforcement",
+            "Effect": "Deny",
+            "Action": ["iam:DetachRolePolicy"],
+            "Resource": "*",
+            "Condition": {"ArnLike": {"iam:PolicyARN": deny_policy}, "ArnNotLike": {"aws:PrincipalArn": exempt}},
+        },
+        {
+            "Sid": "ProtectBudgetEnforcementUsersAndGroups",
+            "Effect": "Deny",
+            "Action": ["iam:DetachUserPolicy", "iam:DetachGroupPolicy"],
+            "Resource": "*",
+            "Condition": {"ArnLike": {"iam:PolicyARN": deny_policy}},
+        },
+        {
+            "Sid": "ProtectBudgetActionRole",
+            "Effect": "Deny",
+            "Action": [
+                "iam:CreateRole",
+                "iam:UpdateAssumeRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePermissionsBoundary",
+                "iam:PassRole",
+            ],
+            "Resource": [exempt],
+        },
+        {"Sid": "OnlyHumansExecuteBudgetActions", "Effect": "Deny", "Action": ["budgets:ExecuteBudgetAction"], "Resource": "*"},
+    ]
+
+
 def _cross_env_statements(env: str, partition: str = PARTITION, region: str = REGION, account: str = ACCOUNT) -> list[dict[str, Any]]:
     others = [e for e in ENVIRONMENTS if e != env]
     named: list[str] = []
@@ -384,15 +443,19 @@ def research_permission_boundary(env: str, *, partition: str = PARTITION, region
     return _finish(base, partition, region, account)
 
 
-def shared_permission_boundary() -> dict[str, Any]:
+def shared_permission_boundary(*, partition: str = PARTITION, region: str = REGION, account: str = ACCOUNT) -> dict[str, Any]:
     """Boundary for account-level tooling roles (pipeline, budget action execution).
 
     It carries the live-financial deny and the boundary/budget protections; it has
     no environment deny because tooling roles orchestrate all three environments
-    (per-environment deploy roles carry the environment boundaries).
+    (per-environment deploy roles carry the environment boundaries). Its budget
+    protection exempts only the budget action execution role from the role detach deny
+    (:func:`_shared_budget_statements`, 0.2.2). CloudFormation-ready (``Fn::Sub``) by default.
     """
     allowed = [boundary_name(SHARED)] + [boundary_name(e) for e in ENVIRONMENTS] + [research_boundary_name(e) for e in ENVIRONMENTS]
-    return {"Version": "2012-10-17", "Statement": [_allow_all(), *live_financial_deny_statements(), *_protect_statements(allowed)]}
+    protect = [s for s in _protect_statements(allowed) if s["Sid"] not in ("ProtectBudgetEnforcement", "OnlyHumansExecuteBudgetActions")]
+    doc = {"Version": "2012-10-17", "Statement": [_allow_all(), *live_financial_deny_statements(), *protect, *_shared_budget_statements(partition, account)]}
+    return _finish(doc, partition, region, account)
 
 
 # ===================================================================== template checks

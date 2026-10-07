@@ -2535,7 +2535,24 @@
               "Sid": "ProtectBudgetEnforcement",
               "Effect": "Deny",
               "Action": [
-                "iam:DetachRolePolicy",
+                "iam:DetachRolePolicy"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "ArnLike": {
+                  "iam:PolicyARN": "arn:*:iam::*:policy/finplan-budget-enforcement-deny"
+                },
+                "ArnNotLike": {
+                  "aws:PrincipalArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-shared-*-budget-action-role"
+                  }
+                }
+              }
+            },
+            {
+              "Sid": "ProtectBudgetEnforcementUsersAndGroups",
+              "Effect": "Deny",
+              "Action": [
                 "iam:DetachUserPolicy",
                 "iam:DetachGroupPolicy"
               ],
@@ -2545,6 +2562,23 @@
                   "iam:PolicyARN": "arn:*:iam::*:policy/finplan-budget-enforcement-deny"
                 }
               }
+            },
+            {
+              "Sid": "ProtectBudgetActionRole",
+              "Effect": "Deny",
+              "Action": [
+                "iam:CreateRole",
+                "iam:UpdateAssumeRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:AttachRolePolicy",
+                "iam:PutRolePermissionsBoundary",
+                "iam:PassRole"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-shared-*-budget-action-role"
+                }
+              ]
             },
             {
               "Sid": "OnlyHumansExecuteBudgetActions",

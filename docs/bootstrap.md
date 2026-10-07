@@ -39,7 +39,7 @@ Scoped roles created. The account-level roles carry `environment=shared` and
 | `finplan-shared-financialplanning-deploy-role-<env>` | Deploy actions (the role CodePipeline assumes) |
 | `finplan-shared-financialplanning-deploy-role-<env>-exec` | CloudFormation execution. It is limited to `finplan-<env>-financialplanning-*` resources, may create only roles that carry `finplan-<env>-permission-boundary`, and writes SSM only under `/finplan/<env>/financialplanning/` |
 | `finplan-<env>-financialplanning-operator-pipeline-stage` | Manifest publishing and environment tests. It matches the environment's operator principal, so the plan API admits it |
-| `finplan-shared-financialplanning-budget-action-role` | AWS Budgets. It may attach only the deny policy |
+| `finplan-shared-financialplanning-budget-action-role` | AWS Budgets. It may attach and detach only the deny policy; its boundary lets it detach that policy so a reset or reversal works (contracts 0.2.2) |
 | `finplan-shared-financialplanning-budget-state-writer-role` | The budget-state writer. It may write only `/finplan/shared/financialplanning/config/budget-state` |
 
 After the bootstrap, **only these scoped roles deploy**. The identity that ran the bootstrap is not
@@ -120,10 +120,47 @@ the dry run has fetched `main`, the pipeline exists and its first run reaches be
   The bootstrap/admin identity is never on the list.
 - **When the cap is reached,** the action attaches `finplan-budget-enforcement-deny` and the
   budget-state writer sets `/finplan/shared/financialplanning/config/budget-state` to `enforced`.
-  On-demand ingestion then returns `BUDGET_EXCEEDED`, while plan reads keep working. **Only a
-  human lifts it:** raise the ceiling parameter, detach the deny policy from the roles, and set the
-  budget-state parameter to `{"state": "normal"}`. Ingestion and deployments then resume without
-  any redeploy. Automation cannot detach the policy, because every permission boundary denies it.
+  On-demand ingestion then returns `BUDGET_EXCEEDED`, while plan reads keep working.
+
+  **Lifting the cap is a human decision.** First raise the ceiling parameter (the budget limit
+  picks it up at the next bootstrap), otherwise the action fires again. Then remove the deny in one
+  of two ways, from your own authenticated CLI session:
+
+  1. Reverse the action, which lets AWS Budgets detach the policy from every role it applied it to
+     (the action ID comes from `describe-budget-actions-for-budget`):
+
+     ```bash
+     aws budgets describe-budget-actions-for-budget --account-id <account-id> \
+       --budget-name finplan-shared-financialplanning-project-budget
+     aws budgets execute-budget-action --account-id <account-id> \
+       --budget-name finplan-shared-financialplanning-project-budget \
+       --action-id <action-id> --execution-type REVERSE_BUDGET_ACTION
+     ```
+
+  2. Or detach the policy by hand from each role that holds it
+     (`aws iam list-entities-for-policy --policy-arn arn:aws:iam::<account-id>:policy/finplan-budget-enforcement-deny`,
+     then `aws iam detach-role-policy` for each role).
+
+  Finally set the budget-state parameter to `{"state": "normal"}`. Ingestion and deployments then
+  resume without any redeploy.
+
+  **Automation still cannot lift the cap.** Every permission boundary denies detaching the deny
+  policy and executing a budget action. The single exemption is the action's own execution role
+  (`finplan-shared-*-budget-action-role`, shared boundary only, contracts 0.2.2), so that AWS
+  Budgets can carry out a reset or a reversal; that role may attach and detach the deny policy and
+  nothing else, and no other principal under the shared boundary may create, re-trust,
+  re-permission or pass a role with that name.
+
+  **Incident, 2026-10-07.** The action fired and applied the deny policy to 11 pipeline roles. Its
+  reset then failed (`RESET_FAILURE`, "explicit deny in a permissions boundary"): the shared
+  boundary, which also bounds the action's execution role, denied that role the detach. Contracts
+  0.2.2 adds the exemption above, and the action's logical ID changed to
+  `BudgetEnforcementActionV2`. **Expect the next bootstrap to replace the action:** CloudFormation
+  creates a fresh action in `STANDBY` and then deletes the old one. Deleting the old action does
+  not detach the policy, so remove it from the roles by hand (option 2 above) and reset the
+  budget-state parameter. If the old action cannot be deleted during the stack's cleanup phase,
+  the update still completes; delete it with `aws budgets delete-budget-action`. If actual spend
+  is still above the (raised) ceiling, the fresh action fires again by design.
 - **Pipeline changes** (the tooling stack itself) are deployed only by rerunning the bootstrap.
   The pipeline never updates itself.
 

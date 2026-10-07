@@ -147,6 +147,71 @@ def test_boundaries_protect_themselves_and_the_budget_deny():
     assert not sim("budgets:ExecuteBudgetAction", "*", b).allowed
 
 
+DENY_POLICY_ARN = f"arn:aws:iam::{ACCT}:policy/finplan-budget-enforcement-deny"
+BUDGET_ACTION_ROLE_ARN = f"arn:aws:iam::{ACCT}:role/finplan-shared-financialplanning-budget-action-role"
+
+
+def _role(name):
+    return f"arn:aws:iam::{ACCT}:role/{name}"
+
+
+def test_only_the_budget_action_role_may_detach_the_budget_deny():
+    """0.2.2 (D15, incident 2026-10-07): the shared boundary lets the budget action role detach the
+    deny policy (budget reset or REVERSE_BUDGET_ACTION); every other principal under any boundary is denied."""
+    target = _role("finplan-shared-financialplanning-pipeline-role")
+    shared = shared_permission_boundary()
+    ok = sim("iam:DetachRolePolicy", target, shared, **{"iam:PolicyARN": DENY_POLICY_ARN, "aws:PrincipalArn": BUDGET_ACTION_ROLE_ARN})
+    assert ok.allowed
+    # still only the deny policy is affected by the exemption: other policies follow the identity policy
+    others = {
+        "shared pipeline role": (shared, _role("finplan-shared-financialplanning-pipeline-role")),
+        "shared build role": (shared, _role("finplan-shared-financialplanning-pipeline-build-project-role")),
+        "shared budget-state writer": (shared, _role("finplan-shared-financialplanning-budget-state-writer-role")),
+        "shared look-alike name": (shared, _role("finplan-shared-financialplanning-budget-action-role-x")),
+        "gamma deploy role": (env_permission_boundary("gamma"), _role("finplan-gamma-financialplanning-deploy-role")),
+        "beta research role": (research_permission_boundary("beta"), _role("finplan-beta-financemodel-research-role")),
+        # a role named like the budget action role under an environment boundary is not exempt
+        "env boundary, budget-action name": (env_permission_boundary("prod"), BUDGET_ACTION_ROLE_ARN),
+        "research boundary, budget-action name": (research_permission_boundary("prod"), BUDGET_ACTION_ROLE_ARN),
+        "no principal in the request": (shared, None),
+    }
+    for label, (boundary, principal) in others.items():
+        ctx = {"iam:PolicyARN": DENY_POLICY_ARN}
+        if principal:
+            ctx["aws:PrincipalArn"] = principal
+        r = sim("iam:DetachRolePolicy", target, boundary, **ctx)
+        assert r.decision == EXPLICIT_DENY, label
+    # users and groups are never exempt, not even for the budget action role
+    for action in ("iam:DetachUserPolicy", "iam:DetachGroupPolicy"):
+        assert not sim(action, "*", shared, **{"iam:PolicyARN": DENY_POLICY_ARN, "aws:PrincipalArn": BUDGET_ACTION_ROLE_ARN}).allowed, action
+    # nobody executes a budget action through automation, the budget action role included
+    assert not sim("budgets:ExecuteBudgetAction", "*", shared, **{"aws:PrincipalArn": BUDGET_ACTION_ROLE_ARN}).allowed
+
+
+@pytest.mark.parametrize("action", ["iam:CreateRole", "iam:UpdateAssumeRolePolicy", "iam:PutRolePolicy", "iam:AttachRolePolicy", "iam:PassRole"])
+def test_shared_principals_cannot_impersonate_the_budget_action_role(action):
+    """The exemption is by role name, so no shared-boundary principal may create, re-trust,
+    re-permission or pass a role under that name (only the bootstrap identity deploys it)."""
+    ctx = {"aws:PrincipalArn": _role("finplan-shared-financialplanning-pipeline-role"), "iam:PermissionsBoundary": f"arn:aws:iam::{ACCT}:policy/finplan-shared-permission-boundary"}
+    for name in ("finplan-shared-financialplanning-budget-action-role", "finplan-shared-evil-budget-action-role"):
+        assert sim(action, _role(name), shared_permission_boundary(), **ctx).decision == EXPLICIT_DENY, name
+    # other shared roles are unaffected by this statement
+    assert sim(action, _role("finplan-shared-financialplanning-other-role"), shared_permission_boundary(), **ctx).allowed
+
+
+def test_shared_boundary_exemption_names_only_the_budget_action_role():
+    doc = boundaries.shared_permission_boundary()
+    text = json.dumps(doc)
+    assert text.count("aws:PrincipalArn") == 1
+    (stmt,) = [s for s in doc["Statement"] if "aws:PrincipalArn" in json.dumps(s)]
+    assert stmt["Sid"] == "ProtectBudgetEnforcement" and stmt["Action"] == ["iam:DetachRolePolicy"]
+    assert stmt["Condition"]["ArnNotLike"]["aws:PrincipalArn"] == {"Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-shared-*-budget-action-role"}
+    # environment and research boundaries carry no exemption
+    for env in ("beta", "gamma", "prod"):
+        assert "aws:PrincipalArn" not in json.dumps(boundaries.env_permission_boundary(env))
+        assert "aws:PrincipalArn" not in json.dumps(boundaries.research_permission_boundary(env))
+
+
 # ----------------------------------------------------------------- ENV-18 static check
 def test_role_without_environment_boundary_fails_and_is_named():
     findings = check_role_boundaries(infra("roles/invalid/role-without-boundary.json"))

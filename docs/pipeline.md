@@ -169,7 +169,10 @@ contract policy that denies:
 
 The action applies to the tooling roles and to every published `budget-enforced-role-names`. Reads,
 plan reads and Lambda invocation (so ingestion still answers with `BUDGET_EXCEEDED`) are not denied.
-Only a human detaches the policy.
+Only a human lifts the cap, by `REVERSE_BUDGET_ACTION` or a manual detach ([bootstrap](bootstrap.md),
+"When the cap is reached"). The action's own execution role is the only principal a boundary lets
+detach the policy (contracts 0.2.2), so AWS Budgets can reset or reverse its action; the action's
+logical ID is `BudgetEnforcementActionV2` since the 2026-10-07 reset failure.
 
 The budget-state writer (`platform/finplan_platform/handlers/budget_state.py`, inlined into the
 tooling stack) sets `/finplan/shared/financialplanning/config/budget-state` to `enforced` on an
@@ -224,7 +227,7 @@ named no IAM action (`bedrock-agentcore-control:*`, `bedrock:Converse*`).
 Still open:
 
 - **Image assets.** There is no FinancialPlanning image-repository row.
-- **Contracts version.** The pin is 0.2.1, which is beta-only. Gamma and prod need 1.0.0 once it
+- **Contracts version.** The pin is 0.2.2, which is beta-only. Gamma and prod need 1.0.0 once it
   is published (task 1.2).
 
 ### CloudFormation lint

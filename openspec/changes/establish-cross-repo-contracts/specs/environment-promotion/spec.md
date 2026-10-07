@@ -92,6 +92,10 @@ The project budget SHALL notify a human-configured target at 50%, 80% and 100% o
 - **WHEN** actual project spend crosses 80% of the ceiling
 - **THEN** the notification target receives an alert and no deny is applied
 
+#### Scenario: Only the budget action undoes its own deny
+- **WHEN** a human reverses the budget action, or AWS Budgets resets it
+- **THEN** the detach of the deny policy by the action's execution role succeeds, while any other role under a finplan permission boundary is denied that detach and `budgets:ExecuteBudgetAction`
+
 ### Requirement: GPU runs require explicit user approval
 Every GPU run SHALL require an explicit, recorded user approval of a cost estimate before it starts, even when the `gpu` allocation covers it. A run without a recorded approval MUST NOT start.
 

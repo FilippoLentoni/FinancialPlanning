@@ -18,7 +18,7 @@ The platform SHALL expose one IAM-authenticated plan lifecycle API per environme
 - **THEN** it is rejected with `UNAUTHORIZED` or `FORBIDDEN`, and no state changes
 
 ### Requirement: Contract conformance of every operation
-Every request and response SHALL validate against the pinned contract package (1.x once 1.0.0 is published; until then the 0.x pre-release, currently 0.2.1, which is beta-only). Every route MUST validate its response before sending it. Errors MUST use the contract error envelope with a `correlation_id`. Requests declaring a contract major the platform does not serve MUST fail with `UNSUPPORTED_CONTRACT_VERSION`.
+Every request and response SHALL validate against the pinned contract package (1.x once 1.0.0 is published; until then the 0.x pre-release, currently 0.2.2, which is beta-only). Every route MUST validate its response before sending it. Errors MUST use the contract error envelope with a `correlation_id`. Requests declaring a contract major the platform does not serve MUST fail with `UNSUPPORTED_CONTRACT_VERSION`.
 
 #### Scenario: Schema violation
 - **WHEN** a root create-version request (no parent) omits `input_snapshot_id`

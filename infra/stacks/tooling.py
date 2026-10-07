@@ -28,8 +28,12 @@ pipeline it defines. Contents:
   roles this stack creates (pipeline, build, deploy and stage roles) plus the role names given in
   ``AdditionalEnforcedRoleNames``. The bootstrap fills that parameter from the published
   ``/finplan/<env>/<repo>/config/budget-enforced-role-names`` values (contract D4). Approval model
-  ``AUTOMATIC``; every boundary forbids detaching the deny policy, so only a human removes it.
-  The bootstrap/admin identity is never in the list.
+  ``AUTOMATIC``; every boundary forbids detaching the deny policy, so only a human removes it
+  (by ``REVERSE_BUDGET_ACTION`` or a manual detach). The one exemption is the action's own
+  execution role, which the shared boundary lets detach that policy so AWS Budgets can reset or
+  reverse its action (contracts 0.2.2, D15); its own policy allows attach/detach of the deny policy
+  only. The action's logical ID carries a ``V2`` suffix: it replaced the action that failed its
+  reset (``RESET_FAILURE``) on 2026-10-07. The bootstrap/admin identity is never in the list.
 * **Budget-state writer** (9.2): an SNS-subscribed Lambda (inline code from
   :mod:`finplan_platform.handlers.budget_state`) that sets
   ``/finplan/shared/financialplanning/config/budget-state`` to ``enforced`` on an ACTUAL alert at
@@ -88,6 +92,7 @@ from finplan_contracts import ssm as contract_ssm
 
 __all__ = [
     "ASSET_PREFIX",
+    "BUDGET_ACTION_LOGICAL_ID",
     "BUDGET_NAME",
     "IMAGE_REPOSITORY_NAME",
     "PIPELINE_NAME",
@@ -117,6 +122,8 @@ STORE_STACK_NAME = f"finplan-shared-{REPO}-pipeline-store"
 #: Equals the contract bootstrap default ``finplan-shared-<repo>-pipeline`` (BootstrapConfig).
 PIPELINE_NAME = f"finplan-shared-{REPO}-pipeline"
 BUDGET_NAME = f"finplan-shared-{REPO}-project-budget"
+#: Logical ID of the Budgets enforcement action (V2 replaces the action stuck in RESET_FAILURE).
+BUDGET_ACTION_LOGICAL_ID = "BudgetEnforcementActionV2"
 PIPELINE_STORE_STEM = "pipeline-store"
 ASSET_PREFIX = "assets/"
 #: Where the CLI stages the tooling template at bootstrap (it exceeds the 51,200-byte inline limit).
@@ -452,9 +459,15 @@ class ToolingStack(cdk.Stack):
             Fn.split(",", Fn.join(",", [Fn.join(",", own), Fn.join(",", self.additional_roles.value_as_list)])),
             own,
         )
+        # Logical ID suffix V2 (incident 2026-10-07): the first action fired, applied the deny policy and
+        # then failed its reset with RESET_FAILURE, because the shared boundary on the action's own
+        # execution role denied detaching the deny policy (fixed in contracts 0.2.2, design D15). A
+        # Budgets action stuck in RESET_FAILURE is not repaired by a stack update, so the new logical
+        # ID makes the next bootstrap create a fresh action (STANDBY) and delete the old one
+        # (docs/bootstrap.md, "When the cap is reached"). Bump the suffix again only for the same reason.
         self.action = budgets.CfnBudgetsAction(
             self,
-            "BudgetEnforcementAction",
+            BUDGET_ACTION_LOGICAL_ID,
             budget_name=BUDGET_NAME,
             notification_type="ACTUAL",
             action_type="APPLY_IAM_POLICY",

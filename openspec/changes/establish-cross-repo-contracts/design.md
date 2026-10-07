@@ -252,6 +252,16 @@ A patch release before the first bootstrap; no schema changes.
 - **Budget enforcement deny list.** `bedrock:Converse*` is removed: no IAM action has that name. Converse and ConverseStream are authorized by `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream`, both denied by `bedrock:InvokeModel*`.
 - **Ownership matrix.** The `pipeline-financialplanning` row lists `AWS::Logs::LogGroup` for the explicit 30-day CodeBuild project log groups (tagged `pipeline-build-project`). A named log group references no template resource, so it cannot be parent-attributed; the budget-state writer's log group already matches the `project-budget` row. The checker is not relaxed.
 
+### D15. Budget action can reset its own action (contracts 0.2.2, 2026-10-07)
+
+A patch release after a production incident; no schema changes.
+
+- **Incident.** On 2026-10-07 the budget action fired and attached `finplan-budget-enforcement-deny` to 11 pipeline roles. Its reset then failed with `RESET_FAILURE` ("explicit deny in a permissions boundary"). The cause: `finplan-shared-permission-boundary`, which also bounds the action's own execution role, denied `iam:DetachRolePolicy` of the deny policy to every principal, so AWS Budgets could not undo its own action.
+- **Decision.** In the shared boundary only, the role detach deny (`ProtectBudgetEnforcement`) carries `ArnNotLike` on `aws:PrincipalArn` for `arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-shared-*-budget-action-role`. That role's own policy still allows attach and detach of exactly the deny policy. Every other principal under any boundary is still denied the detach; user and group detaches are never exempt; `budgets:ExecuteBudgetAction` stays denied to everyone under a boundary, so lifting the cap remains a human decision (a human runs `REVERSE_BUDGET_ACTION`, which now succeeds, or detaches by hand).
+- **Name-based exemption, guarded.** Because the exemption matches a role name, the shared boundary also denies `iam:CreateRole`, `UpdateAssumeRolePolicy`, `PutRolePolicy`, `AttachRolePolicy`, `PutRolePermissionsBoundary` and `PassRole` on that name pattern. Only the bootstrap identity (no boundary) deploys the role. Environment and research boundaries carry no exemption, so a role under them is denied even if it has the exempt name.
+- **Rejected.** Removing the detach deny from the shared boundary (automation could lift the cap); an exact-ARN exemption by template reference (the boundary is generated without stack references, and the pattern keeps one source for every repository's tooling naming).
+- **Verification.** Offline policy simulation: the budget action role can detach the deny policy and nothing else; pipeline, build, budget-state writer, environment, research and look-alike roles cannot.
+
 ## Risks / Trade-offs
 
 - [Single account (decided) has a weaker blast-radius boundary than multi-account] → naming, env tags, IAM permission boundaries with env-tag denies, separate per-env resources and the gamma isolation test suite. Multi-account remains a possible future migration that changes configuration only.

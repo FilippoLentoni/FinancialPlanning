@@ -2,7 +2,7 @@
 
 This page is for FinanceModel production workers: how to hand run output to the platform, and how the platform decides. It belongs to the OpenSpec change `add-platform-foundation` (spec `staged-output-acceptance`, tasks 7.1 to 7.5, design P7). Code: `platform/finplan_platform/core/staging.py`. Tests: `tests/unit/test_staging.py`.
 
-The manifest schema is the contract `core/v1/staged-output-manifest.json`, with the `finance/v1/staged-output-payload.json` payload. The platform pins `finplan-contracts` **0.2.1** (a 0.x pre-release, beta only). This schema is planned for contracts 1.0.0, but 1.0.0 is not published yet, so the example below is checked against the pinned 0.2.1 schema (`test_staging_doc_example_manifest_validates`). It will be re-checked when the pin moves to 1.0.0. The outcome read `GET /v1/staged-outputs/{run_id}` answers with the contract `api/get-staged-output-response` (added in 0.2.0).
+The manifest schema is the contract `core/v1/staged-output-manifest.json`, with the `finance/v1/staged-output-payload.json` payload. The platform pins `finplan-contracts` **0.2.2** (a 0.x pre-release, beta only). This schema is planned for contracts 1.0.0, but 1.0.0 is not published yet, so the example below is checked against the pinned 0.2.2 schema (`test_staging_doc_example_manifest_validates`). It will be re-checked when the pin moves to 1.0.0. The outcome read `GET /v1/staged-outputs/{run_id}` answers with the contract `api/get-staged-output-response` (added in 0.2.0).
 
 ## 1. Where to write
 
@@ -58,7 +58,7 @@ This example is synthetic, and every identifier is a placeholder ULID.
   "completion_status": "succeeded",
   "solution_status": "optimal",
   "evaluator_version": "eval-1.0.0",
-  "contract_version": "0.2.1",
+  "contract_version": "0.2.2",
   "files": [
     {"name": "plan-content.json", "checksum": "sha256:a1eb0afabfbba3ff3db159497c3ff95028044dffbeead1075cd43e4a9043a890", "size_bytes": 512, "content_type": "application/json"},
     {"name": "metrics/summary.json", "checksum": "sha256:03ecd7ccd61ddffe9481c627ab90c65a1f7171ccbcd3109d1e44116de39a92c2", "size_bytes": 256, "content_type": "application/json"}
