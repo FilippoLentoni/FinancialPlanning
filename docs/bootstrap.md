@@ -111,7 +111,8 @@ the dry run has fetched `main`, the pipeline exists and its first run reaches be
 
 - **Budget scope.** Until a human activates the `project` cost-allocation tag in the Billing
   console, the budget covers the whole account (design P9). After activation, rerun the bootstrap
-  with the tooling stack parameter `ScopeBudgetToProjectTag=true`.
+  by setting `"scope_budget_to_project_tag": true` in `~/.finplan/bootstrap.json` (the script then passes
+  `ScopeBudgetToProjectTag=true`). The tag was activated on 2026-10-07 after the first bootstrap.
 - **Budget action role names.** The action denies the roles the tooling stack creates, plus every
   role name published at `/finplan/<env>/<repo>/config/budget-enforced-role-names` at the time of
   the bootstrap. The platform publishes its own after each deploy (ingestion and plan-API roles).

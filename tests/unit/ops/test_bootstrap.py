@@ -139,6 +139,7 @@ def test_root_session_bootstraps_the_tooling_stacks_only_PIPE_07(ops_assembly: P
     assert cmd[:4] == ["npx", "--yes", "aws-cdk@2", "deploy"] and "--all" in cmd
     assert cmd[cmd.index("--app") + 1] == str(tmp_path / "cdk.out.bootstrap")
     assert "finplan-shared-financialplanning-tooling:SourceDryRunPassed=false" in cmd
+    assert "finplan-shared-financialplanning-tooling:ScopeBudgetToProjectTag=false" in cmd  # default: whole account
     assert "finplan-shared-financialplanning-tooling:NotificationEmail=person@example.invalid" in cmd
     assert not any("NotificationEmail=person" in line for line in lines)  # never echoed
     filtered = json.loads((tmp_path / "cdk.out.bootstrap" / "manifest.json").read_text())
@@ -284,3 +285,12 @@ def test_ceiling_written_once_and_never_overwritten_COST_01(ssm: Any) -> None:
     assert bootstrap.ensure_cost_ceiling(ssm, 50) == (75.0, False)
     res = bootstrap.ensure_budget_allocation(ssm, 75.0)
     assert res.written and sum(res.allocation.values()) == 50
+
+
+def test_scope_to_project_tag_is_passed_to_the_tooling_stack() -> None:
+    # Regression: the first bootstrap left the budget on the whole account, whose prior spend
+    # exceeded the ceiling, so the budget action denied the pipeline's first build.
+    on = bootstrap.deploy_parameters(notification_email=None, enforced_roles=[], dry_run_passed=True, scope_to_project_tag=True)
+    off = bootstrap.deploy_parameters(notification_email=None, enforced_roles=[], dry_run_passed=True)
+    assert on[bootstrap.TOOLING_STACK_NAME]["ScopeBudgetToProjectTag"] == "true"
+    assert off[bootstrap.TOOLING_STACK_NAME]["ScopeBudgetToProjectTag"] == "false"

@@ -234,8 +234,13 @@ def published_enforced_role_names(ssm: Any) -> list[str]:
     return sorted(dict.fromkeys(names))
 
 
-def deploy_parameters(*, notification_email: str | None, enforced_roles: Sequence[str], dry_run_passed: bool) -> dict[str, dict[str, str]]:
-    params = {"SourceDryRunPassed": "true" if dry_run_passed else "false", "AdditionalEnforcedRoleNames": ",".join(enforced_roles)}
+def deploy_parameters(*, notification_email: str | None, enforced_roles: Sequence[str], dry_run_passed: bool, scope_to_project_tag: bool = False) -> dict[str, dict[str, str]]:
+    params = {
+        "SourceDryRunPassed": "true" if dry_run_passed else "false",
+        "AdditionalEnforcedRoleNames": ",".join(enforced_roles),
+        # true once the `project` cost-allocation tag is active; otherwise the budget sees the whole account
+        "ScopeBudgetToProjectTag": "true" if scope_to_project_tag else "false",
+    }
     if notification_email:
         params["NotificationEmail"] = notification_email
     return {TOOLING_STACK_NAME: params}
@@ -254,6 +259,7 @@ class ToolingDeployer:
         ceiling_default_usd: float,
         notification_email: str | None,
         dry_run_passed: bool,
+        scope_to_project_tag: bool = False,
         runner: Callable[..., Any] = subprocess.run,
         out: Callable[[str], None] = print,
     ) -> None:
@@ -263,13 +269,14 @@ class ToolingDeployer:
         self.ceiling_default_usd = ceiling_default_usd
         self.notification_email = notification_email
         self.dry_run_passed = dry_run_passed
+        self.scope_to_project_tag = scope_to_project_tag
         self.runner = runner
         self.out = out
         self.commands: list[list[str]] = []
 
     def command(self, enforced_roles: Sequence[str]) -> list[str]:
         cmd = ["npx", "--yes", "aws-cdk@2", "deploy", "--app", str(self.assembly), "--all", "--require-approval", "never", "--progress", "events"]
-        for stack, params in deploy_parameters(notification_email=self.notification_email, enforced_roles=enforced_roles, dry_run_passed=self.dry_run_passed).items():
+        for stack, params in deploy_parameters(notification_email=self.notification_email, enforced_roles=enforced_roles, dry_run_passed=self.dry_run_passed, scope_to_project_tag=self.scope_to_project_tag).items():
             for k, v in params.items():
                 cmd += ["--parameters", f"{stack}:{k}={v}"]
         return cmd
@@ -308,6 +315,7 @@ def run(
     bootstrap_dir: Path = BOOTSTRAP_ASSEMBLY,
     approve: Callable[[Plan], bool] = _interactive_approve,
     notification_email: str | None = None,
+    scope_budget_to_project_tag: bool = False,
     ceiling_default_usd: float | None = None,
     runner: Callable[..., Any] = subprocess.run,
     record_path: Path | None = None,
@@ -331,6 +339,7 @@ def run(
         ceiling_default_usd=float(ceiling_default_usd if ceiling_default_usd is not None else shared["cost_ceiling_usd_default"]),
         notification_email=notification_email,
         dry_run_passed=passed,
+        scope_to_project_tag=scope_budget_to_project_tag,
         runner=runner,
         out=out,
     )
@@ -352,7 +361,8 @@ def run(
 
 
 def _local_extra(config_path: str | None) -> dict[str, Any]:
-    """Extra keys of the local untracked configuration (``budget_notification_email``)."""
+    """Extra keys of the local untracked configuration (``budget_notification_email``,
+    ``scope_budget_to_project_tag``)."""
     env = os.environ
     candidate = Path(config_path) if config_path else Path(env[contract_bootstrap.CONFIG_ENV]) if env.get(contract_bootstrap.CONFIG_ENV) else contract_bootstrap.DEFAULT_CONFIG_PATH
     candidate = candidate.expanduser()
@@ -382,7 +392,16 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - the authen
     )
     args.record.expanduser().parent.mkdir(parents=True, exist_ok=True)
     try:
-        run(config, clients, session_region=session.region_name, assembly=args.assembly, notification_email=_local_extra(args.config).get("budget_notification_email"), record_path=args.record)
+        extra = _local_extra(args.config)
+        run(
+            config,
+            clients,
+            session_region=session.region_name,
+            assembly=args.assembly,
+            notification_email=extra.get("budget_notification_email"),
+            scope_budget_to_project_tag=extra.get("scope_budget_to_project_tag") is True,
+            record_path=args.record,
+        )
     except BootstrapStop as stop:
         print(f"[STOPPED] {stop.step}: {stop.message}", file=sys.stderr)
         return 1
