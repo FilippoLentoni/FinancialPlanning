@@ -1,0 +1,13 @@
+{
+  "code": "CONFLICT",
+  "message": "synthetic conflict error",
+  "retryable": false,
+  "details": {
+    "expected_revision": 4,
+    "current_revision": 5,
+    "hint": "re-read the plan head"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

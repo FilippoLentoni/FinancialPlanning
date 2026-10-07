@@ -1,0 +1,6 @@
+{
+  "instrument_id": "CASH",
+  "asset_class": "cash",
+  "currency": "USD",
+  "synthetic": true
+}

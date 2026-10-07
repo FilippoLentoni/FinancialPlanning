@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/submit-experiment-response.json",
+  "title": "submit_experiment response",
+  "description": "Response schema for the 'submit_experiment' tool.",
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id_or_null"
+    },
+    "configuration_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+    },
+    "state": {
+      "anyOf": [
+        {
+          "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/state"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "cost_estimate": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/cost-estimate.json"
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "configuration_id",
+    "dry_run",
+    "cost_estimate"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "dry_run": {
+            "const": false
+          }
+        },
+        "required": [
+          "dry_run"
+        ]
+      },
+      "then": {
+        "required": [
+          "run_id",
+          "state"
+        ],
+        "properties": {
+          "run_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+          },
+          "state": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/state"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "dry_run": {
+            "const": true
+          }
+        },
+        "required": [
+          "dry_run"
+        ]
+      },
+      "then": {
+        "properties": {
+          "run_id": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

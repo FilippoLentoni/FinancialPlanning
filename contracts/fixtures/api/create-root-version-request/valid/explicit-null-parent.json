@@ -1,0 +1,34 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "expected_revision": 1,
+  "idempotency_key": "client-key-0012",
+  "origin": "model_run",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "content": {
+    "base_currency": "USD",
+    "allocation": {
+      "weights": [
+        {
+          "instrument_id": "SPY",
+          "weight": 0.6
+        }
+      ],
+      "cash_weight": 0.4
+    },
+    "constraints": {
+      "long_only": true,
+      "max_weight": 0.8
+    },
+    "fees": {
+      "transaction_cost_bps": 5
+    }
+  },
+  "contract_version": "1.0.0",
+  "synthetic": true,
+  "parent_plan_version_id": null
+}

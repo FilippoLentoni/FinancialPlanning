@@ -1,0 +1,243 @@
+# Platform pipeline and cost guardrails
+
+Tasks 9.1 to 9.4 and 10.1 to 10.4 of `add-platform-foundation`. Specs: platform-pipeline
+(PIPE-01 to PIPE-07) and platform-cost-guardrails (COST-01 to COST-06). Contracts: D6, the
+[pipeline standard](../contracts/docs/pipeline-standard.md), D4, D10 and D11. The one-time
+bootstrap is in [bootstrap.md](bootstrap.md).
+
+## Stages (PIPE-01)
+
+`finplan-shared-financialplanning-pipeline` is a CodePipeline V2 pipeline with CodeBuild. It lives
+in the tooling stack (`infra/stacks/pipeline.py`), and its stages run in this order:
+
+| Stage | Actions |
+|---|---|
+| Source | CodeConnections on `main`. The connection resolves from `/finplan/shared/financialplanning/config/codeconnection-ref` (a CloudFormation SSM parameter, never a literal ARN). `#{SourceVariables.CommitId}` is passed to the build |
+| Build | `scripts/build_stage.py`: pre-synth gates, then `cdk synth` once (`scripts/synth.py`), post-synth gates, asset publishing, then packaging. Output: the single artifact `BuildOutput` |
+| Beta | Deploy `storage`, `metadata`, `api`, `ingestion` (one CloudFormation action each, in dependency order); `PublishManifest`; `IntegrationBetaTests` |
+| Gamma | The same deploys; `PublishManifest`; `GammaTests` |
+| Approval | `ApproveProd`, one Manual approval action |
+| Prod | The same deploys; `PublishManifest` (with the approver and time); `SmokeTests` |
+
+- **A failing action stops promotion.** A gamma failure stops before the approval, so prod keeps
+  its release.
+- **Deploy action roles.** Deploy actions run under `finplan-shared-financialplanning-deploy-role-<env>`.
+  CloudFormation then uses `...-deploy-role-<env>-exec`, which is limited to
+  `finplan-<env>-financialplanning-*` resources and may create only roles that carry
+  `finplan-<env>-permission-boundary`. These two roles and the stage role
+  `finplan-<env>-financialplanning-operator-pipeline-stage` are declared in the account-level
+  tooling stack but tagged `environment=<env>` and bounded by `finplan-<env>-permission-boundary`
+  (contracts D13 "Per-environment pipeline roles", ENV-21), so the environment boundary denies
+  them every other environment's resources. The pipeline and build roles stay `shared`.
+- **The contract check** `finplan_contracts.pipeline_check` (ENV-09) passes on the synthesized
+  template. The same check runs in the unit suite and as a build gate.
+
+## Artifacts are built once (PIPE-03)
+
+- **Synthesizer.** The environment stacks are synthesized with
+  `infra.stacks.tooling.deployment_synthesizer()`. Their Lambda code lives in the pipeline store at
+  `assets/<sha256>.zip`, and their templates carry no CDK bootstrap-version rule. The
+  CloudFormation actions therefore need no `CDKToolkit` stack.
+- **Asset publishing.** `scripts/publish_assets.py` uploads each asset once, write-once
+  (`If-None-Match: *`), as a deterministic zip.
+- **What later stages read.** Every action after Build reads only `BuildOutput`, which holds the
+  cloud assembly, `release-info.json` and the files the stage actions need. No later stage reads the
+  source checkout or runs `cdk synth`; the stage build spec contains neither.
+- **Release identity.** `release-info.json` records one `release_id` (`rel_` + ULID) and one
+  `artifact_digest`, a SHA-256 over every file of the assembly. Beta, gamma and prod deploy the same
+  `BuildOutput`, so their manifests carry the same digest. The cross-environment digest-equality
+  check runs in prod smoke and depends on the bootstrap (task 11.5).
+- **Container images are not supported yet.** If the ingestion function must become a container
+  image (task 6.17), an image repository is needed. The ownership matrix has no FinancialPlanning
+  image-repository row (a contract gap), and the asset publisher refuses image assets until one
+  exists.
+
+## Build-stage gates (PIPE-02)
+
+`scripts/build_gates.py` runs these gates. Any failure fails the build, and nothing is written to
+`BuildOutput`:
+
+| Gate | Stage | Reuses |
+|---|---|---|
+| `contracts-pin` | pre | `scripts/check_contracts_pin.py --rebuild` (exact version plus wheel digest) |
+| `config` | pre | `finplan_platform.core.config` (ING-02 schedule time, ING-10 phase 1 provider, ING-13 daily only); `scripts/check_ingest_pins.py`; `scripts/check_data_hygiene.py` |
+| `leak-scan` | pre | `finplan_contracts.leak_scan` over the repository |
+| `copied-id` | pre | `finplan_contracts.copied_id` (`contracts/`, the producer source, is excluded; `openspec/` is scanned) |
+| `conformance` | pre | `finplan-conformance conformance --mode consumer --expect-version <pin>` |
+| `unit` | pre | `pytest tests/unit tests/contract -m "not live_provider"` |
+| `ownership` | post | `finplan_contracts.ownership` per template. Every problem fails the gate; there is no accepted-gap list |
+| `boundaries` | post | `check_role_boundaries` (ENV-18) and `check_shared_resources` (ENV-16), on the templates as synthesized |
+| `live-perm-scan` | post | `finplan_contracts.live_perms` |
+| `pipeline-structure` | post | `finplan_contracts.pipeline_check` and `bootstrap.check_deploy_roles` |
+| `cost` | post | `scripts/cost_checks.py` (COST-03 tags, COST-04 no always-on compute) |
+
+To run them locally:
+
+```sh
+uv run python scripts/build_gates.py --stage pre --skip-unit
+uv run python scripts/synth.py --out cdk.out
+uv run python scripts/build_gates.py --stage post --assembly cdk.out
+```
+
+## Release manifest and published references (PIPE-04)
+
+`PublishManifest` (`scripts/stage_runner.py publish`, implemented in `scripts/release.py`) runs
+after every deploy. It does four things:
+
+1. **Checks the outputs.** It verifies that the deploy published every platform output:
+   `api/plan-endpoint`, `api/ingestion-endpoint`, `config/run-staging-ref`,
+   `config/ingest-schedule` and `config/bucket-{raw,curated,snapshots,plans,outputs,reports}`. A
+   missing output fails the stage.
+2. **Validates the manifest.** The manifest must validate against the pinned
+   `core/v1/release-manifest.json`. A prod manifest carries `approved_by` and `approved_at`, read
+   from the `ApproveProd` action of the same pipeline execution. A rollback carries
+   `rolled_back_from`.
+3. **Writes three parameters,** each checked with `finplan_contracts.ssm.check_write` as the
+   `pipeline` writer bound to the environment:
+   - `/finplan/<env>/financialplanning/release/manifest`;
+   - `/finplan/<env>/financialplanning/release/current-release-id`;
+   - `/finplan/<env>/financialplanning/config/budget-enforced-role-names`, holding the
+     ingestion-handler and plan-api-handler roles.
+4. **Copies the manifest** to the release ledger at `releases/<release_id>/manifests/<env>.json`.
+
+## Rollback (PIPE-06)
+
+1. Start the pipeline with the variable `rollback_to_release_id=rel_...`.
+2. The Build stage fetches `releases/<release_id>/build-output.zip`, verifies its digest and
+   re-emits it with `rollback: true`. Nothing is rebuilt and no gate reruns.
+3. The deploy stages redeploy it, and each manifest records `rolled_back_from`.
+
+Data is never rolled back. The gamma rollback drill is task 11.4 and depends on the bootstrap.
+
+## Environment tests (PIPE-05)
+
+`scripts/stage_runner.py tests` runs the suite for each environment:
+
+- **beta:** `tests/integration` (the integration-beta suite);
+- **gamma:** `tests/integration` (the gamma suite);
+- **prod:** `tests/smoke`.
+
+`FINPLAN_TARGET_ENV` and `FINPLAN_SUITE` tell the tests where they run, and the opt-in
+live-provider test is always excluded. A prod smoke run that executes no test fails. The
+integration suites are tasks 11.1 to 11.3.
+
+The smoke suite is `tests/smoke/smoke_suite.py`:
+
+1. It reuses or creates the dedicated `synthetic: true` smoke portfolio. The portfolio ID is kept
+   in `/finplan/<env>/financialplanning/config/smoke-portfolio-id`.
+2. It creates a plan for the run and ingests a fixture snapshot.
+3. It creates a root version, checks the JCS SHA-256 checksum and the downloaded bytes, then
+   validates and publishes the version.
+4. It records a paper execution and checks that neither the publication nor the version changed.
+
+It never touches another plan. In prod it calls the API with SigV4 (`tests/smoke/transport.py`)
+as the stage role. Locally it runs against a deployment double: the in-process router, the
+DynamoDB fake, moto S3 and the fixture provider (`tests/unit/ops/test_smoke_double.py`).
+
+## Cost guardrails
+
+### Budget (COST-01, task 9.1)
+
+There is one AWS Budgets `COST` budget, `finplan-shared-financialplanning-project-budget`, in the
+tooling stack.
+
+- **Limit.** The limit is the SSM parameter `/finplan/shared/financialplanning/config/cost-ceiling-usd`,
+  resolved by CloudFormation at deploy time. The bootstrap writes the default from
+  `config/shared.json` when the parameter is absent.
+- **Alerts.** Alerts fire at 50%, 80% and 100% of ACTUAL spend and at 100% of FORECASTED spend.
+  They go to the SNS topic `finplan-shared-financialplanning-budget-alert-topic`. A human supplies
+  the e-mail subscriber at bootstrap; it is never committed.
+- **Scope.** The budget covers the whole account until the `project` cost-allocation tag is
+  activated (`ScopeBudgetToProjectTag`).
+
+### Default allocation (COST-06, task 9.1a)
+
+`scripts/bootstrap.py ensure_budget_allocation` writes
+`/finplan/shared/financialplanning/config/budget-allocation` only when it is absent. The defaults
+are `platform_infra` 8, `cpu_research` 7, `bedrock_explanations` 5, `gpu` 25 and `reserve` 5, read
+from the pinned contract schema. A user-set value is preserved, and a sum above the ceiling stops
+the bootstrap.
+
+### Enforcement action (COST-02, task 9.2)
+
+At 100% of ACTUAL spend the Budgets action attaches `finplan-budget-enforcement-deny`. This is the
+contract policy that denies:
+
+- billable compute;
+- Bedrock invocations;
+- pipeline executions and builds.
+
+The action applies to the tooling roles and to every published `budget-enforced-role-names`. Reads,
+plan reads and Lambda invocation (so ingestion still answers with `BUDGET_EXCEEDED`) are not denied.
+Only a human detaches the policy.
+
+The budget-state writer (`platform/finplan_platform/handlers/budget_state.py`, inlined into the
+tooling stack) sets `/finplan/shared/financialplanning/config/budget-state` to `enforced` on an
+ACTUAL alert at or above the budgeted amount, or on an executed budget action. It never clears the
+flag.
+
+### Pre-check (COST-05, task 9.4)
+
+`finplan_platform.core.budget.budget_precheck(ctx, category, *, estimated_usd=0, state=..., reader=None)`
+reads the flag through `SsmBudgetStateReader` and applies `finplan_contracts.budget.preflight`:
+
+- **Flag set:** it raises `BUDGET_EXCEEDED` (not retryable) before any provider call.
+- **Flag unreadable:** it raises `DEPENDENCY_UNAVAILABLE` (fails closed).
+
+The ingestion gate (`core/ingestion_budget.py`) makes the same decision for `platform_infra`; the
+unit suite asserts the two agree.
+
+### Cost checks (COST-03 and COST-04, task 9.3)
+
+`scripts/cost_checks.py` fails the build in two cases:
+
+- **A missing cost tag.** Every taggable resource must carry `project`, `owner-repo`,
+  `environment` and `logical-role`; the finding names the resource.
+- **Always-on or provisioned resources.** Instances, NAT gateways, interface endpoints, load
+  balancers, provisioned databases and tables, always-on containers, model endpoints, provisioned
+  Lambda concurrency, API caches and GPU instance types are all refused.
+
+## Contract gaps
+
+Contracts 0.2.0 (design D13) resolved the gaps this change first recorded:
+
+1. **Ownership matrix.** The rows now list every type the platform synthesizes (API Gateway
+   sub-resources, handler roles and log groups, SSM parameters, the schedule's dead-letter queue,
+   queue policy and alarm, the budget roles, topic policy and subscriptions, the pipeline store's
+   bucket policy), plus rows for the metadata sweeper, the permission-boundary policies and the
+   per-environment pipeline roles. The ownership gate passes on all 14 synthesized templates with
+   zero problems; `scripts/ownership_known_gaps.json` is deleted.
+2. **Per-environment pipeline roles** carry their environment's tag and boundary (above).
+3. **Boundary checker.** `check_role_boundaries` resolves pseudo-parameter references inside
+   `Fn::Join`, so the gate no longer normalizes templates first.
+4. **Copied-id scanner.** It skips files that are not plain JSON instead of crashing on YAML
+   dates, so `openspec/` is scanned again.
+5. **Boundary resource patterns.** The cross-environment deny uses one ARN pattern per service
+   with the partition, region and account pseudo parameters (CloudFormation `Fn::Sub`). cfn-lint
+   no longer reports `E3510`.
+
+Still open:
+
+- **Image assets.** There is no FinancialPlanning image-repository row.
+- **Contracts version.** The pin is 0.2.0, which is beta-only. Gamma and prod need 1.0.0 once it
+  is published (task 1.2).
+
+### CloudFormation lint
+
+`uvx cfn-lint` over every synthesized template (`cdk.out`, including the nested stage
+assemblies) reports no errors. The remaining warnings were reviewed and none indicates a deploy
+failure:
+
+- `W3005`: an explicit `DependsOn` that a `Ref`/`GetAtt` already implies (CDK-generated).
+- `W3037`: action names cfn-lint does not know in the contract's deny lists (the live-financial
+  deny of every boundary and `bedrock:Converse*` in the budget deny policy). IAM accepts unknown
+  actions in a policy; a deny on an action that does not exist has no effect.
+
+## Interfaces for other modules
+
+- `infra/app.py` keeps the CDK default synthesizer for `npx aws-cdk@2 synth`. The pipeline
+  synthesizes through `scripts/synth.py`, which uses `deployment_synthesizer()`. An environment
+  stack needs nothing else.
+- The plan API must admit the stage role `finplan-<env>-financialplanning-operator-pipeline-stage`.
+  The current resource policy admits every `finplan-<env>-financialplanning-*` principal.
+- Paid or provider operations call `budget_precheck(ctx, "<category>", reader=SsmBudgetStateReader(ssm))`.

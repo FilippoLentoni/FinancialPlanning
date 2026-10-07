@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/publish-plan-version-response.json",
+  "title": "publish_plan_version response",
+  "description": "Response schema for the 'publish_plan_version' tool.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/core/v1/publication.json"
+    }
+  ]
+}

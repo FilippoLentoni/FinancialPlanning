@@ -1,0 +1,69 @@
+{
+  "Description": "SYNTHETIC ENV-05 pass: tool role with scoped grants and the Jev secret read by name",
+  "Resources": {
+    "ToolRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-beta-boundary"
+        },
+        "Policies": [
+          {
+            "PolicyName": "tool",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "ReadPlans",
+                  "Effect": "Allow",
+                  "Action": [
+                    "execute-api:Invoke"
+                  ],
+                  "Resource": "<plan-api-arn>"
+                },
+                {
+                  "Sid": "Tables",
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:Query"
+                  ],
+                  "Resource": "<table-arn>"
+                },
+                {
+                  "Sid": "JevKey",
+                  "Effect": "Allow",
+                  "Action": "secretsmanager:GetSecretValue",
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:finplan/shared/financemodel/jev-api-key-*"
+                  }
+                },
+                {
+                  "Sid": "Bedrock",
+                  "Effect": "Allow",
+                  "Action": [
+                    "bedrock:InvokeModel",
+                    "bedrock:InvokeModelWithResponseStream"
+                  ],
+                  "Resource": "<inference-profile-arn>"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

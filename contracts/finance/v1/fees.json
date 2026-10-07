@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/fees.json",
+  "title": "Fees",
+  "description": "Finance adapter: fee assumptions in basis points.",
+  "type": "object",
+  "properties": {
+    "transaction_cost_bps": {
+      "type": "number",
+      "minimum": 0
+    },
+    "management_fee_bps": {
+      "type": "number",
+      "minimum": 0
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "transaction_cost_bps"
+  ]
+}

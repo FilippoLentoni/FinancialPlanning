@@ -1,0 +1,18 @@
+{
+  "Description": "SYNTHETIC fixture template (OWN-01 fail: IaC declares the external, reused GitHub CodeConnection)",
+  "Resources": {
+    "CDKMetadata": {
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "GitHubConnection": {
+      "Properties": {
+        "ConnectionName": "finplan-github",
+        "ProviderType": "GitHub"
+      },
+      "Type": "AWS::CodeConnections::Connection"
+    }
+  }
+}

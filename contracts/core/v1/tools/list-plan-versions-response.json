@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/list-plan-versions-response.json",
+  "title": "list_plan_versions response",
+  "description": "Response schema for the 'list_plan_versions' tool.",
+  "type": "object",
+  "properties": {
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "plan_version_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+          },
+          "parent_plan_version_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id_or_null"
+          },
+          "origin": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/plan-version.json#/$defs/origin"
+          },
+          "status": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/plan-version.json#/$defs/status"
+          },
+          "checksum": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+          },
+          "created_at": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+          }
+        },
+        "required": [
+          "plan_version_id",
+          "parent_plan_version_id",
+          "origin",
+          "status",
+          "checksum",
+          "created_at"
+        ]
+      }
+    },
+    "next_token": {
+      "anyOf": [
+        {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/next_token"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_id",
+    "versions",
+    "next_token"
+  ]
+}

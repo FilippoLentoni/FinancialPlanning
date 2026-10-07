@@ -1,0 +1,10 @@
+{
+  "plan_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+  "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "origin": "excel_import",
+  "status": "pending_validation",
+  "checksum": "sha256:c3518bb8bfc4ec431c12373f42319945255bdbd1e6cf60d7ef94aca8a28655b9",
+  "no_effect": false,
+  "revision": 5,
+  "synthetic": true
+}

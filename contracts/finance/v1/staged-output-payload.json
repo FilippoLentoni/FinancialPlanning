@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/staged-output-payload.json",
+  "title": "Staged output payload",
+  "description": "Finance adapter payload of a staged-output manifest (kind staged_output).",
+  "type": "object",
+  "properties": {
+    "plan_content": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/plan-content.json"
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "minProperties": 1
+}

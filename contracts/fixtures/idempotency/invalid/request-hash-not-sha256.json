@@ -1,0 +1,17 @@
+{
+  "scope": {
+    "principal": "synthetic-role/plan-writer",
+    "environment": "beta",
+    "operation": "plan_version.create"
+  },
+  "idempotency_key": "client-key-0001",
+  "request_hash": "md5:abc",
+  "response": {
+    "plan_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+    "status": "pending_validation"
+  },
+  "replay_count": 0,
+  "recorded_at": "2026-01-05T14:30:00Z",
+  "retain_until": "2026-01-12T14:30:00Z",
+  "synthetic": true
+}

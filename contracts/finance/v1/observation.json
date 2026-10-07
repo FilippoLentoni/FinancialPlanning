@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/observation.json",
+  "title": "Market-data observation",
+  "description": "Finance adapter: one daily observation. kind marks a completed daily observation versus an intraday partial bar. adj_close, dividend and split_ratio are optional.",
+  "type": "object",
+  "properties": {
+    "instrument_id": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/instrument_id"
+    },
+    "session_date": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "completed_daily",
+        "intraday_partial"
+      ]
+    },
+    "session_status": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "regular",
+        "early_close"
+      ]
+    },
+    "open": {
+      "type": "number",
+      "minimum": 0
+    },
+    "high": {
+      "type": "number",
+      "minimum": 0
+    },
+    "low": {
+      "type": "number",
+      "minimum": 0
+    },
+    "close": {
+      "type": "number",
+      "minimum": 0
+    },
+    "volume": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "adj_close": {
+      "type": "number",
+      "minimum": 0
+    },
+    "dividend": {
+      "type": "number",
+      "minimum": 0
+    },
+    "split_ratio": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "session_date",
+    "kind",
+    "close"
+  ]
+}

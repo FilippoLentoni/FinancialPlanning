@@ -1,0 +1,38 @@
+# SYNTHETIC fixture template (OWN-01 pass, YAML with CloudFormation short-form tags):
+# FinanceModel's own pipeline resources share logical roles with the other repos'
+# pipeline rows and resolve to the pipeline-financemodel row.
+Description: SYNTHETIC fixture template
+Resources:
+  PipelineArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - {Key: project, Value: finplan}
+        - {Key: owner-repo, Value: financemodel}
+        - {Key: environment, Value: shared}
+        - {Key: logical-role, Value: pipeline-artifact-bucket}
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: codepipeline.amazonaws.com}
+            Action: sts:AssumeRole
+      PermissionsBoundary: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-shared-boundary"
+      Tags:
+        - {Key: owner-repo, Value: financemodel}
+        - {Key: environment, Value: shared}
+        - {Key: logical-role, Value: pipeline-role}
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      PipelineType: V2
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore: {Type: S3, Location: !Ref PipelineArtifactBucket}
+      Stages: []
+      Tags:
+        - {Key: owner-repo, Value: financemodel}
+        - {Key: environment, Value: shared}
+        - {Key: logical-role, Value: pipeline}

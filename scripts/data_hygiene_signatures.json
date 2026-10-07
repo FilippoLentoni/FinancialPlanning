@@ -1,0 +1,15 @@
+{
+ "$comment": "Real-data signature list for the build-stage data-hygiene check (task 6.16, ING-19). 'markers' are regular expressions that identify raw provider (Yahoo Finance) payloads; 'row_sha256' holds SHA-256 hashes of '<instrument>|<YYYY-MM-DD>|<close>' strings computed from retrieved beta data by an operator (hashes only, never values; empty until phase 2). A committed fixture that matches either list fails the build.",
+ "markers": [
+  "\"chart\"\\s*:\\s*\\{\\s*\"result\"",
+  "\"quoteResponse\"",
+  "\"quoteSummary\"",
+  "\"regularMarketPrice\"",
+  "\"regularMarketTime\"",
+  "\"exchangeTimezoneName\"",
+  "\"firstTradeDate\"",
+  "\"crumb\"",
+  "query[12]\\.finance\\.yahoo\\.com"
+ ],
+ "row_sha256": []
+}

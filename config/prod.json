@@ -1,0 +1,100 @@
+{
+  "$comment": "FinancialPlanning platform configuration for prod. Settings, placeholders and SSM parameter NAMES only; never account IDs, ARNs, bucket, role or endpoint values. Retention values are the proposed P2 defaults (PQ-3 open).",
+  "environment": "prod",
+  "region": "us-east-2",
+  "phase": 1,
+  "ingest": {
+    "schedule_time": "09:00",
+    "timezone": "America/New_York",
+    "provider": "fixture",
+    "provider_settings": {
+      "min_request_interval_seconds": 2.0,
+      "max_attempts": 4,
+      "backoff_initial_seconds": 1.0,
+      "backoff_max_seconds": 8.0,
+      "jitter": true
+    },
+    "settle_delay_minutes": 60,
+    "function_timeout_seconds": 120,
+    "dataset": {
+      "kind": "etf-daily",
+      "instrument": "SPY",
+      "granularity": "daily",
+      "currency": "USD",
+      "adjustment_basis": "unadjusted"
+    },
+    "approval": {
+      "rule_version": "approval-v1",
+      "rejected_records_max_ratio": 0.0
+    }
+  },
+  "retention": {
+    "raw_days": null,
+    "curated_days": null,
+    "snapshots_days": null,
+    "plans_days": null,
+    "outputs_days": null,
+    "reports_days": null,
+    "staging_window_days": 7,
+    "noncurrent_version_days": 30,
+    "incomplete_multipart_days": 1
+  },
+  "metadata": {
+    "idempotency_ttl_days": 8,
+    "orphan_grace_hours": 24,
+    "point_in_time_recovery": true
+  },
+  "limits": {
+    "excel_upload_max_bytes": 5242880,
+    "excel_upload_grant_ttl_seconds": 900,
+    "excel_max_uncompressed_bytes": 52428800,
+    "excel_max_compression_ratio": 100,
+    "download_grant_ttl_seconds": 300,
+    "page_size_max": 100
+  },
+  "validation": {
+    "ruleset_version": "plan-rules-v1",
+    "weight_sum_tolerance": 1e-09
+  },
+  "consumer_principals": {
+    "financemodel_job": {
+      "ssm_key": "/finplan/prod/financemodel/job/job-role-ref",
+      "role_name_pattern": "finplan-prod-financemodel-job-execution*",
+      "registered": true,
+      "$comment": "Registered contract key (contracts 0.2.0, D13): FinanceModel's pipeline writes the job-execution role reference."
+    },
+    "financemodel_job_api": {
+      "ssm_key": "/finplan/prod/financemodel/job/job-api-role-ref",
+      "role_name_pattern": "finplan-prod-financemodel-job-api-handler*",
+      "registered": true,
+      "$comment": "Registered contract key (contracts 0.2.0, D13); the name pattern follows the matrix logical role job-api-handler."
+    },
+    "tool_reader": {
+      "ssm_key": "/finplan/prod/financelambdastool/lambda/role-reader-arn",
+      "role_name_pattern": "finplan-prod-financelambdastool-tool-role-reader*",
+      "registered": true
+    },
+    "tool_submitter": {
+      "ssm_key": "/finplan/prod/financelambdastool/lambda/role-submitter-arn",
+      "role_name_pattern": "finplan-prod-financelambdastool-tool-role-submitter*",
+      "registered": true
+    },
+    "tool_plan_writer": {
+      "ssm_key": "/finplan/prod/financelambdastool/lambda/role-plan-writer-arn",
+      "role_name_pattern": "finplan-prod-financelambdastool-tool-role-plan-writer*",
+      "registered": true
+    },
+    "website_backend": {
+      "ssm_key": "/finplan/prod/financialplanning/config/website-backend-role-ref",
+      "role_name_pattern": "finplan-prod-financialplanning-website*",
+      "registered": false,
+      "$comment": "Website-path client role (PQ-4/OQ-10 open); platform-owned key."
+    },
+    "operator": {
+      "ssm_key": "/finplan/prod/financialplanning/config/operator-role-ref",
+      "role_name_pattern": "finplan-prod-financialplanning-operator*",
+      "registered": false,
+      "$comment": "Human operator role for this environment; platform-owned key."
+    }
+  }
+}

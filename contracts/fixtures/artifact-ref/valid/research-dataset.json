@@ -1,0 +1,8 @@
+{
+  "artifact_id": "art_01KDVDPVSR2CHDFSHYY867FDGZ",
+  "owner": "financemodel",
+  "kind": "research_dataset",
+  "checksum": "sha256:42776470cced87c6f6512c5fc2f7a8a667d4e1d17be75d2f5597fad8e7b9aacc",
+  "content_type": "application/json",
+  "synthetic": true
+}

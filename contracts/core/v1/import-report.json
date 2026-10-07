@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/import-report.json",
+  "title": "Import report",
+  "description": "Outcome of an Excel plan import. An accepted import names the created child plan version; a rejected import carries at least one error finding naming sheet and row where applicable.",
+  "type": "object",
+  "properties": {
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "base_plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "created_plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "expected_revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/expected_revision"
+    },
+    "template_version": {
+      "type": "string",
+      "pattern": "^xlsx-plan-v[0-9]+$"
+    },
+    "source_artifact": {
+      "allOf": [
+        {
+          "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "excel_source"
+            }
+          }
+        }
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "rejected"
+      ]
+    },
+    "no_effect": {
+      "type": "boolean"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ]
+          },
+          "code": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/error-codes.json#/$defs/code"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "row": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "column": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,3}$"
+          },
+          "field": {
+            "type": "string",
+            "minLength": 1
+          },
+          "details": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "severity",
+          "code",
+          "message"
+        ]
+      }
+    },
+    "correlation_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/correlation_id"
+    },
+    "created_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "base_plan_version_id",
+    "template_version",
+    "source_artifact",
+    "outcome",
+    "findings",
+    "created_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "accepted"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "created_plan_version_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "rejected"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "created_plan_version_id"
+          ]
+        },
+        "properties": {
+          "findings": {
+            "contains": {
+              "properties": {
+                "severity": {
+                  "const": "error"
+                }
+              },
+              "required": [
+                "severity"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

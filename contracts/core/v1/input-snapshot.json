@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/input-snapshot.json",
+  "title": "Input snapshot metadata",
+  "description": "Metadata for an immutable input snapshot: manifest checksum, source-data timestamps, provider lineage with retrieval timestamp, date coverage, quality flags, dataset identity, domain and status. Object-store versioning is never the snapshot identity. Only 'approved' snapshots may be read by FinanceModel.",
+  "x-finplan-checks": [
+    "domain_payload"
+  ],
+  "type": "object",
+  "properties": {
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "dataset": {
+      "type": "object",
+      "properties": {
+        "dataset_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)+$",
+          "description": "Dataset identity, for example '<domain>/<dataset-kind>/<subject>'."
+        },
+        "dataset_version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,64}$"
+        }
+      },
+      "required": [
+        "dataset_id"
+      ]
+    },
+    "manifest_checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "source_timestamps": {
+      "type": "object",
+      "properties": {
+        "earliest": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+        },
+        "latest": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+        }
+      },
+      "required": [
+        "earliest",
+        "latest"
+      ]
+    },
+    "lineage": {
+      "$ref": "#/$defs/lineage"
+    },
+    "coverage": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+    },
+    "quality_flags": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/quality_flag"
+      },
+      "uniqueItems": true
+    },
+    "quality_details": {
+      "type": "object",
+      "description": "Optional (added in 0.2.0): details per quality flag, keyed by the flag name (for example the missing session dates under missing_sessions, rejected-record counts by reason under rejected_records). Values are informational; unknown keys from later minors are ignored.",
+      "propertyNames": {
+        "$ref": "#/$defs/quality_flag"
+      },
+      "additionalProperties": true
+    },
+    "observation_summary": {
+      "type": "object",
+      "description": "Optional (added in 0.2.0): counts describing the snapshot's content, keyed by a lowercase name (for example records received and rejected, and observations per domain-defined kind). The keys are informational and defined by the domain adapter.",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "status": {
+      "$ref": "#/$defs/status"
+    },
+    "approval_rule_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,64}$"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+      }
+    },
+    "created_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "input_snapshot_id",
+    "domain",
+    "domain_schema_version",
+    "dataset",
+    "manifest_checksum",
+    "source_timestamps",
+    "lineage",
+    "coverage",
+    "quality_flags",
+    "status",
+    "created_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "approved"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "approval_rule_version"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "committed",
+        "approved",
+        "expired"
+      ]
+    },
+    "quality_flag": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "no_session",
+        "missing_sessions",
+        "rejected_records",
+        "source_revised",
+        "contains_intraday_partial",
+        "finality_inferred",
+        "no_new_observations",
+        "stale_source",
+        "empty_response",
+        "partial_response"
+      ],
+      "description": "Open enum: unknown flags from later minors are informational."
+    },
+    "lineage": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+          "description": "Provider adapter name (for example 'fixture' or 'mock' in tests, 'yfinance' in phase 2). This is the lineage field 'provider'; there is no 'provider_id' field."
+        },
+        "provider_library": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "library_version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$"
+        },
+        "retrieved_at": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+        },
+        "calendar_version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$",
+          "description": "Optional (added in 0.2.0): version of the session calendar used to resolve sessions (for example a pinned exchange-calendar artifact version)."
+        }
+      },
+      "required": [
+        "provider",
+        "retrieved_at"
+      ]
+    }
+  }
+}

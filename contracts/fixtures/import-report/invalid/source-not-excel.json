@@ -1,0 +1,20 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "base_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "created_plan_version_id": "pv_01KDVDNCXRT6ARCWBJ7P43NRJ8",
+  "expected_revision": 2,
+  "template_version": "xlsx-plan-v1",
+  "source_artifact": {
+    "artifact_id": "art_01KDVDPKZRBKWHSDH5YKQ4JWSS",
+    "owner": "financialplanning",
+    "kind": "plan_export",
+    "checksum": "sha256:58b2b474f99c7733a8d968bf71c1b3f32460311b7cf8d9a734c35c3febe9cd26",
+    "content_type": "application/json"
+  },
+  "outcome": "accepted",
+  "no_effect": false,
+  "findings": [],
+  "correlation_id": "corr-synthetic-0001",
+  "created_at": "2026-01-13T14:30:00Z",
+  "synthetic": true
+}

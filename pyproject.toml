@@ -1,0 +1,56 @@
+[project]
+name = "finplan-platform"
+version = "0.1.0"
+description = "FinancialPlanning platform service: storage, metadata, plan lifecycle API, ingestion, staged-output acceptance and Excel import (OpenSpec change add-platform-foundation)."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # Contract package, pinned by exact version AND by the SHA-256 digest of the exact wheel
+    # (contracts-pin.json, verified by scripts/check_contracts_pin.py and by uv.lock).
+    # 0.2.0 is a pre-release (0.x is beta-only, contracts docs/consumer-pinning.md); it is
+    # not yet published to CodeArtifact, so the wheel is built from contracts/python and vendored.
+    "finplan-contracts==0.2.0",
+    "boto3>=1.40",
+    "defusedxml>=0.7.1",
+    "openpyxl>=3.1.5",
+]
+
+[project.optional-dependencies]
+# Real market-data provider and the build-time XNYS calendar generator (design P5, P6a).
+# Exact pins: an upgrade is an ordinary change through beta and gamma.
+providers = [
+    "yfinance==1.7.0",
+    "exchange-calendars==4.13.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "moto[s3,dynamodb,ssm,sts]>=5.1",
+    "aws-cdk-lib>=2.220.0,<3",
+    "constructs>=10.4,<11",
+    "finplan-platform[providers]",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+finplan-contracts = { path = "vendor/finplan-contracts/finplan_contracts-0.2.0-py3-none-any.whl" }
+finplan-platform = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["platform/finplan_platform"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q -p no:cacheprovider"
+markers = [
+    "live_provider: opt-in live yfinance shape test; never runs in CI or prod smoke (set FINPLAN_LIVE_PROVIDER_TEST=1)",
+    "synth: tests that synthesize CDK stacks (offline)",
+]

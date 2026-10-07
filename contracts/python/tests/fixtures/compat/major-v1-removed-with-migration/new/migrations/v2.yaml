@@ -1,0 +1,6 @@
+from_major: 1
+to_major: 2
+consumers:
+  - financelambdastool
+  - financeagent
+removal_criterion: v1 removed after every consumer in prod pins contracts 2.x

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/budget-allocation.json",
+  "title": "Budget allocation",
+  "description": "Category -> USD map stored at /finplan/shared/financialplanning/config/budget-allocation. Categories are registered; their sum must be at most the cost ceiling (/finplan/shared/financialplanning/config/cost-ceiling-usd, default USD 50). Third-party spend (TypeSafe Jev) is not counted. The sum constraint is the registered semantic check budget_allocation_within_ceiling.",
+  "x-finplan-checks": [
+    "budget_allocation_within_ceiling"
+  ],
+  "x-finplan-default-ceiling-usd": 50,
+  "x-finplan-default-allocation": {
+    "platform_infra": 8,
+    "cpu_research": 7,
+    "bedrock_explanations": 5,
+    "gpu": 25,
+    "reserve": 5
+  },
+  "type": "object",
+  "properties": {
+    "platform_infra": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+    },
+    "cpu_research": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+    },
+    "bedrock_explanations": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+    },
+    "gpu": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+    },
+    "reserve": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+    }
+  },
+  "additionalProperties": false,
+  "minProperties": 1,
+  "$defs": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "platform_infra",
+        "cpu_research",
+        "bedrock_explanations",
+        "gpu",
+        "reserve"
+      ]
+    }
+  }
+}

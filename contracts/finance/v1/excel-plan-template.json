@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/excel-plan-template.json",
+  "title": "Excel plan template",
+  "description": "Logical content of the 'xlsx-plan-v1' workbook: metadata sheet (base plan_version_id, checksum, head expected_revision) and the editable allocation table. Workbooks contain no macros, external links or formulas except cells the template marks formula-tolerant. The instrument_id CASH is reserved: the row with instrument_id CASH holds the plan's cash weight (plan content allocation.cash_weight), is never a tradable instrument and never appears in allocation.weights; at most one CASH row is allowed.",
+  "type": "object",
+  "properties": {
+    "template_version": {
+      "const": "xlsx-plan-v1"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "plan_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+        },
+        "base_plan_version_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+        },
+        "base_checksum": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+        },
+        "expected_revision": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/expected_revision"
+        },
+        "exported_at": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+        }
+      },
+      "required": [
+        "plan_id",
+        "base_plan_version_id",
+        "base_checksum",
+        "expected_revision",
+        "exported_at"
+      ],
+      "additionalProperties": false
+    },
+    "allocation_rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "instrument_id": {
+            "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/instrument_id",
+            "description": "Instrument identifier, or the reserved value CASH for the cash-weight row (CASH is not an instrument and is never written to allocation.weights)."
+          },
+          "target_weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "formula_tolerant": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "row",
+          "instrument_id",
+          "target_weight"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Editable allocation table, one row per instrument plus the reserved CASH row (the cash weight). The target weights of all rows, CASH included, sum to 1 within the validation tolerance."
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "template_version",
+    "metadata",
+    "allocation_rows"
+  ],
+  "additionalProperties": false
+}

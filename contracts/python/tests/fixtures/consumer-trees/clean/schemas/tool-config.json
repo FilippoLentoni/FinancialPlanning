@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://consumer.example.invalid/local/tool-config.json",
+  "title": "Consumer-local tool configuration (SYNTHETIC)",
+  "type": "object",
+  "properties": {
+    "plan": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan.json"
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "timeout_seconds"
+  ]
+}

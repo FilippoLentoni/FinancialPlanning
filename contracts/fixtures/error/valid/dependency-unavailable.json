@@ -1,0 +1,12 @@
+{
+  "code": "DEPENDENCY_UNAVAILABLE",
+  "message": "synthetic dependency unavailable error",
+  "retryable": true,
+  "details": {
+    "dependency": "financemodel",
+    "environment": "beta"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

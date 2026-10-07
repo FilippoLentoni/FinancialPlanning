@@ -1,0 +1,7 @@
+{
+  "project": "finplan",
+  "owner-repo": "financialplanning",
+  "environment": "shared",
+  "logical-role": "project-budget",
+  "synthetic": true
+}

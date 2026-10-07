@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/error.json",
+  "title": "Error envelope",
+  "description": "Standard error envelope for every cross-repository API, Lambda and tool error. Must not include secrets, stack traces or raw storage locations.",
+  "x-finplan-checks": [
+    "error_retryable",
+    "no_leaks"
+  ],
+  "type": "object",
+  "properties": {
+    "code": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/error-codes.json#/$defs/code"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "details": {
+      "type": "object"
+    },
+    "correlation_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/correlation_id"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "retryable",
+    "details",
+    "correlation_id",
+    "contract_version"
+  ],
+  "propertyNames": {
+    "not": {
+      "enum": [
+        "stack",
+        "stack_trace",
+        "stacktrace",
+        "traceback",
+        "trace",
+        "exception"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "VALIDATION_FAILED"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "required": [
+              "pointer"
+            ],
+            "properties": {
+              "pointer": {
+                "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/json_pointer"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "INVALID_IDENTIFIER"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "required": [
+              "field"
+            ],
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "UNSUPPORTED_CONTRACT_VERSION"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "details": {
+            "required": [
+              "served_contract_majors"
+            ],
+            "properties": {
+              "served_contract_majors": {
+                "type": "array",
+                "items": {
+                  "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_major"
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

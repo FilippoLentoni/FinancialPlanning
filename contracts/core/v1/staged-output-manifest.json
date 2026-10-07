@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/staged-output-manifest.json",
+  "title": "Staged-output manifest",
+  "description": "Completion marker written LAST by a FinanceModel production worker under <run-staging-ref>/<run_id>/. Lists every staged file with its SHA-256. There is no separate marker file. Acceptance is an explicit platform call, never an S3 event.",
+  "x-finplan-checks": [
+    "domain_payload"
+  ],
+  "x-finplan-domain-payloads": [
+    {
+      "pointer": "/payload",
+      "kind": "staged_output",
+      "optional": true
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    },
+    "model_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/model_version"
+    },
+    "configuration_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "parent_plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id_or_null"
+    },
+    "completion_status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/completion_status"
+    },
+    "solution_status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/solution_status"
+    },
+    "evaluator_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)*$",
+            "maxLength": 512,
+            "description": "Name relative to the run's staging prefix."
+          },
+          "checksum": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "content_type": {
+            "type": "string",
+            "pattern": "^[a-z]+/[a-z0-9][a-z0-9.+-]*$"
+          }
+        },
+        "required": [
+          "name",
+          "checksum",
+          "size_bytes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Domain payload (kind staged_output)."
+    },
+    "written_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "run_id",
+    "model_version",
+    "configuration_id",
+    "input_snapshot_id",
+    "plan_id",
+    "completion_status",
+    "evaluator_version",
+    "contract_version",
+    "files",
+    "domain",
+    "domain_schema_version",
+    "written_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "completion_status": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "completion_status"
+        ]
+      },
+      "then": {
+        "required": [
+          "solution_status"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "completion_status": {
+            "enum": [
+              "failed",
+              "cancelled",
+              "timed_out"
+            ]
+          }
+        },
+        "required": [
+          "completion_status"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "solution_status"
+          ]
+        }
+      }
+    }
+  ]
+}

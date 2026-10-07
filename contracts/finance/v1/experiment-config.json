@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/experiment-config.json",
+  "title": "Experiment configuration",
+  "description": "Finance adapter configuration payload (kind configuration), canonicalized for configuration_id.",
+  "type": "object",
+  "properties": {
+    "strategy": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "objective": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "portfolio_optimization",
+        "backtest",
+        "forecast"
+      ]
+    },
+    "universe": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/instrument_id"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "risk_aversion": {
+      "type": "number",
+      "minimum": 0
+    },
+    "lookback_days": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "rebalance_frequency": {
+      "type": "string",
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly",
+        "quarterly"
+      ]
+    },
+    "constraints": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/constraints.json"
+    },
+    "fees": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/fees.json"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "strategy",
+    "universe"
+  ],
+  "additionalProperties": false
+}

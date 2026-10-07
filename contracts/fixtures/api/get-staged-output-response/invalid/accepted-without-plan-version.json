@@ -1,0 +1,25 @@
+{
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "decided_at": "2026-01-10T09:40:00Z",
+  "correlation_id": "corr-synthetic-0001",
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "completion_status": "succeeded",
+  "manifest_checksum": "sha256:d0df349c23640f6298e8e193c1014a5208fbefc977d2e5a7b2f81b333d3d08cb",
+  "contract_version": "1.0.0",
+  "synthetic": true,
+  "outcome": "accepted",
+  "solution_status": "optimal",
+  "manifest_ref": {
+    "artifact_id": "art_01KDVDQFARX4YE9SVDSN9VFHVS",
+    "owner": "financialplanning",
+    "kind": "staged_output_manifest",
+    "checksum": "sha256:01f5cb48d9916c3eb83026e8103fc1d03ed5f92393e53b6510598d31b326b47c",
+    "content_type": "application/json"
+  },
+  "plan_version_status": "validated",
+  "checksum": "sha256:b227969f6cf4da71c20123bd0955de3a1b37b26300d03e88d4a9572ac92c9368"
+}

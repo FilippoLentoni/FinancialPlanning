@@ -1,0 +1,34 @@
+{
+  "Description": "SYNTHETIC fixture template (ENV-16 fail: environment data (snapshot artifacts) in a resource tagged environment=shared)",
+  "Resources": {
+    "CDKMetadata": {
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "SnapshotBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "snapshot-artifact-bucket"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket"
+    }
+  }
+}

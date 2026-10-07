@@ -1,0 +1,21 @@
+{
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "subject": {
+    "plan_version_id": "pv_01KDVDNCXRT6ARCWBJ7P43NRJ8",
+    "compare_to_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM"
+  },
+  "evidence": [
+    {
+      "artifact_id": "art_01KDVDQ6HGVDEZEBVHYK47N0F4",
+      "owner": "financialplanning",
+      "kind": "plan_content",
+      "checksum": "sha256:d1f7489083079bf9c4307f12fdf9c5aff40adf41bdd7bebbefebc79acf814376",
+      "content_type": "application/json"
+    }
+  ],
+  "question": "Why did the allocation change?",
+  "idempotency_key": "client-key-0003",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

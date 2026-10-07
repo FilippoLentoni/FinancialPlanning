@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/domain-registry.json",
+  "title": "Domain adapter registry",
+  "description": "Registry of domain adapters (domains/registry.json). Each entry names the domain key, served domain schema versions, the payload schema $id per payload kind and the adapter's neutrality deny-list.",
+  "x-finplan-checks": [
+    "schema_ids_resolve"
+  ],
+  "type": "object",
+  "properties": {
+    "registry_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "domains": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "domain": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+          },
+          "description": {
+            "type": "string"
+          },
+          "domain_schema_versions": {
+            "type": "array",
+            "items": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "payload_schemas": {
+            "type": "object",
+            "propertyNames": {
+              "pattern": "^[a-z][a-z0-9_]{0,63}$"
+            },
+            "additionalProperties": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/schema_id"
+            },
+            "minProperties": 1
+          },
+          "neutrality_deny_terms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "domain",
+          "domain_schema_versions",
+          "payload_schemas"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "registry_version",
+    "domains"
+  ],
+  "additionalProperties": false
+}

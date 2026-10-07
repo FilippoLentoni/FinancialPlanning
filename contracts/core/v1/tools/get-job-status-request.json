@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-job-status-request.json",
+  "title": "get_job_status request",
+  "description": "Request schema for the 'get_job_status' tool. Read-only; returns the run state; never storage locations.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "run_id"
+  ],
+  "additionalProperties": false
+}

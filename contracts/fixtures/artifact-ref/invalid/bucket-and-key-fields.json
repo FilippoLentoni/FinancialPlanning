@@ -1,0 +1,10 @@
+{
+  "artifact_id": "art_01KDVDPZPR5CG7Z6538PEABZ2Z",
+  "owner": "financialplanning",
+  "kind": "plan_content",
+  "checksum": "sha256:a685935ada4ce7d319497485db21da6115bfc0ec36b39828662b1c793725ca93",
+  "content_type": "application/json",
+  "bucket": "example-bucket",
+  "key": "plans/content.json",
+  "synthetic": true
+}

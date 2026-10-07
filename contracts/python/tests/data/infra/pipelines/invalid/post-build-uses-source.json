@@ -1,0 +1,678 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Synthetic synthesized pipeline template (test fixture).",
+  "Metadata": {
+    "synthetic": true
+  },
+  "Parameters": {
+    "CodeConnectionRef": {
+      "Type": "AWS::SSM::Parameter::Value<String>",
+      "Default": "/finplan/shared/financialplanning/config/codeconnection-ref"
+    }
+  },
+  "Resources": {
+    "Pipeline": {
+      "Type": "AWS::CodePipeline::Pipeline",
+      "Properties": {
+        "Name": "finplan-shared-financialplanning-pipeline",
+        "PipelineType": "V2",
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "PipelineRole",
+            "Arn"
+          ]
+        },
+        "Variables": [
+          {
+            "Name": "rollback_to_release_id",
+            "DefaultValue": "none",
+            "Description": "Redeploy the stored assembly of this release_id"
+          }
+        ],
+        "ArtifactStore": {
+          "Type": "S3",
+          "Location": {
+            "Ref": "PipelineArtifactBucket"
+          }
+        },
+        "Stages": [
+          {
+            "Name": "Source",
+            "Actions": [
+              {
+                "Name": "GitHubMain",
+                "ActionTypeId": {
+                  "Category": "Source",
+                  "Owner": "AWS",
+                  "Provider": "CodeStarSourceConnection",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ConnectionArn": {
+                    "Ref": "CodeConnectionRef"
+                  },
+                  "FullRepositoryId": "FilippoLentoni/FinancialPlanning",
+                  "BranchName": "main"
+                },
+                "OutputArtifacts": [
+                  {
+                    "Name": "SourceOutput"
+                  }
+                ],
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "Build",
+            "Actions": [
+              {
+                "Name": "BuildTestSynth",
+                "ActionTypeId": {
+                  "Category": "Build",
+                  "Owner": "AWS",
+                  "Provider": "CodeBuild",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "BuildProject"
+                  }
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "SourceOutput"
+                  }
+                ],
+                "OutputArtifacts": [
+                  {
+                    "Name": "CloudAssembly"
+                  },
+                  {
+                    "Name": "ReleaseMetadata"
+                  }
+                ],
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "Beta",
+            "Actions": [
+              {
+                "Name": "DeployBeta",
+                "ActionTypeId": {
+                  "Category": "Deploy",
+                  "Owner": "AWS",
+                  "Provider": "CloudFormation",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ActionMode": "CREATE_UPDATE",
+                  "StackName": "finplan-beta-financialplanning-platform",
+                  "TemplatePath": "CloudAssembly::platform.template.json",
+                  "RoleArn": {
+                    "Fn::GetAtt": [
+                      "BetaCfnExecutionRole",
+                      "Arn"
+                    ]
+                  },
+                  "ParameterOverrides": "{\"Environment\": \"beta\"}"
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "CloudAssembly"
+                  }
+                ],
+                "RoleArn": {
+                  "Fn::GetAtt": [
+                    "BetaDeployRole",
+                    "Arn"
+                  ]
+                },
+                "RunOrder": 1
+              },
+              {
+                "Name": "BetaTests",
+                "ActionTypeId": {
+                  "Category": "Test",
+                  "Owner": "AWS",
+                  "Provider": "CodeBuild",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "TestProject"
+                  },
+                  "EnvironmentVariables": "[{\"name\":\"FINPLAN_ENV\",\"value\":\"beta\"}]"
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "SourceOutput"
+                  }
+                ],
+                "RunOrder": 2
+              }
+            ]
+          },
+          {
+            "Name": "Gamma",
+            "Actions": [
+              {
+                "Name": "DeployGamma",
+                "ActionTypeId": {
+                  "Category": "Deploy",
+                  "Owner": "AWS",
+                  "Provider": "CloudFormation",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ActionMode": "CREATE_UPDATE",
+                  "StackName": "finplan-gamma-financialplanning-platform",
+                  "TemplatePath": "CloudAssembly::platform.template.json",
+                  "RoleArn": {
+                    "Fn::GetAtt": [
+                      "GammaCfnExecutionRole",
+                      "Arn"
+                    ]
+                  },
+                  "ParameterOverrides": "{\"Environment\": \"gamma\"}"
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "CloudAssembly"
+                  }
+                ],
+                "RoleArn": {
+                  "Fn::GetAtt": [
+                    "GammaDeployRole",
+                    "Arn"
+                  ]
+                },
+                "RunOrder": 1
+              },
+              {
+                "Name": "GammaTests",
+                "ActionTypeId": {
+                  "Category": "Test",
+                  "Owner": "AWS",
+                  "Provider": "CodeBuild",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "TestProject"
+                  },
+                  "EnvironmentVariables": "[{\"name\":\"FINPLAN_ENV\",\"value\":\"gamma\"}]"
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "CloudAssembly"
+                  }
+                ],
+                "RunOrder": 2
+              }
+            ]
+          },
+          {
+            "Name": "ManualApproval",
+            "Actions": [
+              {
+                "Name": "ApproveProd",
+                "ActionTypeId": {
+                  "Category": "Approval",
+                  "Owner": "AWS",
+                  "Provider": "Manual",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "CustomData": "Approve release #{variables.release_id} for prod"
+                },
+                "RunOrder": 1
+              }
+            ]
+          },
+          {
+            "Name": "Prod",
+            "Actions": [
+              {
+                "Name": "DeployProd",
+                "ActionTypeId": {
+                  "Category": "Deploy",
+                  "Owner": "AWS",
+                  "Provider": "CloudFormation",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ActionMode": "CREATE_UPDATE",
+                  "StackName": "finplan-prod-financialplanning-platform",
+                  "TemplatePath": "CloudAssembly::platform.template.json",
+                  "RoleArn": {
+                    "Fn::GetAtt": [
+                      "ProdCfnExecutionRole",
+                      "Arn"
+                    ]
+                  },
+                  "ParameterOverrides": "{\"Environment\": \"prod\"}"
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "CloudAssembly"
+                  }
+                ],
+                "RoleArn": {
+                  "Fn::GetAtt": [
+                    "ProdDeployRole",
+                    "Arn"
+                  ]
+                },
+                "RunOrder": 1
+              },
+              {
+                "Name": "SmokeTests",
+                "ActionTypeId": {
+                  "Category": "Test",
+                  "Owner": "AWS",
+                  "Provider": "CodeBuild",
+                  "Version": "1"
+                },
+                "Configuration": {
+                  "ProjectName": {
+                    "Ref": "TestProject"
+                  },
+                  "EnvironmentVariables": "[{\"name\":\"FINPLAN_ENV\",\"value\":\"prod\"}]"
+                },
+                "InputArtifacts": [
+                  {
+                    "Name": "CloudAssembly"
+                  }
+                ],
+                "RunOrder": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "BuildProject": {
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Name": "finplan-shared-financialplanning-build",
+        "Source": {
+          "Type": "CODEPIPELINE",
+          "BuildSpec": "version: 0.2\nphases:\n  build:\n    commands:\n      - make test\n      - finplan-conformance conformance\n      - npx cdk synth\n"
+        },
+        "Artifacts": {
+          "Type": "CODEPIPELINE"
+        },
+        "Environment": {
+          "Type": "LINUX_CONTAINER",
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/standard:7.0"
+        },
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "PipelineRole",
+            "Arn"
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-build-project"
+          }
+        ]
+      }
+    },
+    "TestProject": {
+      "Type": "AWS::CodeBuild::Project",
+      "Properties": {
+        "Name": "finplan-shared-financialplanning-tests",
+        "Source": {
+          "Type": "CODEPIPELINE",
+          "BuildSpec": "version: 0.2\nphases:\n  build:\n    commands:\n      - make integration-test\n"
+        },
+        "Artifacts": {
+          "Type": "CODEPIPELINE"
+        },
+        "Environment": {
+          "Type": "LINUX_CONTAINER",
+          "ComputeType": "BUILD_GENERAL1_SMALL",
+          "Image": "aws/codebuild/standard:7.0"
+        },
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "PipelineRole",
+            "Arn"
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-build-project"
+          }
+        ]
+      }
+    },
+    "PipelineArtifactBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-artifact-bucket"
+          }
+        ]
+      }
+    },
+    "PipelineRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-shared-financialplanning-pipeline-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-shared-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-role"
+          }
+        ]
+      }
+    },
+    "BetaDeployRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-deploy-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-beta-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          }
+        ]
+      }
+    },
+    "BetaCfnExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-cfn-exec-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-beta-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          }
+        ]
+      }
+    },
+    "GammaDeployRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-gamma-financialplanning-deploy-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-gamma-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "gamma"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          }
+        ]
+      }
+    },
+    "GammaCfnExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-gamma-financialplanning-cfn-exec-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-gamma-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "gamma"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          }
+        ]
+      }
+    },
+    "ProdDeployRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-prod-financialplanning-deploy-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-prod-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "prod"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          }
+        ]
+      }
+    },
+    "ProdCfnExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-prod-financialplanning-cfn-exec-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-prod-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "prod"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          }
+        ]
+      }
+    }
+  }
+}

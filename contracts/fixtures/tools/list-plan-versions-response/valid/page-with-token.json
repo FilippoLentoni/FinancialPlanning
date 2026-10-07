@@ -1,0 +1,23 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "versions": [
+    {
+      "plan_version_id": "pv_01KDVDNCXRT6ARCWBJ7P43NRJ8",
+      "parent_plan_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+      "origin": "excel_import",
+      "status": "pending_validation",
+      "checksum": "sha256:b227969f6cf4da71c20123bd0955de3a1b37b26300d03e88d4a9572ac92c9368",
+      "created_at": "2026-01-13T14:30:00Z"
+    },
+    {
+      "plan_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+      "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+      "origin": "manual_override",
+      "status": "pending_validation",
+      "checksum": "sha256:c3518bb8bfc4ec431c12373f42319945255bdbd1e6cf60d7ef94aca8a28655b9",
+      "created_at": "2026-01-12T14:30:00Z"
+    }
+  ],
+  "next_token": "eyJwYWdlIjoyfQ",
+  "synthetic": true
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/api/create-plan-request.json",
+  "title": "Create plan request",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Body of POST /v1/portfolios/{portfolio_id}/plans. portfolio_id equals the path parameter; expected_revision is the portfolio's current revision (optimistic concurrency). The platform mints plan_id.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "expected_revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/expected_revision"
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "portfolio_id",
+    "name",
+    "expected_revision",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

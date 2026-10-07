@@ -1,0 +1,75 @@
+{
+  "synthetic": true,
+  "description": "configuration_id = 'cfg_' + lowercase hex SHA-256 of the RFC 8785 canonical JSON of the configuration document. Parse input_json, canonicalize, hash.",
+  "algorithm": {
+    "canonicalization": "RFC 8785 (JCS)",
+    "hash": "SHA-256",
+    "encoding": "UTF-8",
+    "prefix": "cfg_"
+  },
+  "equal_groups": [
+    [
+      "base",
+      "base-key-order-and-whitespace",
+      "base-number-forms"
+    ]
+  ],
+  "cases": [
+    {
+      "name": "base",
+      "description": "Synthetic finance configuration.",
+      "input_json": "{\"domain\": \"finance\", \"domain_schema_version\": \"1.0\", \"payload\": {\"strategy\": \"mean_variance\", \"universe\": [\"SPY\", \"CASH\"], \"risk_aversion\": 2.0,\n \"lookback_days\": 252, \"constraints\": {\"long_only\": true, \"max_weight\": 1.0}}, \"synthetic\": true}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"constraints\":{\"long_only\":true,\"max_weight\":1},\"lookback_days\":252,\"risk_aversion\":2,\"strategy\":\"mean_variance\",\"universe\":[\"SPY\",\"CASH\"]},\"synthetic\":true}",
+      "configuration_id": "cfg_8695d37cc7b54096a86d0b05eacfc041d4cb4dc1db055e003726e86cddb43706"
+    },
+    {
+      "name": "base-key-order-and-whitespace",
+      "description": "Same document as 'base' with different key order and whitespace: same configuration_id (ID-02).",
+      "input_json": "{\n  \"synthetic\":true,\"payload\":{\"lookback_days\":252,\"constraints\":{\"max_weight\":1.0,\"long_only\":true},\n \"universe\":[\"SPY\",\"CASH\"],\"risk_aversion\":2.0,\"strategy\":\"mean_variance\"},\n \"domain_schema_version\":\"1.0\",\"domain\":\"finance\"}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"constraints\":{\"long_only\":true,\"max_weight\":1},\"lookback_days\":252,\"risk_aversion\":2,\"strategy\":\"mean_variance\",\"universe\":[\"SPY\",\"CASH\"]},\"synthetic\":true}",
+      "configuration_id": "cfg_8695d37cc7b54096a86d0b05eacfc041d4cb4dc1db055e003726e86cddb43706"
+    },
+    {
+      "name": "base-number-forms",
+      "description": "Same as 'base' with 2.0 written as 2 and 1.0 as 1e0: JCS number canonicalization gives the same configuration_id.",
+      "input_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"strategy\":\"mean_variance\",\"universe\":[\"SPY\",\"CASH\"],\"risk_aversion\":2,\"lookback_days\":252,\"constraints\":{\"long_only\":true,\"max_weight\":1e0}},\"synthetic\":true}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"constraints\":{\"long_only\":true,\"max_weight\":1},\"lookback_days\":252,\"risk_aversion\":2,\"strategy\":\"mean_variance\",\"universe\":[\"SPY\",\"CASH\"]},\"synthetic\":true}",
+      "configuration_id": "cfg_8695d37cc7b54096a86d0b05eacfc041d4cb4dc1db055e003726e86cddb43706"
+    },
+    {
+      "name": "risk-aversion-2-5",
+      "description": "Risk aversion changed from 2.0 to 2.5: different configuration_id (ID-02).",
+      "input_json": "{\"domain\": \"finance\", \"domain_schema_version\": \"1.0\", \"payload\": {\"strategy\": \"mean_variance\", \"universe\": [\"SPY\", \"CASH\"], \"risk_aversion\": 2.5,\n \"lookback_days\": 252, \"constraints\": {\"long_only\": true, \"max_weight\": 1.0}}, \"synthetic\": true}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"constraints\":{\"long_only\":true,\"max_weight\":1},\"lookback_days\":252,\"risk_aversion\":2.5,\"strategy\":\"mean_variance\",\"universe\":[\"SPY\",\"CASH\"]},\"synthetic\":true}",
+      "configuration_id": "cfg_61afe257a232405eccf5ebc865a9846f593c3201767bf832f3d70509dfb305ac"
+    },
+    {
+      "name": "array-order-matters",
+      "description": "Array order is significant in JCS: reversed universe gives a different configuration_id.",
+      "input_json": "{\"domain\": \"finance\", \"domain_schema_version\": \"1.0\", \"payload\": {\"strategy\": \"mean_variance\", \"universe\": [\"CASH\", \"SPY\"], \"risk_aversion\": 2.0,\n \"lookback_days\": 252, \"constraints\": {\"long_only\": true, \"max_weight\": 1.0}}, \"synthetic\": true}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"constraints\":{\"long_only\":true,\"max_weight\":1},\"lookback_days\":252,\"risk_aversion\":2,\"strategy\":\"mean_variance\",\"universe\":[\"CASH\",\"SPY\"]},\"synthetic\":true}",
+      "configuration_id": "cfg_059db1b401ebc45ee31bf199aafd7bc97ffa3cc2cd97175a0f572f4a12f1533a"
+    },
+    {
+      "name": "unicode-and-escapes",
+      "description": "Non-ASCII and escaped characters are canonicalized per RFC 8785.",
+      "input_json": "{\"payload\":{\"label\":\"Caf\\u00e9 \\\"plan\\\" \\u20ac\",\"note\":\"line1\\nline2\",\"tab\":\"a\\tb\"},\"domain_schema_version\":\"1.0\",\"domain\":\"finance\",\"synthetic\":true}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"label\":\"Café \\\"plan\\\" €\",\"note\":\"line1\\nline2\",\"tab\":\"a\\tb\"},\"synthetic\":true}",
+      "configuration_id": "cfg_19d1e2ef2e502f47a00e156680fda902ea13bd2677ccc7cf00904bc45104aeb4"
+    },
+    {
+      "name": "numbers",
+      "description": "Integer, negative, fractional, exponent and large values.",
+      "input_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"a\":0,\"b\":-1,\"c\":0.1,\"d\":1e21,\"e\":1.5e-7,\"f\":1234567890,\"g\":-0.0},\"synthetic\":true}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{\"a\":0,\"b\":-1,\"c\":0.1,\"d\":1e+21,\"e\":1.5e-7,\"f\":1234567890,\"g\":0},\"synthetic\":true}",
+      "configuration_id": "cfg_f86648f46c39eadafb15d556fa074d39890ec393a6ec83df399af04b9b1c532f"
+    },
+    {
+      "name": "empty-payload",
+      "description": "Empty payload object.",
+      "input_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{},\"synthetic\":true}",
+      "canonical_json": "{\"domain\":\"finance\",\"domain_schema_version\":\"1.0\",\"payload\":{},\"synthetic\":true}",
+      "configuration_id": "cfg_398c0a83055518292aa58edfcf68263d1a7034a9eeca92e573e9bc6db1fc673d"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "state": "failed",
+  "purpose": "research",
+  "dry_run": false,
+  "compute_class": "cpu",
+  "cost_estimate": {
+    "estimated_usd_upper_bound": 0.35,
+    "price_retrieved_at": "2026-01-10T09:00:00Z",
+    "remaining_allocation_usd": 6.2,
+    "budget_category": "cpu_research",
+    "synthetic": true
+  },
+  "transitions": [
+    {
+      "state": "queued",
+      "at": "2026-01-10T09:01:00Z"
+    },
+    {
+      "state": "starting",
+      "at": "2026-01-10T09:02:00Z"
+    },
+    {
+      "state": "running",
+      "at": "2026-01-10T09:04:00Z"
+    }
+  ],
+  "elapsed_seconds": 120,
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "domain": "finance",
+  "submitted_at": "2026-01-10T09:00:00Z",
+  "updated_at": "2026-01-10T09:06:00Z",
+  "synthetic": true,
+  "completion_status": "failed",
+  "error": {
+    "code": "INTERNAL",
+    "message": "synthetic internal error",
+    "retryable": false,
+    "details": {
+      "exit": "abnormal"
+    },
+    "correlation_id": "corr-synthetic-0001",
+    "contract_version": "1.0.0",
+    "synthetic": true
+  }
+}

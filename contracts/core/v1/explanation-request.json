@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/explanation-request.json",
+  "title": "Explanation request",
+  "description": "Domain-neutral explanation request envelope. Evidence is referenced by trusted artifact references; the domain adapter defines the evidence schema.",
+  "x-finplan-checks": [
+    "domain_payload",
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "subject": {
+      "type": "object",
+      "properties": {
+        "plan_version_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+        },
+        "compare_to_plan_version_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id_or_null"
+        }
+      },
+      "required": [
+        "plan_version_id"
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "explanation_evidence"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "domain",
+    "domain_schema_version",
+    "subject",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/idempotency.json",
+  "title": "Idempotency record",
+  "description": "Idempotency fragment. The record key is (principal, environment, operation, idempotency_key); the record stores the request hash (RFC 8785 JCS SHA-256 of the request body) and the original response, retained at least 7 days. Same key + same hash returns the original response; same key + different hash fails with IDEMPOTENCY_KEY_REUSED.",
+  "x-finplan-checks": [
+    "idempotency_retention"
+  ],
+  "x-finplan-min-retention-days": 7,
+  "type": "object",
+  "properties": {
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "idempotency_key": {
+      "$ref": "#/$defs/idempotency_key"
+    },
+    "request_hash": {
+      "$ref": "#/$defs/request_hash"
+    },
+    "response": {
+      "type": "object",
+      "description": "The original response returned for every replay."
+    },
+    "replay_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "recorded_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "retain_until": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "scope",
+    "idempotency_key",
+    "request_hash",
+    "response",
+    "recorded_at",
+    "retain_until"
+  ],
+  "$defs": {
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$",
+      "description": "Client-chosen key, 1-128 characters from [A-Za-z0-9_-], required on every state-changing operation."
+    },
+    "derived_key": {
+      "type": "string",
+      "pattern": "^lt_[0-9a-f]{64}$",
+      "description": "Proxied-call key: 'lt_' + lowercase hex SHA-256 of 'caller_identity|env|tool|idempotency_key' (UTF-8). Fits idempotency_key."
+    },
+    "request_hash": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum",
+      "description": "SHA-256 of the RFC 8785 canonical request body (transport headers such as the caller block excluded)."
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "principal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "environment": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/environment"
+        },
+        "operation": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{0,127}$"
+        }
+      },
+      "required": [
+        "principal",
+        "environment",
+        "operation"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,21 @@
+# SYNTHETIC ENV-05 fail: a service wildcard on AgentCore includes payment and wallet actions.
+Resources:
+  RuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: bedrock-agentcore.amazonaws.com}
+            Action: sts:AssumeRole
+      PermissionsBoundary: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-gamma-boundary"
+      Policies:
+        - PolicyName: agentcore
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AgentCoreEverything
+                Effect: Allow
+                Action: bedrock-agentcore:*
+                Resource: !Sub "arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:*"

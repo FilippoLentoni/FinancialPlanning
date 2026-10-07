@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/constraints.json",
+  "title": "Constraints",
+  "description": "Finance adapter: portfolio construction constraints.",
+  "type": "object",
+  "properties": {
+    "long_only": {
+      "type": "boolean"
+    },
+    "max_weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "min_weight": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "max_turnover": {
+      "type": "number",
+      "minimum": 0
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "minProperties": 1
+}

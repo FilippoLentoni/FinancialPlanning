@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/api/record-execution-response.json",
+  "title": "Record execution response",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Response of POST /v1/publications/{publication_id}/executions (201, and the same body on an idempotent replay): the execution record plus the contract version it was written under.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/core/v1/execution.json"
+    }
+  ],
+  "properties": {
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    }
+  },
+  "required": [
+    "contract_version"
+  ]
+}

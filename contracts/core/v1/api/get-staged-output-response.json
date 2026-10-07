@@ -1,0 +1,180 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/api/get-staged-output-response.json",
+  "title": "Staged-output outcome",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Response of GET /v1/staged-outputs/{run_id}: the recorded acceptance decision for one model run. outcome accepted names the created plan_version_id (with that version's current validation status and checksum); rejected carries the rejection kind and the error envelope (structural rejections list the offending staged files by manifest-relative name); no_version carries the run's solution status (infeasible or unbounded). A run has at most one outcome. Nothing names a bucket or key: staged files appear only by manifest-relative name, the accepted manifest only as a trusted artifact reference.",
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    },
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "accepted",
+        "rejected",
+        "no_version"
+      ]
+    },
+    "decided_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "correlation_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/correlation_id"
+    },
+    "model_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/model_version"
+    },
+    "configuration_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "parent_plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id_or_null"
+    },
+    "completion_status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/completion_status"
+    },
+    "solution_status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/solution_status"
+    },
+    "manifest_checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "manifest_ref": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+    },
+    "plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "plan_version_status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan-version.json#/$defs/status"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "rejection_kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "run_outcome",
+        "structural"
+      ]
+    },
+    "error": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/error.json"
+    },
+    "rejected_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)*$"
+          },
+          "problem": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          }
+        },
+        "required": [
+          "name",
+          "problem"
+        ]
+      }
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "run_id",
+    "plan_id",
+    "outcome",
+    "decided_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "accepted"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "plan_version_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "rejected"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "rejection_kind",
+          "error"
+        ],
+        "not": {
+          "required": [
+            "plan_version_id"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "no_version"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "required": [
+          "solution_status"
+        ],
+        "properties": {
+          "solution_status": {
+            "enum": [
+              "infeasible",
+              "unbounded"
+            ]
+          }
+        },
+        "not": {
+          "required": [
+            "plan_version_id"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "expected_revision": 4,
+  "idempotency_key": "client-key-0005",
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "content": {
+    "base_currency": "USD"
+  },
+  "reason": "synthetic override",
+  "synthetic": true
+}

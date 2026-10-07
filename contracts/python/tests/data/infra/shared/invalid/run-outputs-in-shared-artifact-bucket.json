@@ -1,0 +1,42 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Shared bucket holding beta run outputs (ENV-16).",
+  "Metadata": {
+    "synthetic": true
+  },
+  "Resources": {
+    "PipelineArtifactBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "beta-run-outputs",
+              "Prefix": "beta/run-outputs/",
+              "Status": "Enabled",
+              "ExpirationInDays": 30
+            }
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-artifact-bucket"
+          }
+        ]
+      }
+    }
+  }
+}

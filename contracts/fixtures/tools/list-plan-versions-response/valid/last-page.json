@@ -1,0 +1,15 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "versions": [
+    {
+      "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+      "parent_plan_version_id": null,
+      "origin": "model_run",
+      "status": "validated",
+      "checksum": "sha256:60f424bfa087ab458b0e32518ba51734e1009d8833294b4b73aaa9d706ed9008",
+      "created_at": "2026-01-11T14:30:00Z"
+    }
+  ],
+  "next_token": null,
+  "synthetic": true
+}

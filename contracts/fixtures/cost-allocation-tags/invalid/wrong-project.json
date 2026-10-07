@@ -1,0 +1,7 @@
+{
+  "project": "other",
+  "owner-repo": "financialplanning",
+  "environment": "beta",
+  "logical-role": "snapshot-artifact-bucket",
+  "synthetic": true
+}

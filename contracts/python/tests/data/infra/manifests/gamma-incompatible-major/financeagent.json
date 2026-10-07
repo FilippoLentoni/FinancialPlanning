@@ -1,0 +1,16 @@
+{
+  "repo": "financeagent",
+  "environment": "gamma",
+  "region": "us-east-2",
+  "release_id": "rel_01KDVDNCQ8JZ3T9W4XY5Z6A7B8",
+  "source_commit": "abd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+  "artifact_digest": "sha256:cdd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+  "contract_version": "1.0.0",
+  "deployed_at": "2026-01-15T14:30:00Z",
+  "previous_release_id": null,
+  "outputs": {
+    "gateway-principal-ref": "/finplan/gamma/financeagent/agent/gateway-principal-ref"
+  },
+  "served_contract_majors": [],
+  "synthetic": true
+}

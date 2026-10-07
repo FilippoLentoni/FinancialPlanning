@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-version-request.json",
+  "title": "get_plan_version request",
+  "description": "Request schema for the 'get_plan_version' tool. Read-only; returns identifiers, lineage, status, checksum, a compact content summary and trusted references.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_version_id"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,15 @@
+{
+  "run_id": null,
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "state": "awaiting_approval",
+  "dry_run": false,
+  "cost_estimate": {
+    "estimated_usd_upper_bound": 4.5,
+    "price_retrieved_at": "2026-01-10T09:00:00Z",
+    "remaining_allocation_usd": 25,
+    "budget_category": "gpu",
+    "synthetic": true
+  },
+  "message": "A human approver must approve this run.",
+  "synthetic": true
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/domain-envelope.json",
+  "title": "Domain envelope",
+  "description": "Generic domain-neutral envelope: domain key, domain schema version, payload kind and an opaque payload validated by the registered domain adapter's schema for that kind. Unregistered domains or unserved versions fail with VALIDATION_FAILED.",
+  "x-finplan-checks": [
+    "domain_payload"
+  ],
+  "x-finplan-domain-payloads": [
+    {
+      "pointer": "/payload",
+      "kind_pointer": "/payload_kind"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "payload_kind": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/vocabulary_value"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "domain",
+    "domain_schema_version",
+    "payload_kind",
+    "payload"
+  ],
+  "additionalProperties": false
+}

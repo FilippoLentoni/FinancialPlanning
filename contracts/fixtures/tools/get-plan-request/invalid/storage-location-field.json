@@ -1,0 +1,5 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "location": "s3://example-bucket/plan.json",
+  "synthetic": true
+}

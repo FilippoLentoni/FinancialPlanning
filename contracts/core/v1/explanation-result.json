@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/explanation-result.json",
+  "title": "Explanation result",
+  "description": "Explanation result: deterministic numerical evidence artifact references (with checksums) separate from the narrative. Narrative is never the sole carrier of numeric results, so at least one evidence reference is required.",
+  "x-finplan-checks": [
+    "domain_payload"
+  ],
+  "type": "object",
+  "properties": {
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "subject": {
+      "type": "object",
+      "properties": {
+        "plan_version_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+        },
+        "compare_to_plan_version_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id_or_null"
+        }
+      },
+      "required": [
+        "plan_version_id"
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "explanation_evidence"
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 1
+    },
+    "narrative": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "generated_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "domain",
+    "domain_schema_version",
+    "subject",
+    "evidence",
+    "narrative",
+    "generated_at"
+  ]
+}

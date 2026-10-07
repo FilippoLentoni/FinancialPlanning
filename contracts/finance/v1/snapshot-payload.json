@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/snapshot-payload.json",
+  "title": "Snapshot payload",
+  "description": "Finance adapter snapshot payload (kind snapshot): instruments and observations. Market-data semantics live here, never in the envelope.",
+  "type": "object",
+  "properties": {
+    "dataset_id": {
+      "type": "string",
+      "pattern": "^finance/[a-z0-9-]+/[A-Za-z0-9._-]+$"
+    },
+    "calendar": {
+      "type": "string",
+      "pattern": "^[A-Z]{4}$"
+    },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json"
+      },
+      "minItems": 1
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/finance/v1/observation.json"
+      }
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "instruments",
+    "observations"
+  ]
+}

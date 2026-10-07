@@ -1,0 +1,25 @@
+{
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "payload_kind": "shipment_plan",
+  "payload": {
+    "base_currency": "USD",
+    "allocation": {
+      "weights": [
+        {
+          "instrument_id": "SPY",
+          "weight": 0.6
+        }
+      ],
+      "cash_weight": 0.4
+    },
+    "constraints": {
+      "long_only": true,
+      "max_weight": 0.8
+    },
+    "fees": {
+      "transaction_cost_bps": 5
+    }
+  },
+  "synthetic": true
+}

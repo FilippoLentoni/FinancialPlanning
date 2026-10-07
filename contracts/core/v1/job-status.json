@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/job-status.json",
+  "title": "Job status",
+  "description": "Run lifecycle status. state is one of the non-terminal states or a terminal completion status; completion_status is present only when the run is terminal and equals the state.",
+  "x-finplan-checks": [
+    "gpu_approval_required"
+  ],
+  "x-finplan-terminal-states": [
+    "succeeded",
+    "failed",
+    "cancelled",
+    "timed_out"
+  ],
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    },
+    "state": {
+      "$ref": "#/$defs/state"
+    },
+    "completion_status": {
+      "$ref": "#/$defs/completion_status"
+    },
+    "purpose": {
+      "$ref": "#/$defs/purpose"
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "compute_class": {
+      "$ref": "#/$defs/compute_class"
+    },
+    "cost_estimate": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/cost-estimate.json"
+    },
+    "approval": {
+      "type": "object",
+      "properties": {
+        "approved_by": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "approved_at": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+        },
+        "approved_estimate_usd": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+        }
+      },
+      "required": [
+        "approved_by",
+        "approved_at"
+      ]
+    },
+    "transitions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "$ref": "#/$defs/state"
+          },
+          "at": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+          }
+        },
+        "required": [
+          "state",
+          "at"
+        ]
+      }
+    },
+    "elapsed_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "configuration_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "model_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/model_version_or_null"
+    },
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "error": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/error.json"
+    },
+    "submitted_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "run_id",
+    "state",
+    "purpose",
+    "submitted_at",
+    "updated_at"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "completion_status"
+        ],
+        "properties": {
+          "completion_status": {
+            "const": "succeeded"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "failed"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "completion_status"
+        ],
+        "properties": {
+          "completion_status": {
+            "const": "failed"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "cancelled"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "completion_status"
+        ],
+        "properties": {
+          "completion_status": {
+            "const": "cancelled"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "timed_out"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "required": [
+          "completion_status"
+        ],
+        "properties": {
+          "completion_status": {
+            "const": "timed_out"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "awaiting_approval",
+              "queued",
+              "starting",
+              "running",
+              "stopping"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "completion_status"
+          ]
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "state": {
+      "type": "string",
+      "enum": [
+        "awaiting_approval",
+        "queued",
+        "starting",
+        "running",
+        "stopping",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "timed_out"
+      ]
+    },
+    "completion_status": {
+      "type": "string",
+      "enum": [
+        "succeeded",
+        "failed",
+        "cancelled",
+        "timed_out"
+      ]
+    },
+    "solution_status": {
+      "type": "string",
+      "enum": [
+        "optimal",
+        "feasible",
+        "infeasible",
+        "unbounded",
+        "no_effect",
+        "not_applicable"
+      ]
+    },
+    "purpose": {
+      "type": "string",
+      "enum": [
+        "research",
+        "tuning",
+        "holdout_evaluation",
+        "production_candidate"
+      ]
+    },
+    "compute_class": {
+      "type": "string",
+      "enum": [
+        "cpu",
+        "gpu"
+      ]
+    }
+  }
+}

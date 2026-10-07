@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/capability.json",
+  "title": "Capability description",
+  "description": "Capability description returned by describe_capabilities: environment, release, pinned contract version, served majors and per-tool availability.",
+  "x-finplan-checks": [
+    "schema_ids_resolve"
+  ],
+  "type": "object",
+  "properties": {
+    "environment": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/environment"
+    },
+    "release_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/release_id"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "served_contract_majors": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_major"
+      },
+      "uniqueItems": true
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "input_schema_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/schema_id"
+          },
+          "output_schema_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/schema_id"
+          },
+          "state_changing": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "unavailable_reason": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/error-codes.json#/$defs/code"
+          }
+        },
+        "required": [
+          "name",
+          "input_schema_id",
+          "output_schema_id",
+          "state_changing",
+          "available"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "available": {
+                  "const": false
+                }
+              },
+              "required": [
+                "available"
+              ]
+            },
+            "then": {
+              "required": [
+                "unavailable_reason"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "generated_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "environment",
+    "release_id",
+    "contract_version",
+    "served_contract_majors",
+    "tools",
+    "generated_at"
+  ]
+}

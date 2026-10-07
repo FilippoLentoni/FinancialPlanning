@@ -1,0 +1,9 @@
+{
+  "publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "mode": "paper",
+  "note": "synthetic paper execution",
+  "idempotency_key": "client-key-0013",
+  "contract_version": "1.0.0",
+  "synthetic": true,
+  "account": "synthetic-account"
+}

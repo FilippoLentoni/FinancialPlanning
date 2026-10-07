@@ -1,0 +1,94 @@
+{
+ "synthetic": true,
+ "description": "Synthetic shape fixture for the yfinance adapter tests: column names, index and dtypes as yfinance 1.7.0 history(auto_adjust=False, actions=True) returns them. Every value is invented (round numbers); this is not market data.",
+ "library": "yfinance",
+ "library_version": "1.7.0",
+ "ticker": "SPY",
+ "index_name": "Date",
+ "index_timezone": "America/New_York",
+ "columns": [
+  "Open",
+  "High",
+  "Low",
+  "Close",
+  "Adj Close",
+  "Volume",
+  "Dividends",
+  "Stock Splits",
+  "Capital Gains"
+ ],
+ "rows": [
+  {
+   "Date": "2026-01-02",
+   "Open": 100.0,
+   "High": 101.0,
+   "Low": 99.5,
+   "Close": 100.5,
+   "Adj Close": 100.25,
+   "Volume": 1000000,
+   "Dividends": 0.0,
+   "Stock Splits": 0.0,
+   "Capital Gains": 0.0
+  },
+  {
+   "Date": "2026-01-05",
+   "Open": 101.0,
+   "High": 102.0,
+   "Low": 100.5,
+   "Close": 101.5,
+   "Adj Close": 101.25,
+   "Volume": 1001000,
+   "Dividends": 0.0,
+   "Stock Splits": 0.0,
+   "Capital Gains": 0.0
+  },
+  {
+   "Date": "2026-01-06",
+   "Open": 102.0,
+   "High": 103.0,
+   "Low": 101.5,
+   "Close": 102.5,
+   "Adj Close": 102.25,
+   "Volume": 1002000,
+   "Dividends": 0.0,
+   "Stock Splits": 0.0,
+   "Capital Gains": 0.0
+  },
+  {
+   "Date": "2026-01-07",
+   "Open": 103.0,
+   "High": 104.0,
+   "Low": 102.5,
+   "Close": 103.5,
+   "Adj Close": 103.25,
+   "Volume": 1003000,
+   "Dividends": 1.0,
+   "Stock Splits": 0.0,
+   "Capital Gains": 0.0
+  },
+  {
+   "Date": "2026-01-08",
+   "Open": 104.0,
+   "High": 105.0,
+   "Low": 103.5,
+   "Close": 104.5,
+   "Adj Close": 104.25,
+   "Volume": 1004000,
+   "Dividends": 0.0,
+   "Stock Splits": 2.0,
+   "Capital Gains": 0.0
+  },
+  {
+   "Date": "2026-01-09",
+   "Open": 105.0,
+   "High": 106.0,
+   "Low": 104.5,
+   "Close": 105.5,
+   "Adj Close": 105.25,
+   "Volume": 1005000,
+   "Dividends": 0.0,
+   "Stock Splits": 0.0,
+   "Capital Gains": 0.0
+  }
+ ]
+}

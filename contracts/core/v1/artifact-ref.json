@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/artifact-ref.json",
+  "title": "Trusted artifact reference",
+  "description": "A stored artifact as a trusted reference resolved by the owning service. Never a caller-chosen storage path: no bucket, key, URI or path fields, and s3:// or path-like values are rejected with VALIDATION_FAILED. A research dataset is a 'research_dataset' reference whose artifact_id is FinanceModel-issued and whose checksum is the dataset manifest checksum.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "artifact_id": {
+      "$ref": "#/$defs/artifact_id"
+    },
+    "owner": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/repo",
+      "description": "Owning service (repository) that resolves the reference."
+    },
+    "kind": {
+      "$ref": "#/$defs/kind"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "content_type": {
+      "type": "string",
+      "pattern": "^[a-z]+/[a-z0-9][a-z0-9.+-]*$"
+    },
+    "size_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "owner",
+    "kind",
+    "checksum",
+    "content_type"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "artifact_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{2,127}$",
+      "description": "Owner-issued opaque artifact identifier (no '/', ':' or '.')."
+    },
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "snapshot_manifest",
+        "snapshot_payload",
+        "plan_content",
+        "plan_export",
+        "excel_source",
+        "staged_output_manifest",
+        "validation_report",
+        "import_report",
+        "research_dataset",
+        "run_artifact",
+        "explanation_evidence"
+      ],
+      "description": "Open enum: unknown values from later minors are informational."
+    }
+  }
+}

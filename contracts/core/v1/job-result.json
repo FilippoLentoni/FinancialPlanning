@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/job-result.json",
+  "title": "Job/run result",
+  "description": "Run result with completion_status separate from solution_status. Infeasible, unbounded or no-effect outcomes are completion_status 'succeeded'. A crash is 'failed' with an error envelope and no solution_status. cancelled or timed_out results have artifacts_complete false.",
+  "x-finplan-checks": [
+    "domain_payload"
+  ],
+  "x-finplan-domain-payloads": [
+    {
+      "pointer": "/payload",
+      "kind": "run_result",
+      "optional": true
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    },
+    "completion_status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/completion_status"
+    },
+    "solution_status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/solution_status"
+    },
+    "error": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/error.json"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+      }
+    },
+    "artifacts_complete": {
+      "type": "boolean"
+    },
+    "model_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/model_version_or_null"
+    },
+    "configuration_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "evaluator_version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}$"
+    },
+    "dataset_checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "payload": {
+      "type": "object",
+      "description": "Domain payload (kind run_result)."
+    },
+    "completed_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "run_id",
+    "completion_status",
+    "artifacts",
+    "artifacts_complete"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "completion_status": {
+            "const": "succeeded"
+          }
+        },
+        "required": [
+          "completion_status"
+        ]
+      },
+      "then": {
+        "required": [
+          "solution_status"
+        ],
+        "not": {
+          "required": [
+            "error"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "completion_status": {
+            "const": "failed"
+          }
+        },
+        "required": [
+          "completion_status"
+        ]
+      },
+      "then": {
+        "required": [
+          "error"
+        ],
+        "not": {
+          "required": [
+            "solution_status"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "completion_status": {
+            "enum": [
+              "cancelled",
+              "timed_out"
+            ]
+          }
+        },
+        "required": [
+          "completion_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "artifacts_complete": {
+            "const": false
+          }
+        }
+      }
+    }
+  ]
+}

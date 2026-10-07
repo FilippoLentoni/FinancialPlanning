@@ -1,0 +1,70 @@
+{
+  "Description": "SYNTHETIC fixture template (OWN-01 fail: FinanceModel declares the platform plan table owned by FinancialPlanning)",
+  "Resources": {
+    "CDKMetadata": {
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "PlanTable": {
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "pk",
+            "AttributeType": "S"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "KeySchema": [
+          {
+            "AttributeName": "pk",
+            "KeyType": "HASH"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financemodel"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-table"
+          }
+        ]
+      },
+      "Type": "AWS::DynamoDB::Table"
+    },
+    "ResearchBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financemodel"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "research-workspace-bucket"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket"
+    }
+  }
+}

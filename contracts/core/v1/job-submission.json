@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/job-submission.json",
+  "title": "Job submission",
+  "description": "Domain-neutral job submission envelope (FinanceModel submit_job). The configuration payload is validated by the registered domain adapter. dry_run validates and estimates without creating a run.",
+  "x-finplan-checks": [
+    "domain_payload",
+    "no_storage_locations"
+  ],
+  "x-finplan-domain-payloads": [
+    {
+      "pointer": "/configuration/payload",
+      "kind": "configuration",
+      "domain_pointer": "/configuration"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "job_type": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/vocabulary_value"
+    },
+    "purpose": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/purpose"
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "configuration": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/configuration.json"
+    },
+    "configuration_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+    },
+    "evaluation_window": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+    },
+    "compute_class": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/compute_class"
+    },
+    "max_runtime_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 604800
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "domain",
+    "domain_schema_version",
+    "job_type",
+    "purpose",
+    "dry_run",
+    "input_snapshot_id",
+    "configuration",
+    "idempotency_key",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

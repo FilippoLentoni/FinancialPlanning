@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/create-override-version-response.json",
+  "title": "create_override_version response",
+  "description": "Response schema for the 'create_override_version' tool.",
+  "type": "object",
+  "properties": {
+    "plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "parent_plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "origin": {
+      "const": "manual_override"
+    },
+    "status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan-version.json#/$defs/status"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "no_effect": {
+      "type": "boolean"
+    },
+    "revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/revision"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_version_id",
+    "parent_plan_version_id",
+    "origin",
+    "status",
+    "checksum",
+    "no_effect",
+    "revision"
+  ]
+}

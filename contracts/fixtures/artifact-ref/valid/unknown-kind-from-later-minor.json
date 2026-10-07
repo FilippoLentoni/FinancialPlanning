@@ -1,0 +1,8 @@
+{
+  "artifact_id": "art_01KDVDPWS03B9A0N5J1W3K2WHF",
+  "owner": "financialplanning",
+  "kind": "model_card",
+  "checksum": "sha256:0fd1d4d5a4963a059dcb67af388c865f73ead8b9d7a23b5a7745598d7075c88f",
+  "content_type": "application/json",
+  "synthetic": true
+}

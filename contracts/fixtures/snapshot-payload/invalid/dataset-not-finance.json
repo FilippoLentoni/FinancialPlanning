@@ -1,0 +1,47 @@
+{
+  "dataset_id": "supply_chain/shipments/x",
+  "calendar": "XNYS",
+  "instruments": [
+    {
+      "instrument_id": "SPY",
+      "name": "Synthetic S&P 500 tracking ETF series",
+      "asset_class": "etf",
+      "currency": "USD",
+      "exchange_mic": "XNYS",
+      "synthetic": true
+    }
+  ],
+  "observations": [
+    {
+      "instrument_id": "SPY",
+      "session_date": "2026-01-02",
+      "kind": "completed_daily",
+      "session_status": "regular",
+      "open": 100.0,
+      "high": 101.5,
+      "low": 99.5,
+      "close": 101.0,
+      "volume": 1000,
+      "adj_close": 100.8,
+      "dividend": 0.0,
+      "split_ratio": 1.0,
+      "synthetic": true
+    },
+    {
+      "instrument_id": "SPY",
+      "session_date": "2026-01-05",
+      "kind": "completed_daily",
+      "session_status": "regular",
+      "open": 101.0,
+      "high": 102.5,
+      "low": 100.5,
+      "close": 102.0,
+      "volume": 1000,
+      "adj_close": 101.8,
+      "dividend": 0.0,
+      "split_ratio": 1.0,
+      "synthetic": true
+    }
+  ],
+  "synthetic": true
+}

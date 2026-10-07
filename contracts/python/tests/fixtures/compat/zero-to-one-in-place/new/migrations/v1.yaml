@@ -1,0 +1,6 @@
+from_major: 0
+to_major: 1
+consumers:
+  - financelambdastool
+  - financeagent
+removal_criterion: 0.x was beta only and is never served in gamma or prod

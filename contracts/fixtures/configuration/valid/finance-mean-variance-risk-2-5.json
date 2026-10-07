@@ -1,0 +1,23 @@
+{
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "payload": {
+    "strategy": "mean_variance",
+    "objective": "portfolio_optimization",
+    "universe": [
+      "SPY",
+      "CASH"
+    ],
+    "risk_aversion": 2.5,
+    "lookback_days": 252,
+    "rebalance_frequency": "monthly",
+    "constraints": {
+      "long_only": true,
+      "max_weight": 1.0
+    },
+    "fees": {
+      "transaction_cost_bps": 5
+    }
+  },
+  "synthetic": true
+}

@@ -1,0 +1,27 @@
+{
+  "version": "36.0.0",
+  "artifacts": {
+    "FinplanToolingStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://unknown-account/us-east-2",
+      "properties": {
+        "templateFile": "FinplanToolingStack.template.json",
+        "stackName": "finplan-shared-financialplanning-tooling"
+      }
+    },
+    "FinplanPipelineStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://unknown-account/us-east-2",
+      "properties": {
+        "templateFile": "FinplanPipelineStack.template.json",
+        "stackName": "finplan-shared-financialplanning-pipeline"
+      }
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  }
+}

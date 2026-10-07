@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/validate-plan-version-response.json",
+  "title": "validate_plan_version response",
+  "description": "Response schema for the 'validate_plan_version' tool.",
+  "type": "object",
+  "properties": {
+    "plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "validated",
+        "invalid"
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/error-codes.json#/$defs/code"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pointer": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/json_pointer"
+          },
+          "details": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      }
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_version_id",
+    "status",
+    "findings"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "invalid"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "findings": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/instrument.json",
+  "title": "Instrument",
+  "description": "Finance adapter: an instrument.",
+  "type": "object",
+  "properties": {
+    "instrument_id": {
+      "$ref": "#/$defs/instrument_id"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "asset_class": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "etf",
+        "equity",
+        "index",
+        "bond",
+        "cash"
+      ]
+    },
+    "currency": {
+      "$ref": "#/$defs/currency"
+    },
+    "exchange_mic": {
+      "type": "string",
+      "pattern": "^[A-Z0-9]{4}$"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "asset_class",
+    "currency"
+  ],
+  "$defs": {
+    "instrument_id": {
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$",
+      "description": "Instrument identifier (platform configuration, never hard-coded in tools)."
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    }
+  }
+}

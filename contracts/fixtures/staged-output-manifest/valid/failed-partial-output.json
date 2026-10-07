@@ -1,0 +1,23 @@
+{
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "completion_status": "failed",
+  "evaluator_version": "eval-1.0.0",
+  "contract_version": "1.0.0",
+  "files": [
+    {
+      "name": "plan-content.json",
+      "checksum": "sha256:a1eb0afabfbba3ff3db159497c3ff95028044dffbeead1075cd43e4a9043a890",
+      "size_bytes": 512,
+      "content_type": "application/json"
+    }
+  ],
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "written_at": "2026-01-10T09:31:00Z",
+  "synthetic": true
+}

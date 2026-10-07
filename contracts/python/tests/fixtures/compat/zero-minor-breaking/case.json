@@ -1,0 +1,7 @@
+{
+  "synthetic": true,
+  "old_version": "0.3.0",
+  "new_version": "0.4.0",
+  "expect_ok": false,
+  "required_bump": "major"
+}

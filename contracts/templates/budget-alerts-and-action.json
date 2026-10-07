@@ -1,0 +1,518 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Project budget (USD ceiling from SSM), alerts at 50/80/100% of actual spend and a deny action at 100% on the published enforced role names (design D10/D11, ENV-17, ENV-19). Part of the FinancialPlanning tooling stack (environment shared).",
+  "Parameters": {
+    "CostCeilingUsd": {
+      "Type": "AWS::SSM::Parameter::Value<String>",
+      "Default": "/finplan/shared/financialplanning/config/cost-ceiling-usd",
+      "Description": "Project cost ceiling in USD, read from SSM (initially 50)."
+    },
+    "NotificationEmail": {
+      "Type": "String",
+      "Description": "Human-configured budget notification target (kept in local untracked configuration).",
+      "MinLength": 3
+    },
+    "BudgetTimeUnit": {
+      "Type": "String",
+      "Default": "ANNUALLY",
+      "AllowedValues": [
+        "MONTHLY",
+        "QUARTERLY",
+        "ANNUALLY"
+      ]
+    },
+    "EnforcedRoleNamesBetaFinancialplanning": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/beta/financialplanning/config/budget-enforced-role-names",
+      "Description": "Role names financialplanning publishes for the beta budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesBetaFinancemodel": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/beta/financemodel/config/budget-enforced-role-names",
+      "Description": "Role names financemodel publishes for the beta budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesBetaFinancelambdastool": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/beta/financelambdastool/config/budget-enforced-role-names",
+      "Description": "Role names financelambdastool publishes for the beta budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesBetaFinanceagent": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/beta/financeagent/config/budget-enforced-role-names",
+      "Description": "Role names financeagent publishes for the beta budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesGammaFinancialplanning": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/gamma/financialplanning/config/budget-enforced-role-names",
+      "Description": "Role names financialplanning publishes for the gamma budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesGammaFinancemodel": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/gamma/financemodel/config/budget-enforced-role-names",
+      "Description": "Role names financemodel publishes for the gamma budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesGammaFinancelambdastool": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/gamma/financelambdastool/config/budget-enforced-role-names",
+      "Description": "Role names financelambdastool publishes for the gamma budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesGammaFinanceagent": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/gamma/financeagent/config/budget-enforced-role-names",
+      "Description": "Role names financeagent publishes for the gamma budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesProdFinancialplanning": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/prod/financialplanning/config/budget-enforced-role-names",
+      "Description": "Role names financialplanning publishes for the prod budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesProdFinancemodel": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/prod/financemodel/config/budget-enforced-role-names",
+      "Description": "Role names financemodel publishes for the prod budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesProdFinancelambdastool": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/prod/financelambdastool/config/budget-enforced-role-names",
+      "Description": "Role names financelambdastool publishes for the prod budget action (includes the FinanceAgent runtime role for Bedrock)."
+    },
+    "EnforcedRoleNamesProdFinanceagent": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/prod/financeagent/config/budget-enforced-role-names",
+      "Description": "Role names financeagent publishes for the prod budget action (includes the FinanceAgent runtime role for Bedrock)."
+    }
+  },
+  "Resources": {
+    "ProjectBudget": {
+      "Type": "AWS::Budgets::Budget",
+      "Properties": {
+        "Budget": {
+          "BudgetName": "finplan-shared-financialplanning-project-budget",
+          "BudgetType": "COST",
+          "TimeUnit": {
+            "Ref": "BudgetTimeUnit"
+          },
+          "BudgetLimit": {
+            "Amount": {
+              "Ref": "CostCeilingUsd"
+            },
+            "Unit": "USD"
+          },
+          "CostFilters": {
+            "TagKeyValue": [
+              "user:project$finplan"
+            ]
+          }
+        },
+        "NotificationsWithSubscribers": [
+          {
+            "Notification": {
+              "NotificationType": "ACTUAL",
+              "ComparisonOperator": "GREATER_THAN",
+              "Threshold": 50,
+              "ThresholdType": "PERCENTAGE"
+            },
+            "Subscribers": [
+              {
+                "SubscriptionType": "EMAIL",
+                "Address": {
+                  "Ref": "NotificationEmail"
+                }
+              },
+              {
+                "SubscriptionType": "SNS",
+                "Address": {
+                  "Ref": "BudgetAlertTopic"
+                }
+              }
+            ]
+          },
+          {
+            "Notification": {
+              "NotificationType": "ACTUAL",
+              "ComparisonOperator": "GREATER_THAN",
+              "Threshold": 80,
+              "ThresholdType": "PERCENTAGE"
+            },
+            "Subscribers": [
+              {
+                "SubscriptionType": "EMAIL",
+                "Address": {
+                  "Ref": "NotificationEmail"
+                }
+              },
+              {
+                "SubscriptionType": "SNS",
+                "Address": {
+                  "Ref": "BudgetAlertTopic"
+                }
+              }
+            ]
+          },
+          {
+            "Notification": {
+              "NotificationType": "ACTUAL",
+              "ComparisonOperator": "GREATER_THAN",
+              "Threshold": 100,
+              "ThresholdType": "PERCENTAGE"
+            },
+            "Subscribers": [
+              {
+                "SubscriptionType": "EMAIL",
+                "Address": {
+                  "Ref": "NotificationEmail"
+                }
+              },
+              {
+                "SubscriptionType": "SNS",
+                "Address": {
+                  "Ref": "BudgetAlertTopic"
+                }
+              }
+            ]
+          }
+        ],
+        "ResourceTags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "project-budget"
+          }
+        ]
+      }
+    },
+    "BudgetAlertTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "TopicName": "finplan-shared-financialplanning-budget-alert-topic",
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "budget-alert-topic"
+          }
+        ]
+      }
+    },
+    "BudgetEnforcementDenyPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "ManagedPolicyName": "finplan-budget-enforcement-deny",
+        "Description": "Attached by the budget action at 100% of the ceiling; only a human removes it.",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "DenyNewBillableWorkAtBudgetCeiling",
+              "Effect": "Deny",
+              "Action": [
+                "sagemaker:CreateTrainingJob",
+                "sagemaker:CreateProcessingJob",
+                "sagemaker:CreateTransformJob",
+                "sagemaker:CreateHyperParameterTuningJob",
+                "sagemaker:CreateEndpoint",
+                "sagemaker:CreateEndpointConfig",
+                "sagemaker:UpdateEndpoint",
+                "sagemaker:StartPipelineExecution",
+                "sagemaker:CreateNotebookInstance",
+                "sagemaker:StartNotebookInstance",
+                "codepipeline:StartPipelineExecution",
+                "codepipeline:RetryStageExecution",
+                "codebuild:StartBuild",
+                "codebuild:StartBuildBatch",
+                "codebuild:RetryBuild",
+                "bedrock:InvokeModel*",
+                "bedrock:Converse*",
+                "bedrock:InvokeAgent",
+                "bedrock-agentcore:InvokeAgentRuntime",
+                "ec2:RunInstances",
+                "ec2:StartInstances",
+                "ecs:RunTask",
+                "ecs:StartTask",
+                "batch:SubmitJob",
+                "states:StartExecution",
+                "states:StartSyncExecution",
+                "scheduler:CreateSchedule"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "BudgetActionExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-shared-financialplanning-budget-action-role",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "budgets.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-shared-permission-boundary"
+        },
+        "Policies": [
+          {
+            "PolicyName": "apply-budget-deny-policy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "iam:AttachRolePolicy",
+                    "iam:DetachRolePolicy"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*"
+                  },
+                  "Condition": {
+                    "ArnEquals": {
+                      "iam:PolicyARN": {
+                        "Ref": "BudgetEnforcementDenyPolicy"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "budget-action"
+          }
+        ]
+      }
+    },
+    "BudgetEnforcementAction": {
+      "Type": "AWS::Budgets::BudgetsAction",
+      "Properties": {
+        "BudgetName": "finplan-shared-financialplanning-project-budget",
+        "NotificationType": "ACTUAL",
+        "ActionType": "APPLY_IAM_POLICY",
+        "ActionThreshold": {
+          "Type": "PERCENTAGE",
+          "Value": 100
+        },
+        "ApprovalModel": "AUTOMATIC",
+        "ExecutionRoleArn": {
+          "Fn::GetAtt": [
+            "BudgetActionExecutionRole",
+            "Arn"
+          ]
+        },
+        "Definition": {
+          "IamActionDefinition": {
+            "PolicyArn": {
+              "Ref": "BudgetEnforcementDenyPolicy"
+            },
+            "Roles": {
+              "Fn::Split": [
+                ",",
+                {
+                  "Fn::Join": [
+                    ",",
+                    [
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesBetaFinancialplanning"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesBetaFinancemodel"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesBetaFinancelambdastool"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesBetaFinanceagent"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesGammaFinancialplanning"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesGammaFinancemodel"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesGammaFinancelambdastool"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesGammaFinanceagent"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesProdFinancialplanning"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesProdFinancemodel"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesProdFinancelambdastool"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesProdFinanceagent"
+                          }
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "Subscribers": [
+          {
+            "Type": "EMAIL",
+            "Address": {
+              "Ref": "NotificationEmail"
+            }
+          }
+        ],
+        "ResourceTags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "budget-action"
+          }
+        ]
+      },
+      "DependsOn": [
+        "ProjectBudget"
+      ]
+    }
+  },
+  "Outputs": {
+    "BudgetEnforcementDenyPolicyArn": {
+      "Value": {
+        "Ref": "BudgetEnforcementDenyPolicy"
+      }
+    }
+  },
+  "Metadata": {
+    "finplan": {
+      "generated_by": "finplan_contracts.budget",
+      "cdk_wiring": "add-platform-foundation",
+      "default_allocation_usd": {
+        "platform_infra": 8,
+        "cpu_research": 7,
+        "bedrock_explanations": 5,
+        "gpu": 25,
+        "reserve": 5
+      },
+      "allocation_parameter": "/finplan/shared/financialplanning/config/budget-allocation",
+      "state_parameter": "/finplan/shared/financialplanning/config/budget-state",
+      "third_party_spend": "TypeSafe Jev usage is billed from prepaid credits outside AWS and is not counted against the ceiling or any category."
+    }
+  }
+}

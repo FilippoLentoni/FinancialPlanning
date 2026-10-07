@@ -1,0 +1,17 @@
+{
+  "app": "uv run python infra/app.py",
+  "notices": false,
+  "watch": {
+    "include": ["infra/**", "platform/**", "config/**"],
+    "exclude": ["**/__pycache__", "cdk.out", "tests"]
+  },
+  "context": {
+    "cli-telemetry": false,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+    "@aws-cdk/aws-kms:aliasNameRef": true,
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:target-partitions": ["aws"]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/publication.json",
+  "title": "Publication",
+  "description": "A publication references exactly one validated plan version and records its checksum. A later publication supersedes an earlier one without modifying it.",
+  "type": "object",
+  "properties": {
+    "publication_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/publication_id"
+    },
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "plan_version_checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "plan_version_status": {
+      "const": "validated"
+    },
+    "supersedes_publication_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/publication_id_or_null"
+    },
+    "published_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "publication_id",
+    "plan_id",
+    "plan_version_id",
+    "plan_version_checksum",
+    "published_at"
+  ]
+}

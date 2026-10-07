@@ -1,0 +1,12 @@
+{
+  "code": "INVALID_IDENTIFIER",
+  "message": "synthetic invalid identifier error",
+  "retryable": false,
+  "details": {
+    "field": "plan_version_id",
+    "pointer": "/plan_version_id"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

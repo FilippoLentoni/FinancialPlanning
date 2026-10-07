@@ -1,0 +1,8 @@
+{
+  "code": "INTERNAL",
+  "message": "synthetic internal error",
+  "retryable": false,
+  "details": {},
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

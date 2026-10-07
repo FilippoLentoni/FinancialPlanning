@@ -1,0 +1,9 @@
+{
+  "code": "INTERNAL",
+  "message": "Traceback (most recent call last): File \"handler.py\", line 10",
+  "retryable": false,
+  "details": {},
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

@@ -1,0 +1,13 @@
+{
+  "$comment": "Exact pin of the contract package consumed by the platform service (task 1.2, CS-04 consumer case). The digest is the SHA-256 of the exact wheel installed (also recorded in uv.lock, which uv verifies on install). 0.2.0 is a pre-release: 0.x is beta-only (contracts docs/consumer-pinning.md), so gamma and prod promotion requires re-pinning to 1.0.0 once it is published to the contract registry. Until then the wheel is built reproducibly from contracts/python (SOURCE_DATE_EPOCH=315532800) and vendored.",
+  "package": "finplan-contracts",
+  "version": "0.2.0",
+  "artifact": "vendor/finplan-contracts/finplan_contracts-0.2.0-py3-none-any.whl",
+  "sha256": "acc4ae44323c01f5ac00b335eeecd644d46a7b122e774f5b2b71fc650379edef",
+  "source": "contracts/python (built locally; not yet published to CodeArtifact)",
+  "source_date_epoch": 315532800,
+  "published": false,
+  "served_environments": [
+    "beta"
+  ]
+}

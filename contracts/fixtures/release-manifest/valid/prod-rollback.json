@@ -1,0 +1,23 @@
+{
+  "repo": "financialplanning",
+  "environment": "prod",
+  "region": "us-east-2",
+  "release_id": "rel_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "source_commit": "834c7570a9c4f04aabd741e7faefaf221e413270",
+  "artifact_digest": "sha256:ff13d8f530f26faa43ebc5d808eb5043e4bea9552f1713106b4fa98a9bf70055",
+  "contract_version": "1.0.0",
+  "contract_digest": "sha256:975ab72656b354f2a78ac88eaa944eb1e6c24ffea96d4a7179fa2c1c3f38401a",
+  "deployed_at": "2026-01-17T14:30:00Z",
+  "previous_release_id": "rel_01KDVDNBYGX5V5HY2JSK5XWKHC",
+  "outputs": {
+    "plan-endpoint": "/finplan/prod/financialplanning/api/plan-endpoint",
+    "registry-ref": "/finplan/shared/financialplanning/contract/registry-ref"
+  },
+  "served_contract_majors": [
+    1
+  ],
+  "synthetic": true,
+  "approved_by": "synthetic-approver",
+  "approved_at": "2026-01-16T14:30:00Z",
+  "rolled_back_from": "rel_01KDVDNBYGX5V5HY2JSK5XWKHC"
+}

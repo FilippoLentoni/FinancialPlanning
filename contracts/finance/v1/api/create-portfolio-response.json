@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/create-portfolio-response.json",
+  "title": "Create portfolio response",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Response of POST /v1/portfolios (201, and the same body on an idempotent replay): the created portfolio record plus the contract version it was written under.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/portfolio.json"
+    }
+  ],
+  "properties": {
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    }
+  },
+  "required": [
+    "contract_version"
+  ]
+}

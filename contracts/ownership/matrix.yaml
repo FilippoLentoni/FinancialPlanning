@@ -1,0 +1,674 @@
+# Ownership matrix (machine-readable form of design D1, change establish-cross-repo-contracts).
+#
+# Every deployable resource has exactly one owner: a repository, or `external`
+# for resources no repository owns (account limits, third-party services,
+# human-managed or pre-existing resources). External and pre-existing resources
+# are never declared in any repository's IaC; they are referenced only through
+# configuration.
+#
+# Row fields
+#   id                 stable row key (kebab-case)
+#   resource           what the row covers
+#   owner              financialplanning | financemodel | financelambdastool | financeagent | external
+#   consumers          who uses it (repositories, or named roles/components)
+#   reference          how consumers reference it (SSM parameter names follow
+#                      /finplan/<env|shared>/<repo>/<category>/<name>; <env> and <repo> are placeholders)
+#   scope              environment (one instance per beta/gamma/prod) | shared (once per account, tagged
+#                      environment=shared) | external | contract (definitions shipped in the contract package)
+#   environment_data   shared rows only: always false (account-level resources hold no environment data)
+#   iac_declared       false when no repository may declare the resource in IaC
+#   resource_types     CloudFormation types the row covers in synthesized templates
+#   logical_roles      values of the `logical-role` cost-allocation tag that identify the row's resources
+#   provisional / pre_existing / reused_existing / not_adopted   status flags
+#   decisions          design decisions and open questions behind the row
+#
+# The ownership check compares a synthesized template against this file:
+# a resource whose (type, logical-role) maps to a row owned by another repository,
+# or to no row, fails the build (OWN-01). Logical roles are unique across rows, except the
+# per-repository pipeline rows and the per-repository pipeline environment-role rows, which share
+# their logical roles and are told apart by the repository whose template is checked (its
+# `owner-repo` tag) and, between a repository's shared pipeline row and its environment-role row,
+# by the resource's `environment` tag (`shared` -> the shared row; beta|gamma|prod -> the
+# environment row).
+#
+# A row lists every CloudFormation type its constructs synthesize that carries (or inherits) the
+# row's logical role: for example the API row lists the API Gateway sub-resources and the handler's
+# role and log group, and a row whose reference is published in SSM lists AWS::SSM::Parameter.
+# Untaggable helper types are attributed to their parent construct (cdk_generated_helpers below).
+
+version: 1
+source: openspec/changes/establish-cross-repo-contracts/design.md (D1, D4, D5, D10, D11, D12, D13)
+repositories: [financialplanning, financemodel, financelambdastool, financeagent]
+
+resources:
+  # ------------------------------------------------------------------ FinancialPlanning
+  - id: platform-input-buckets
+    resource: Raw and curated input buckets and the immutable snapshot artifact bucket
+    owner: financialplanning
+    consumers: [financemodel]
+    reference: >-
+      Trusted artifact references from the platform API, plus a read grant on approved snapshots to the
+      per-environment FinanceModel job role (published by FinanceModel at /finplan/<env>/financemodel/job/job-role-ref).
+      Bucket names appear only in /finplan/<env>/financialplanning/config/*
+    scope: environment
+    resource_types: [AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::SSM::Parameter]
+    logical_roles: [raw-input-bucket, curated-input-bucket, snapshot-artifact-bucket]
+    decisions: [D1, D5, D10]
+
+  - id: platform-plan-artifact-buckets
+    resource: Plan, output and report artifact buckets
+    owner: financialplanning
+    consumers: [website, financelambdastool, financeagent]
+    reference: Platform API returns trusted artifact references or presigned downloads; no raw keys (FinanceAgent indirectly through tools)
+    scope: environment
+    resource_types: [AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::SSM::Parameter]
+    logical_roles: [plan-artifact-bucket, output-artifact-bucket, report-artifact-bucket]
+    decisions: [D1]
+
+  - id: run-output-staging-area
+    resource: Run-output staging area (bucket/prefix and its validation)
+    owner: financialplanning
+    consumers: [financemodel-production-workers]
+    reference: >-
+      /finplan/<env>/financialplanning/config/run-staging-ref plus a write-only IAM grant to the FinanceModel job role
+      (/finplan/<env>/financemodel/job/job-role-ref)
+    scope: environment
+    resource_types: [AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::SSM::Parameter]
+    logical_roles: [run-staging-area]
+    decisions: [D1, D10]
+
+  - id: platform-kms-keys
+    resource: Platform KMS keys, lifecycle and retention policies
+    owner: financialplanning
+    consumers: []
+    reference: Key policy grants, per environment
+    scope: environment
+    resource_types: [AWS::KMS::Key, AWS::KMS::Alias]
+    logical_roles: [platform-kms-key]
+    decisions: [D1]
+
+  - id: platform-metadata-tables
+    resource: >-
+      Metadata tables: portfolio, plan, plan version, publication, execution, snapshot catalog,
+      staged-output outcomes, idempotency, audit events
+    owner: financialplanning
+    consumers: []
+    reference: None directly; only through the plan API
+    scope: environment
+    resource_types: [AWS::DynamoDB::Table, AWS::DynamoDB::GlobalTable]
+    logical_roles: [portfolio-table, plan-table, plan-version-table, publication-table, execution-table, snapshot-catalog-table, staged-output-table, idempotency-table, audit-event-table]
+    decisions: [D1, D2]
+
+  - id: platform-metadata-sweeper
+    resource: >-
+      Metadata sweeper (scheduled housekeeping of the metadata tables: expired idempotency records,
+      snapshot expiry, orphaned-artifact clean-up), its rule, execution role and log group
+    owner: financialplanning
+    consumers: []
+    reference: Internal to FinancialPlanning
+    scope: environment
+    resource_types: [AWS::Lambda::Function, AWS::IAM::Role, AWS::Logs::LogGroup, AWS::Events::Rule]
+    logical_roles: [metadata-sweeper]
+    decisions: [D1, D2]
+
+  - id: plan-lifecycle-api
+    resource: Plan lifecycle API (including Excel import, publish and paper-execution records)
+    owner: financialplanning
+    consumers: [financelambdastool, financeagent-via-gateway-tools, website, scheduled-workflows]
+    reference: /finplan/<env>/financialplanning/api/plan-endpoint plus IAM (SigV4)
+    scope: environment
+    resource_types:
+      - AWS::ApiGateway::RestApi
+      - AWS::ApiGateway::Resource
+      - AWS::ApiGateway::Deployment
+      - AWS::ApiGateway::Stage
+      - AWS::ApiGateway::GatewayResponse
+      - AWS::ApiGatewayV2::Api
+      - AWS::Lambda::Function
+      - AWS::IAM::Role
+      - AWS::Logs::LogGroup
+      - AWS::SSM::Parameter
+    logical_roles: [plan-api, plan-api-handler]
+    decisions: [D1, D10]
+
+  - id: ingestion-service
+    resource: Ingestion service (normalize, validate, persist, dedupe)
+    owner: financialplanning
+    consumers: [financelambdastool-refresh-market-data, scheduler]
+    reference: /finplan/<env>/financialplanning/api/ingestion-endpoint
+    scope: environment
+    resource_types: [AWS::Lambda::Function, AWS::ApiGateway::RestApi, AWS::ApiGatewayV2::Api, AWS::IAM::Role, AWS::Logs::LogGroup, AWS::SSM::Parameter]
+    logical_roles: [ingestion-api, ingestion-handler]
+    decisions: [D1, D12]
+
+  - id: daily-scheduler
+    resource: >-
+      Daily EventBridge Scheduler schedule (America/New_York), its invoke role, dead-letter queue and
+      queue policy, the dead-letter alarm and the schedule-time parameter
+    owner: financialplanning
+    consumers: []
+    reference: Time from /finplan/<env>/financialplanning/config/ingest-schedule
+    scope: environment
+    resource_types: [AWS::Scheduler::Schedule, AWS::IAM::Role, AWS::SQS::Queue, AWS::SQS::QueuePolicy, AWS::CloudWatch::Alarm, AWS::SSM::Parameter]
+    logical_roles: [daily-ingest-schedule]
+    decisions: [D1, OQ-6]
+
+  - id: contract-package
+    resource: Contract package (schemas, fixtures, validators, conformance suite, release-manifest schema, SSM convention)
+    owner: financialplanning
+    consumers: [financialplanning, financemodel, financelambdastool, financeagent]
+    reference: Pinned package version plus digest
+    scope: contract
+    resource_types: []
+    logical_roles: []
+    decisions: [D1, D3]
+
+  - id: project-budget
+    resource: >-
+      Project AWS Budgets budget (account-level, USD 50 total ceiling, alerts at 50/80/100%), budget action
+      deny policy at 100%, budget action execution role, budget-state writer Lambda and its role, the alert
+      topic with its policy and subscriptions, default category allocation
+    owner: financialplanning
+    consumers: [financialplanning, financemodel, financelambdastool, financeagent]
+    reference:
+      - /finplan/shared/financialplanning/config/cost-ceiling-usd
+      - /finplan/shared/financialplanning/config/budget-allocation
+      - /finplan/shared/financialplanning/config/budget-state
+      - /finplan/<env>/<repo>/config/budget-enforced-role-names
+    scope: shared
+    environment_data: false
+    resource_types:
+      - AWS::Budgets::Budget
+      - AWS::Budgets::BudgetsAction
+      - AWS::IAM::ManagedPolicy
+      - AWS::IAM::Role
+      - AWS::Lambda::Function
+      - AWS::Logs::LogGroup
+      - AWS::SNS::Topic
+      - AWS::SNS::TopicPolicy
+      - AWS::SNS::Subscription
+    logical_roles: [project-budget, budget-action, budget-deny-policy, budget-state-writer, budget-alert-topic]
+    decisions: [D1, D4, D10, D11]
+
+  - id: cost-allocation-tag-keys
+    resource: Cost-allocation tag keys (project, owner-repo, environment, logical-role, run-id)
+    owner: financialplanning
+    consumers: [financialplanning, financemodel, financelambdastool, financeagent]
+    reference: Tag keys defined in the contract package (core/v1/cost-allocation-tags.json)
+    scope: contract
+    resource_types: []
+    logical_roles: []
+    decisions: [D1, D10]
+
+  - id: permission-boundaries
+    resource: >-
+      Account-level IAM permission-boundary managed policies (finplan-<env>-permission-boundary,
+      finplan-<env>-research-permission-boundary for beta, gamma and prod, and
+      finplan-shared-permission-boundary), generated from the contract package and created by the
+      FinancialPlanning tooling stack; attached to every role any pipeline creates (pipeline tooling)
+    owner: financialplanning
+    consumers: [financialplanning, financemodel, financelambdastool, financeagent]
+    reference: >-
+      Policy names from the contract package (finplan_contracts.boundaries.boundary_name /
+      research_boundary_name); ARNs are built at deploy time from the partition and account pseudo
+      parameters, never written in repository files
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::IAM::ManagedPolicy]
+    logical_roles: [permission-boundary]
+    decisions: [D1, D5]
+
+  - id: contract-registry
+    resource: CodeArtifact domain and repository for the contract package
+    owner: financialplanning
+    consumers: [financialplanning, financemodel, financelambdastool, financeagent]
+    reference: /finplan/shared/financialplanning/contract/registry-ref
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::CodeArtifact::Domain, AWS::CodeArtifact::Repository]
+    logical_roles: [contract-registry-domain, contract-registry]
+    decisions: [D1, D3, D10]
+
+  - id: website
+    resource: Website (plan UI)
+    owner: financialplanning
+    provisional: true
+    consumers: [users]
+    reference: Uses the plan API only
+    scope: environment
+    resource_types: []
+    logical_roles: [website]
+    decisions: [D1, OQ-10]
+
+  # ------------------------------------------------------------------ FinanceModel
+  - id: research-workspace-storage
+    resource: Research workspace storage and evaluation datasets
+    owner: financemodel
+    consumers: []
+    reference: Not referenced outside FinanceModel
+    scope: environment
+    resource_types: [AWS::S3::Bucket, AWS::S3::BucketPolicy]
+    logical_roles: [research-workspace-bucket, evaluation-dataset-bucket]
+    decisions: [D1]
+
+  - id: sagemaker-job-definitions
+    resource: SageMaker job definitions, containers and SageMaker Pipelines
+    owner: financemodel
+    consumers: [financelambdastool-via-job-interface, financialplanning-snapshot-and-staging-grants]
+    reference:
+      - /finplan/<env>/financemodel/job/*
+      - /finplan/<env>/financemodel/job/job-role-ref (per-environment job-execution role, named in the platform's snapshot read and staging write grants)
+    scope: environment
+    resource_types: [AWS::SageMaker::Pipeline]
+    logical_roles: [sagemaker-job-definition, sagemaker-pipeline]
+    decisions: [D1]
+
+  - id: financemodel-ecr-repositories
+    resource: FinanceModel ECR repositories (account-level, immutable digest-addressed images)
+    owner: financemodel
+    consumers: [financemodel]
+    reference: Image digests recorded in the FinanceModel release manifest
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::ECR::Repository]
+    logical_roles: [financemodel-image-repository]
+    decisions: [D1, D10]
+
+  - id: job-interface
+    resource: Job submission, status and result interface (mints run_id)
+    owner: financemodel
+    consumers: [financelambdastool, financialplanning-production-runs]
+    reference: /finplan/<env>/financemodel/api/job-endpoint
+    scope: environment
+    resource_types: [AWS::ApiGateway::RestApi, AWS::ApiGatewayV2::Api]
+    logical_roles: [job-api]
+    decisions: [D1, D2]
+
+  - id: model-registry
+    resource: Model artifacts and model registry (mints model_version)
+    owner: financemodel
+    consumers: [financialplanning-lineage, financelambdastool]
+    reference: /finplan/<env>/financemodel/model/registry-ref
+    scope: environment
+    resource_types: [AWS::SageMaker::ModelPackageGroup, AWS::S3::Bucket]
+    logical_roles: [model-registry, model-artifact-bucket]
+    decisions: [D1, D2]
+
+  - id: job-control-plane
+    resource: >-
+      Job control plane: job API handlers, run/event/idempotency/queue/lease table, SageMaker state-change
+      rules, dispatcher schedule, approver role, orphan sweeper
+    owner: financemodel
+    consumers: [financelambdastool, financialplanning-registry-lineage-lookup]
+    reference:
+      - /finplan/<env>/financemodel/api/job-endpoint; IAM grants to the consumers' published role references
+      - /finplan/<env>/financemodel/job/job-api-role-ref (job API handler role, allowed GET /v1/staged-outputs/* on the platform API)
+    scope: environment
+    resource_types: [AWS::Lambda::Function, AWS::DynamoDB::Table, AWS::Events::Rule, AWS::Scheduler::Schedule, AWS::IAM::Role]
+    logical_roles: [job-api-handler, job-control-table, job-state-change-rule, job-dispatcher-schedule, job-approver-role, job-orphan-sweeper]
+    decisions: [D1, D10]
+
+  - id: qwen-serving-lifecycle
+    resource: Self-hosted Qwen3.6-27B serving lifecycle, concurrency lease, FinanceModel-staged weight copy (inside research storage)
+    owner: financemodel
+    consumers: [financemodel-agent-swarm-strategy]
+    reference: Internal to FinanceModel
+    scope: environment
+    resource_types: []
+    logical_roles: [qwen-serving, qwen-concurrency-lease]
+    decisions: [D1, D7, OQ-8]
+
+  - id: external-qwen-batch-stack
+    resource: Existing Qwen3.6-27B batch-runner stack owned by a separate project's CloudFormation stack
+    owner: external
+    not_adopted: true
+    iac_declared: false
+    consumers: []
+    reference: Not referenced; FinanceModel may reuse the pattern only, never adopt or modify the stack
+    scope: external
+    resource_types: []
+    logical_roles: []
+    decisions: [D1]
+
+  - id: run-outputs-and-evidence
+    resource: Promotion-criteria store and explanation-evidence artifacts (FinanceModel run outputs)
+    owner: financemodel
+    consumers: [financeagent-via-tool-results]
+    reference: Trusted artifact references returned by get_job_result, resolved by FinanceModel
+    scope: environment
+    resource_types: [AWS::S3::Bucket, AWS::DynamoDB::Table]
+    logical_roles: [promotion-criteria-store, explanation-evidence-bucket]
+    decisions: [D1, D10]
+
+  - id: sagemaker-instance-quotas
+    resource: Account-level SageMaker instance quotas (an AWS account limit, not a resource)
+    owner: external
+    iac_declared: false
+    consumers: [financemodel]
+    reference: Per-environment lease plus quota-aware requeue; no shared lease resource
+    scope: external
+    resource_types: []
+    logical_roles: []
+    decisions: [D1, D10]
+
+  - id: jev-api-key-secret
+    resource: >-
+      TypeSafe Jev API key secret (pre-existing, account-level; value set and rotated by the user, never
+      created, read or written by IaC)
+    owner: financemodel
+    pre_existing: true
+    iac_declared: false
+    consumers: [financemodel-jev-job-roles]
+    reference:
+      - secret name finplan/shared/financemodel/jev-api-key
+      - /finplan/shared/financemodel/secret-ref/jev-api-key
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::SecretsManager::Secret]
+    logical_roles: []
+    decisions: [D1, D11, OQ-4]
+
+  # ------------------------------------------------------------------ FinanceLambdasTool
+  - id: mcp-adapter-lambdas
+    resource: MCP adapter Lambdas, their aliases and the three role classes (reader, submitter, plan-writer)
+    owner: financelambdastool
+    consumers: [financeagent-gateway, direct-test-callers, financialplanning-resource-policies, financemodel-resource-policies]
+    reference:
+      - /finplan/<env>/financelambdastool/lambda/<tool>-arn
+      - /finplan/<env>/financelambdastool/lambda/role-<class>-arn
+      - >-
+        /finplan/<env>/financelambdastool/config/direct-test-principal-name (the single direct-test principal per
+        environment: the project owner, decision 15b of 2026-10-07)
+    scope: environment
+    resource_types: [AWS::Lambda::Function, AWS::Lambda::Alias, AWS::Lambda::Version, AWS::Lambda::Permission, AWS::IAM::Role]
+    logical_roles: [tool-lambda, tool-lambda-alias, tool-role-reader, tool-role-submitter, tool-role-plan-writer]
+    decisions: [D1]
+
+  - id: tool-catalog
+    resource: Tool catalog (published per environment)
+    owner: financelambdastool
+    consumers: [financeagent-gateway-registration]
+    reference: /finplan/<env>/financelambdastool/contract/tool-catalog (manifest outputs key tool-catalog)
+    scope: environment
+    resource_types: [AWS::SSM::Parameter]
+    logical_roles: [tool-catalog]
+    decisions: [D1, D4, D10]
+
+  # ------------------------------------------------------------------ FinanceAgent
+  - id: agentcore-runtime-and-gateway
+    resource: >-
+      AgentCore Runtime, Gateway, Gateway targets and tool registration, Gateway policy engine, Gateway
+      interceptor Lambda, AgentCore Memory resource, agent skills
+    owner: financeagent
+    consumers: [claude-code-and-codex-via-mcp, website, cli]
+    reference: /finplan/<env>/financeagent/agent/*
+    scope: environment
+    resource_types: [AWS::BedrockAgentCore::Runtime, AWS::BedrockAgentCore::Gateway, AWS::BedrockAgentCore::GatewayTarget, AWS::BedrockAgentCore::Memory, AWS::Lambda::Function]
+    logical_roles: [agent-runtime, agent-gateway, gateway-target, gateway-policy-engine, gateway-interceptor, agent-memory, agent-skill]
+    decisions: [D1]
+
+  - id: financeagent-ecr-repository
+    resource: FinanceAgent ECR repository (account-level, immutable tags)
+    owner: financeagent
+    consumers: [financeagent]
+    reference: Image digest recorded in the FinanceAgent release manifest
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::ECR::Repository]
+    logical_roles: [financeagent-image-repository]
+    decisions: [D1, D10]
+
+  - id: gateway-service-role
+    resource: Per-environment Gateway service role (created by the FinanceAgent bootstrap before FinanceLambdasTool's Gateway-facing release)
+    owner: financeagent
+    consumers: [financelambdastool-invoke-grant]
+    reference: /finplan/<env>/financeagent/agent/gateway-principal-ref
+    scope: environment
+    resource_types: [AWS::IAM::Role]
+    logical_roles: [gateway-service-role]
+    decisions: [D1, D4, D10]
+
+  - id: oidc-identity-provider
+    resource: >-
+      OIDC identity provider for Gateway/Runtime users, roles and CI clients: one Amazon Cognito user pool per
+      environment (final, user decision 15a of 2026-10-07; FA-OQ-1 resolved)
+    owner: financeagent
+    consumers: [agent-gateway, agent-runtime, website, claude-code-and-codex]
+    reference:
+      - /finplan/<env>/financeagent/agent/user-pool-ref
+      - /finplan/<env>/financeagent/agent/authorizer-metadata-ref
+      - CI client secret name at /finplan/<env>/financeagent/secret-ref/ci-test-client
+    scope: environment
+    resource_types: [AWS::Cognito::UserPool, AWS::Cognito::UserPoolClient, AWS::Cognito::UserPoolDomain, AWS::Cognito::UserPoolResourceServer]
+    logical_roles: [oidc-identity-provider, ci-test-client]
+    decisions: [D1, D4, FA-OQ-1, OQ-10]
+
+  - id: explanation-provider-config
+    resource: >-
+      Explanation-provider configuration: provider selection (default bedrock, Amazon Bedrock with IAM auth)
+      and Bedrock model ID; no API-key secret
+    owner: financeagent
+    consumers: [financeagent-runtime]
+    reference:
+      - /finplan/<env>/financeagent/config/explanation-provider
+      - /finplan/<env>/financeagent/config/explanation-model-id
+    scope: environment
+    resource_types: [AWS::SSM::Parameter]
+    logical_roles: [explanation-provider-config]
+    provider: bedrock
+    decisions: [D1, D11, OQ-3, OQ-13]
+
+  - id: bedrock-model-access
+    resource: >-
+      Amazon Bedrock model access for the explanation model: Claude Opus 5 via the US cross-region
+      inference profile us.anthropic.claude-opus-5 (foundation model anthropic.claude-opus-5)
+    owner: external
+    iac_declared: false
+    model_id: us.anthropic.claude-opus-5
+    foundation_model: anthropic.claude-opus-5
+    consumers: [financeagent-runtime-role]
+    reference: >-
+      Model ID from /finplan/<env>/financeagent/config/explanation-model-id; the runtime role's
+      bedrock:InvokeModel* permission is scoped to the configured inference profile and its underlying
+      foundation-model ARNs in the US regions the profile routes to (written generically, no account IDs).
+      Model access is enabled by a human/console step or an API call at bootstrap.
+    scope: external
+    resource_types: []
+    logical_roles: []
+    decisions: [D1, D11, D12, OQ-13]
+
+  # ------------------------------------------------------------------ External services
+  - id: market-data-provider-source
+    resource: Market-data provider source (Yahoo Finance through the unofficial yfinance Python library)
+    owner: external
+    iac_declared: false
+    provider_library: yfinance
+    secret: none
+    consumers: [financialplanning-ingestion]
+    reference: >-
+      Pinned library version in the platform's dependency lock; provider selection in
+      /finplan/<env>/financialplanning/config/*; no secret. No other repository calls it: FinanceModel reads
+      approved platform snapshots and FinanceLambdasTool calls the platform ingestion/snapshot API.
+    scope: external
+    resource_types: []
+    logical_roles: []
+    decisions: [D1, D12, OQ-5]
+
+  - id: github-codeconnection
+    resource: GitHub CodeConnection (an existing AVAILABLE connection in us-east-2, reused)
+    owner: external
+    reused_existing: true
+    iac_declared: false
+    consumers: [pipeline-financialplanning, pipeline-financemodel, pipeline-financelambdastool, pipeline-financeagent]
+    reference: >-
+      /finplan/shared/<repo>/config/codeconnection-ref, written by the bootstrap and verified by a
+      source-stage dry run; never an ARN in repository files
+    scope: external
+    resource_types: [AWS::CodeConnections::Connection, AWS::CodeStarConnections::Connection]
+    logical_roles: []
+    decisions: [D1, D11, OQ-2]
+
+  # ------------------------------------------------------------------ Per-repository pipelines
+  - id: pipeline-financialplanning
+    resource: >-
+      FinancialPlanning CodePipeline, CodeBuild projects, pipeline artifact bucket and its policy, and the
+      account-level pipeline, build and deploy roles (tagged environment shared, shared boundary)
+    owner: financialplanning
+    consumers: []
+    reference: n/a
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role]
+    logical_roles: [pipeline, pipeline-build-project, pipeline-artifact-bucket, pipeline-role, deploy-role]
+    decisions: [D1, D6]
+
+  - id: pipeline-environment-roles-financialplanning
+    resource: >-
+      FinancialPlanning per-environment pipeline roles: the deploy role, CloudFormation execution role and stage
+      (test) role of one environment, declared in the account-level pipeline stack but tagged with
+      their environment and bounded by that environment's permission boundary (spec environment-promotion,
+      "Single-account environment isolation")
+    owner: financialplanning
+    consumers: []
+    reference: n/a
+    scope: environment
+    resource_types: [AWS::IAM::Role]
+    logical_roles: [deploy-role, pipeline-role]
+    decisions: [D1, D5, D6]
+
+  - id: pipeline-financemodel
+    resource: >-
+      FinanceModel CodePipeline, CodeBuild projects, pipeline artifact bucket and its policy, and the
+      account-level pipeline, build and deploy roles (tagged environment shared, shared boundary)
+    owner: financemodel
+    consumers: []
+    reference: n/a
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role]
+    logical_roles: [pipeline, pipeline-build-project, pipeline-artifact-bucket, pipeline-role, deploy-role]
+    decisions: [D1, D6]
+
+  - id: pipeline-environment-roles-financemodel
+    resource: >-
+      FinanceModel per-environment pipeline roles: the deploy role, CloudFormation execution role and stage
+      (test) role of one environment, declared in the account-level pipeline stack but tagged with
+      their environment and bounded by that environment's permission boundary (spec environment-promotion,
+      "Single-account environment isolation")
+    owner: financemodel
+    consumers: []
+    reference: n/a
+    scope: environment
+    resource_types: [AWS::IAM::Role]
+    logical_roles: [deploy-role, pipeline-role]
+    decisions: [D1, D5, D6]
+
+  - id: pipeline-financelambdastool
+    resource: >-
+      FinanceLambdasTool CodePipeline, CodeBuild projects, pipeline artifact bucket and its policy, and the
+      account-level pipeline, build and deploy roles (tagged environment shared, shared boundary)
+    owner: financelambdastool
+    consumers: []
+    reference: n/a
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role]
+    logical_roles: [pipeline, pipeline-build-project, pipeline-artifact-bucket, pipeline-role, deploy-role]
+    decisions: [D1, D6]
+
+  - id: pipeline-environment-roles-financelambdastool
+    resource: >-
+      FinanceLambdasTool per-environment pipeline roles: the deploy role, CloudFormation execution role and stage
+      (test) role of one environment, declared in the account-level pipeline stack but tagged with
+      their environment and bounded by that environment's permission boundary (spec environment-promotion,
+      "Single-account environment isolation")
+    owner: financelambdastool
+    consumers: []
+    reference: n/a
+    scope: environment
+    resource_types: [AWS::IAM::Role]
+    logical_roles: [deploy-role, pipeline-role]
+    decisions: [D1, D5, D6]
+
+  - id: pipeline-financeagent
+    resource: >-
+      FinanceAgent CodePipeline, CodeBuild projects, pipeline artifact bucket and its policy, and the
+      account-level pipeline, build and deploy roles (tagged environment shared, shared boundary)
+    owner: financeagent
+    consumers: []
+    reference: n/a
+    scope: shared
+    environment_data: false
+    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role]
+    logical_roles: [pipeline, pipeline-build-project, pipeline-artifact-bucket, pipeline-role, deploy-role]
+    decisions: [D1, D6]
+
+  - id: pipeline-environment-roles-financeagent
+    resource: >-
+      FinanceAgent per-environment pipeline roles: the deploy role, CloudFormation execution role and stage
+      (test) role of one environment, declared in the account-level pipeline stack but tagged with
+      their environment and bounded by that environment's permission boundary (spec environment-promotion,
+      "Single-account environment isolation")
+    owner: financeagent
+    consumers: []
+    reference: n/a
+    scope: environment
+    resource_types: [AWS::IAM::Role]
+    logical_roles: [deploy-role, pipeline-role]
+    decisions: [D1, D5, D6]
+
+# Account-level (`shared`) resources allowed by the environment-promotion spec ("Account-level shared
+# resources"): pipeline tooling, the project budget and its action, the contract registry, immutable
+# digest-addressed image repositories, and pre-existing third-party credential secrets referenced by name.
+# Rows with scope `shared` above must be one of these kinds.
+shared_resource_kinds: [pipeline-tooling, project-budget, contract-registry, image-repository, third-party-credential-secret]
+shared_rows:
+  pipeline-financialplanning: pipeline-tooling
+  permission-boundaries: pipeline-tooling
+  pipeline-financemodel: pipeline-tooling
+  pipeline-financelambdastool: pipeline-tooling
+  pipeline-financeagent: pipeline-tooling
+  project-budget: project-budget
+  contract-registry: contract-registry
+  financemodel-ecr-repositories: image-repository
+  financeagent-ecr-repository: image-repository
+  jev-api-key-secret: third-party-credential-secret
+
+# CDK-generated helper resources (task 1.5; spec cross-repo-ownership, "CDK-generated helper resources
+# are attributed, never ignored"; design D1 note). CDK synthesizes resources that no construct in our
+# code names directly. The ownership check never skips them. A helper without its own logical-role is:
+#   - attributed to the owner of its parent construct when its type is in parent_attributed_types and
+#     every template resource it references (Ref / Fn::GetAtt) is owned by the checked repository; or
+#   - matched by an explicit, reviewed allow_list entry (type plus logical-id or aws:cdk:path pattern),
+#     and attributed to the repository whose template is checked.
+# Anything else fails OWN-01. Adding or widening an allow_list entry needs review: record the reason
+# and the review (date and change or task) in the entry.
+cdk_generated_helpers:
+  parent_attributed_types:
+    - AWS::IAM::Policy              # default policy CDK attaches to an owned role
+    - AWS::Lambda::Permission       # invoke grant on an owned function
+    - AWS::Lambda::EventInvokeConfig
+    - AWS::Logs::LogGroup           # function log group created with a retention setting
+    - Custom::LogRetention          # per-function log-retention custom resource
+    - Custom::S3AutoDeleteObjects   # per-bucket auto-delete custom resource
+    - AWS::ApiGateway::Method       # untaggable REST API method of an owned RestApi/Resource and integration
+  allow_list:
+    - id: cdk-metadata
+      resource_types: [AWS::CDK::Metadata]
+      logical_id_pattern: "CDKMetadata"
+      reason: CDK version analytics resource; carries no project data and no permissions
+      reviewed: 2026-10-07, establish-cross-repo-contracts task 1.5
+    - id: cdk-log-retention-provider
+      resource_types: [AWS::Lambda::Function, AWS::IAM::Role]
+      logical_id_pattern: "LogRetention[0-9a-f]{32}(ServiceRole[0-9A-F]{8})?"
+      reason: >-
+        Stack-singleton provider function and role behind Custom::LogRetention; it only sets
+        retention on the stack's own log groups
+      reviewed: 2026-10-07, establish-cross-repo-contracts task 1.5
+    - id: cdk-custom-resource-provider
+      resource_types: [AWS::Lambda::Function, AWS::IAM::Role]
+      logical_id_pattern: "Custom[A-Za-z0-9]+CustomResourceProvider(Handler|Role)[0-9A-F]{8}"
+      reason: >-
+        Stack-singleton CDK custom-resource provider (for example S3 auto-delete-objects); its
+        custom-resource instances are attributed to their parent resources
+      reviewed: 2026-10-07, establish-cross-repo-contracts task 1.5

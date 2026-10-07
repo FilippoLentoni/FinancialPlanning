@@ -1,0 +1,12 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "name": "Synthetic plan",
+  "head": {
+    "current_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+    "revision": 2
+  },
+  "current_publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "created_at": "2026-01-03T14:30:00Z",
+  "synthetic": true
+}

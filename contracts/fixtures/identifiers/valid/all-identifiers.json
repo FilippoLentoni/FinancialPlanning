@@ -1,0 +1,13 @@
+{
+  "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "execution_id": "exe_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "release_id": "rel_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "synthetic": true
+}

@@ -1,0 +1,48 @@
+{
+  "Description": "Deny policy attached by the budget action at 100% of the ceiling (ENV-19): new billable compute, model invocations and pipeline executions are denied; reads stay allowed.",
+  "PolicyName": "finplan-budget-enforcement-deny",
+  "PolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "DenyNewBillableWorkAtBudgetCeiling",
+        "Effect": "Deny",
+        "Action": [
+          "sagemaker:CreateTrainingJob",
+          "sagemaker:CreateProcessingJob",
+          "sagemaker:CreateTransformJob",
+          "sagemaker:CreateHyperParameterTuningJob",
+          "sagemaker:CreateEndpoint",
+          "sagemaker:CreateEndpointConfig",
+          "sagemaker:UpdateEndpoint",
+          "sagemaker:StartPipelineExecution",
+          "sagemaker:CreateNotebookInstance",
+          "sagemaker:StartNotebookInstance",
+          "codepipeline:StartPipelineExecution",
+          "codepipeline:RetryStageExecution",
+          "codebuild:StartBuild",
+          "codebuild:StartBuildBatch",
+          "codebuild:RetryBuild",
+          "bedrock:InvokeModel*",
+          "bedrock:Converse*",
+          "bedrock:InvokeAgent",
+          "bedrock-agentcore:InvokeAgentRuntime",
+          "ec2:RunInstances",
+          "ec2:StartInstances",
+          "ecs:RunTask",
+          "ecs:StartTask",
+          "batch:SubmitJob",
+          "states:StartExecution",
+          "states:StartSyncExecution",
+          "scheduler:CreateSchedule"
+        ],
+        "Resource": "*"
+      }
+    ]
+  },
+  "Metadata": {
+    "finplan": {
+      "generated_by": "finplan_contracts.budget"
+    }
+  }
+}

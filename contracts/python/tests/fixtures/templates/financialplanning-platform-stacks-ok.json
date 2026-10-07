@@ -1,0 +1,974 @@
+{
+  "Description": "SYNTHETIC fixture template (OWN-01 pass): the resource kinds of the FinancialPlanning platform's synthesized beta stacks (API, ingestion, storage parameters, metadata sweeper), including API Gateway sub-resources, handler roles and log groups, SSM reference parameters, the schedule's dead-letter queue and alarm. Contracts 0.2.0, design D13.",
+  "Resources": {
+    "BucketParamPlans": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/finplan/beta/financialplanning/config/plan-bucket",
+        "Type": "String",
+        "Value": "<plan-bucket>",
+        "Tags": {
+          "environment": "beta",
+          "logical-role": "plan-artifact-bucket",
+          "owner-repo": "financialplanning",
+          "project": "finplan"
+        }
+      }
+    },
+    "BucketParamSnapshots": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/finplan/beta/financialplanning/config/snapshot-bucket",
+        "Type": "String",
+        "Value": "<snapshot-bucket>",
+        "Tags": {
+          "environment": "beta",
+          "logical-role": "snapshot-artifact-bucket",
+          "owner-repo": "financialplanning",
+          "project": "finplan"
+        }
+      }
+    },
+    "DailyIngestSchedule": {
+      "Type": "AWS::Scheduler::Schedule",
+      "Metadata": {
+        "logical-role": "daily-ingest-schedule"
+      },
+      "Properties": {
+        "ScheduleExpression": "cron(0 9 ? * MON-FRI *)",
+        "ScheduleExpressionTimezone": "America/New_York",
+        "FlexibleTimeWindow": {
+          "Mode": "OFF"
+        },
+        "Target": {
+          "Arn": {
+            "Fn::GetAtt": [
+              "IngestionFunction",
+              "Arn"
+            ]
+          },
+          "RoleArn": {
+            "Fn::GetAtt": [
+              "ScheduleRole",
+              "Arn"
+            ]
+          },
+          "DeadLetterConfig": {
+            "Arn": {
+              "Fn::GetAtt": [
+                "ScheduleDlq",
+                "Arn"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "DailySweep": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "ScheduleExpression": "rate(1 day)",
+        "State": "ENABLED",
+        "Targets": [
+          {
+            "Arn": {
+              "Fn::GetAtt": [
+                "Sweeper",
+                "Arn"
+              ]
+            },
+            "Id": "Target0"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "metadata-sweeper"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "DailySweepAllowEventRule": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "Sweeper",
+            "Arn"
+          ]
+        },
+        "Principal": "events.amazonaws.com",
+        "SourceArn": {
+          "Fn::GetAtt": [
+            "DailySweep",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "IngestScheduleParam": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/finplan/beta/financialplanning/config/ingest-schedule",
+        "Type": "String",
+        "Value": "09:00",
+        "Tags": {
+          "environment": "beta",
+          "logical-role": "daily-ingest-schedule",
+          "owner-repo": "financialplanning",
+          "project": "finplan"
+        }
+      }
+    },
+    "IngestionEndpointParam": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/finplan/beta/financialplanning/api/ingestion-endpoint",
+        "Type": "String",
+        "Value": "<ingestion-endpoint>",
+        "Tags": {
+          "environment": "beta",
+          "logical-role": "ingestion-api",
+          "owner-repo": "financialplanning",
+          "project": "finplan"
+        }
+      }
+    },
+    "IngestionFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Runtime": "python3.12",
+        "Handler": "index.handler",
+        "Code": {
+          "ZipFile": "def handler(event, context):\n    return {}\n"
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "IngestionRole",
+            "Arn"
+          ]
+        },
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "IngestionLogs"
+          }
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "ingestion-handler"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "IngestionFunctionEventInvokeConfig": {
+      "Type": "AWS::Lambda::EventInvokeConfig",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "IngestionFunction"
+        },
+        "Qualifier": "$LATEST",
+        "MaximumRetryAttempts": 0,
+        "DestinationConfig": {
+          "OnFailure": {
+            "Destination": {
+              "Fn::GetAtt": [
+                "ScheduleDlq",
+                "Arn"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "IngestionLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/finplan-beta-financialplanning-ingestion",
+        "RetentionInDays": 14,
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "ingestion-handler"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "IngestionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-ingestion-handler",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":policy/finplan-beta-permission-boundary"
+            ]
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "ingestion-handler"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "IngestionRoleDefaultPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "IngestionRoleDefaultPolicy",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "sqs:SendMessage",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "ScheduleDlq",
+                  "Arn"
+                ]
+              }
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "IngestionRole"
+          }
+        ]
+      }
+    },
+    "PlanApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": "finplan-beta-financialplanning-plan-api",
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-api"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "PlanApiDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "PlanApi"
+        }
+      },
+      "DependsOn": [
+        "PlanApiV1PortfoliosPost"
+      ]
+    },
+    "PlanApiFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Runtime": "python3.12",
+        "Handler": "index.handler",
+        "Code": {
+          "ZipFile": "def handler(event, context):\n    return {}\n"
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "PlanApiHandlerRole",
+            "Arn"
+          ]
+        },
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "PlanApiLogs"
+          }
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-api-handler"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "PlanApiHandlerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-plan-api-handler",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":policy/finplan-beta-permission-boundary"
+            ]
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-api-handler"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "PlanApiHandlerRoleDefaultPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "PlanApiHandlerRoleDefaultPolicy",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "dynamodb:GetItem",
+              "Resource": "*"
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "PlanApiHandlerRole"
+          }
+        ]
+      }
+    },
+    "PlanApiLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/finplan-beta-financialplanning-plan-api",
+        "RetentionInDays": 14,
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-api-handler"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "PlanApiMissingAuthenticationToken": {
+      "Type": "AWS::ApiGateway::GatewayResponse",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "PlanApi"
+        },
+        "ResponseType": "MISSING_AUTHENTICATION_TOKEN",
+        "StatusCode": "404"
+      }
+    },
+    "PlanApiStageLive": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "PlanApi"
+        },
+        "DeploymentId": {
+          "Ref": "PlanApiDeployment"
+        },
+        "StageName": "live",
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-api"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "PlanApiV1": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "PlanApi"
+        },
+        "ParentId": {
+          "Fn::GetAtt": [
+            "PlanApi",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "v1"
+      }
+    },
+    "PlanApiV1Portfolios": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "PlanApi"
+        },
+        "ParentId": {
+          "Ref": "PlanApiV1"
+        },
+        "PathPart": "portfolios"
+      }
+    },
+    "PlanApiV1PortfoliosPost": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "PlanApi"
+        },
+        "ResourceId": {
+          "Ref": "PlanApiV1Portfolios"
+        },
+        "HttpMethod": "POST",
+        "AuthorizationType": "AWS_IAM",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Join": [
+              "",
+              [
+                "arn:",
+                {
+                  "Ref": "AWS::Partition"
+                },
+                ":apigateway:",
+                {
+                  "Ref": "AWS::Region"
+                },
+                ":lambda:path/2015-03-31/functions/",
+                {
+                  "Fn::GetAtt": [
+                    "PlanApiFunction",
+                    "Arn"
+                  ]
+                },
+                "/invocations"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "PlanApiV1PortfoliosPostPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "PlanApiFunction",
+            "Arn"
+          ]
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":execute-api:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":",
+              {
+                "Ref": "PlanApi"
+              },
+              "/",
+              {
+                "Ref": "PlanApiStageLive"
+              },
+              "/POST/v1/portfolios"
+            ]
+          ]
+        }
+      }
+    },
+    "PlanEndpoint": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/finplan/beta/financialplanning/api/plan-endpoint",
+        "Type": "String",
+        "Value": "<plan-endpoint>",
+        "Tags": {
+          "environment": "beta",
+          "logical-role": "plan-api",
+          "owner-repo": "financialplanning",
+          "project": "finplan"
+        }
+      }
+    },
+    "RunStagingRef": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/finplan/beta/financialplanning/config/run-staging-ref",
+        "Type": "String",
+        "Value": "<run-staging-ref>",
+        "Tags": {
+          "environment": "beta",
+          "logical-role": "run-staging-area",
+          "owner-repo": "financialplanning",
+          "project": "finplan"
+        }
+      }
+    },
+    "ScheduleDlq": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "finplan-beta-financialplanning-ingest-dlq",
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "daily-ingest-schedule"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "ScheduleDlqAlarm": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "MetricName": "ApproximateNumberOfMessagesVisible",
+        "Namespace": "AWS/SQS",
+        "Dimensions": [
+          {
+            "Name": "QueueName",
+            "Value": {
+              "Fn::GetAtt": [
+                "ScheduleDlq",
+                "QueueName"
+              ]
+            }
+          }
+        ],
+        "Statistic": "Maximum",
+        "Period": 300,
+        "EvaluationPeriods": 1,
+        "Threshold": 1,
+        "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "daily-ingest-schedule"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "ScheduleDlqPolicy": {
+      "Type": "AWS::SQS::QueuePolicy",
+      "Properties": {
+        "Queues": [
+          {
+            "Ref": "ScheduleDlq"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Action": "sqs:*",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "ScheduleDlq",
+                  "Arn"
+                ]
+              },
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ScheduleRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-daily-ingest-schedule",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":policy/finplan-beta-permission-boundary"
+            ]
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "daily-ingest-schedule"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "ScheduleRoleDefaultPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "ScheduleRoleDefaultPolicy",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "lambda:InvokeFunction",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "IngestionFunction",
+                  "Arn"
+                ]
+              }
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "ScheduleRole"
+          }
+        ]
+      }
+    },
+    "Sweeper": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Runtime": "python3.12",
+        "Handler": "index.handler",
+        "Code": {
+          "ZipFile": "def handler(event, context):\n    return {}\n"
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "SweeperRole",
+            "Arn"
+          ]
+        },
+        "LoggingConfig": {
+          "LogGroup": {
+            "Ref": "SweeperLogs"
+          }
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "metadata-sweeper"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "SweeperLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/finplan-beta-financialplanning-metadata-sweeper",
+        "RetentionInDays": 14,
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "metadata-sweeper"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "SweeperRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-metadata-sweeper",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":policy/finplan-beta-permission-boundary"
+            ]
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "metadata-sweeper"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "SweeperRoleDefaultPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "SweeperRoleDefaultPolicy",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "dynamodb:DeleteItem",
+              "Resource": "*"
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "SweeperRole"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/read-snapshot-observations-response.json",
+  "title": "Read snapshot observations response",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Response of GET /v1/snapshots/{input_snapshot_id}/observations: the tools/query-market-data-response summary plus one page of committed observations, the requested range, the parts of it the snapshot does not cover and the sessions it is missing. Nothing is fabricated: uncovered ranges and missing sessions are stated, never filled.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/tools/query-market-data-response.json"
+    }
+  ],
+  "properties": {
+    "observations": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/finance/v1/observation.json"
+      }
+    },
+    "requested_range": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+    },
+    "uncovered_ranges": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+      }
+    },
+    "missing_sessions": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "observations",
+    "requested_range"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/cost-allocation-tags.json",
+  "title": "Cost-allocation tags",
+  "description": "Registered cost-allocation tag keys carried by every resource: project (finplan), owner-repo, environment (beta|gamma|prod|shared), logical-role, and run-id on SageMaker jobs.",
+  "type": "object",
+  "properties": {
+    "project": {
+      "const": "finplan"
+    },
+    "owner-repo": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/repo"
+    },
+    "environment": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/environment_or_shared"
+    },
+    "logical-role": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$"
+    },
+    "run-id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    }
+  },
+  "required": [
+    "project",
+    "owner-repo",
+    "environment",
+    "logical-role"
+  ]
+}

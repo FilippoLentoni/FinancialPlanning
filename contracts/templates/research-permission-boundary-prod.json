@@ -1,0 +1,378 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Permission boundary for FinanceModel prod research and job-execution roles: the prod boundary plus denies on platform metadata, plan/publication/execution API writes and S3 writes outside research storage and the staging area (design D5, ENV-04).",
+  "Resources": {
+    "ProdResearchPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "ManagedPolicyName": "finplan-prod-research-permission-boundary",
+        "Description": "Permission boundary for FinanceModel prod research and job-execution roles: the prod boundary plus denies on platform metadata, plan/publication/execution API writes and S3 writes outside research storage and the staging area (design D5, ENV-04).",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            },
+            {
+              "Sid": "DenyOtherEnvironmentTagged",
+              "Effect": "Deny",
+              "Action": "*",
+              "Resource": "*",
+              "Condition": {
+                "StringNotEquals": {
+                  "aws:ResourceTag/environment": [
+                    "prod",
+                    "shared"
+                  ]
+                },
+                "Null": {
+                  "aws:ResourceTag/environment": "false"
+                }
+              }
+            },
+            {
+              "Sid": "DenyOtherEnvironmentNamed",
+              "Effect": "Deny",
+              "Action": "*",
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:s3:::finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/beta*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:finplan/beta/*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/*/finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:*:finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:*/finplan-beta-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:s3:::finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/gamma*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:finplan/gamma/*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:sqs:${AWS::Region}:${AWS::AccountId}:finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/*/finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:*:finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/finplan-gamma-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:*/finplan-gamma-*"
+                }
+              ]
+            },
+            {
+              "Sid": "DenyPlatformMetadataTables",
+              "Effect": "Deny",
+              "Action": "dynamodb:*",
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/finplan-*-financialplanning-*"
+                }
+              ]
+            },
+            {
+              "Sid": "DenyPlatformMetadataTablesTagged",
+              "Effect": "Deny",
+              "Action": "dynamodb:*",
+              "Resource": "*",
+              "Condition": {
+                "StringEquals": {
+                  "aws:ResourceTag/owner-repo": "financialplanning"
+                }
+              }
+            },
+            {
+              "Sid": "DenyPlanApiWrites",
+              "Effect": "Deny",
+              "Action": "execute-api:Invoke",
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/P*/v1/plans*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/P*/v1/portfolios*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/P*/v1/publications*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/P*/v1/executions*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/DELETE/v1/plans*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/DELETE/v1/portfolios*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/DELETE/v1/publications*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:*/*/DELETE/v1/executions*"
+                }
+              ]
+            },
+            {
+              "Sid": "DenyWritesOutsideResearchAndStaging",
+              "Effect": "Deny",
+              "Action": [
+                "s3:PutObject",
+                "s3:PutObjectAcl",
+                "s3:PutObjectTagging",
+                "s3:PutObjectRetention",
+                "s3:PutObjectLegalHold",
+                "s3:DeleteObject",
+                "s3:DeleteObjectVersion",
+                "s3:DeleteObjectTagging",
+                "s3:RestoreObject",
+                "s3:PutBucket*",
+                "s3:DeleteBucket*"
+              ],
+              "NotResource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:s3:::finplan-prod-financemodel-*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:s3:::finplan-prod-financialplanning-run-staging-area*"
+                }
+              ]
+            },
+            {
+              "Sid": "DenyLiveFinancialActions",
+              "Effect": "Deny",
+              "Action": [
+                "payments:*",
+                "payment:*",
+                "payment-cryptography:*",
+                "payment-cryptography-data:*",
+                "managedblockchain:*",
+                "managedblockchain-query:*",
+                "wallet:*",
+                "wallets:*",
+                "coinbase:*",
+                "brokerage:*",
+                "trading:*",
+                "exchange:*",
+                "crypto-exchange:*",
+                "bedrock-agentcore:*Payment*",
+                "bedrock-agentcore:*Wallet*",
+                "bedrock-agentcore:*Funds*",
+                "bedrock-agentcore-control:*Payment*",
+                "bedrock-agentcore-control:*Wallet*",
+                "bedrock-agentcore-control:*Funds*"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "DenyLiveFinancialSecrets",
+              "Effect": "Deny",
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:UpdateSecret",
+                "secretsmanager:BatchGetSecretValue"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringLike": {
+                  "secretsmanager:SecretId": [
+                    "*brokerage*",
+                    "*broker*",
+                    "*trading*",
+                    "*trade-*",
+                    "*coinbase*",
+                    "*binance*",
+                    "*kraken*",
+                    "*alpaca*",
+                    "*ibkr*",
+                    "*robinhood*",
+                    "*exchange-api*",
+                    "*crypto-exchange*",
+                    "*wallet*",
+                    "*payment*"
+                  ]
+                }
+              }
+            },
+            {
+              "Sid": "DenyLiveFinancialSecretCreation",
+              "Effect": "Deny",
+              "Action": [
+                "secretsmanager:CreateSecret"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringLike": {
+                  "secretsmanager:Name": [
+                    "*brokerage*",
+                    "*broker*",
+                    "*trading*",
+                    "*trade-*",
+                    "*coinbase*",
+                    "*binance*",
+                    "*kraken*",
+                    "*alpaca*",
+                    "*ibkr*",
+                    "*robinhood*",
+                    "*exchange-api*",
+                    "*crypto-exchange*",
+                    "*wallet*",
+                    "*payment*"
+                  ]
+                }
+              }
+            },
+            {
+              "Sid": "ProtectBoundaries",
+              "Effect": "Deny",
+              "Action": [
+                "iam:DeleteRolePermissionsBoundary",
+                "iam:DeleteUserPermissionsBoundary"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "RequireBoundaryOnRoleCreation",
+              "Effect": "Deny",
+              "Action": [
+                "iam:CreateRole",
+                "iam:PutRolePermissionsBoundary",
+                "iam:CreateUser",
+                "iam:PutUserPermissionsBoundary"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "ArnNotLike": {
+                  "iam:PermissionsBoundary": [
+                    "arn:*:iam::*:policy/finplan-prod-permission-boundary",
+                    "arn:*:iam::*:policy/finplan-prod-research-permission-boundary"
+                  ]
+                }
+              }
+            },
+            {
+              "Sid": "ProtectBoundaryPolicies",
+              "Effect": "Deny",
+              "Action": [
+                "iam:CreatePolicyVersion",
+                "iam:DeletePolicy",
+                "iam:DeletePolicyVersion",
+                "iam:SetDefaultPolicyVersion"
+              ],
+              "Resource": [
+                "arn:*:iam::*:policy/finplan-*-permission-boundary"
+              ]
+            },
+            {
+              "Sid": "ProtectBudgetEnforcement",
+              "Effect": "Deny",
+              "Action": [
+                "iam:DetachRolePolicy",
+                "iam:DetachUserPolicy",
+                "iam:DetachGroupPolicy"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "ArnLike": {
+                  "iam:PolicyARN": "arn:*:iam::*:policy/finplan-budget-enforcement-deny"
+                }
+              }
+            },
+            {
+              "Sid": "OnlyHumansExecuteBudgetActions",
+              "Effect": "Deny",
+              "Action": [
+                "budgets:ExecuteBudgetAction"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ProdResearchPermissionBoundaryArn": {
+      "Value": {
+        "Ref": "ProdResearchPermissionBoundary"
+      }
+    }
+  },
+  "Metadata": {
+    "finplan": {
+      "generated_by": "finplan_contracts.boundaries",
+      "environment": "prod",
+      "cdk_wiring": "add-platform-foundation"
+    }
+  }
+}

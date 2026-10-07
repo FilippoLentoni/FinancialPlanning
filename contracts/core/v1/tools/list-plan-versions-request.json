@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/list-plan-versions-request.json",
+  "title": "list_plan_versions request",
+  "description": "Request schema for the 'list_plan_versions' tool. Read-only; newest first, paginated with an opaque continuation token.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "page_size": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/page_size"
+    },
+    "next_token": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/next_token"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_id"
+  ],
+  "additionalProperties": false
+}

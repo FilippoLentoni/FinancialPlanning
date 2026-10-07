@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-version-response.json",
+  "title": "get_plan_version response",
+  "description": "Response schema for the 'get_plan_version' tool.",
+  "type": "object",
+  "properties": {
+    "plan_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan-version.json"
+    },
+    "content_summary": {
+      "type": "object",
+      "description": "Compact domain content summary (top-N plus 'other')."
+    },
+    "content_ref": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_version"
+  ]
+}

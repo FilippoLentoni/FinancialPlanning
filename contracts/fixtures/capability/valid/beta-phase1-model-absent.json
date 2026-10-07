@@ -1,0 +1,99 @@
+{
+  "environment": "beta",
+  "release_id": "rel_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "contract_version": "1.0.0",
+  "served_contract_majors": [
+    1
+  ],
+  "tools": [
+    {
+      "name": "describe_capabilities",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/describe-capabilities-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/describe-capabilities-response.json",
+      "state_changing": false,
+      "available": true
+    },
+    {
+      "name": "query_market_data",
+      "input_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/query-market-data-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/query-market-data-response.json",
+      "state_changing": false,
+      "available": true
+    },
+    {
+      "name": "get_plan",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-response.json",
+      "state_changing": false,
+      "available": true
+    },
+    {
+      "name": "get_plan_version",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-version-response.json",
+      "state_changing": false,
+      "available": true
+    },
+    {
+      "name": "list_plan_versions",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/list-plan-versions-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/list-plan-versions-response.json",
+      "state_changing": false,
+      "available": true
+    },
+    {
+      "name": "get_job_status",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-job-status-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-job-status-response.json",
+      "state_changing": false,
+      "available": false,
+      "unavailable_reason": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "name": "get_experiment_result",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-experiment-result-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-experiment-result-response.json",
+      "state_changing": false,
+      "available": false,
+      "unavailable_reason": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "name": "refresh_market_data",
+      "input_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/refresh-market-data-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/refresh-market-data-response.json",
+      "state_changing": true,
+      "available": true
+    },
+    {
+      "name": "submit_experiment",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/submit-experiment-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/submit-experiment-response.json",
+      "state_changing": true,
+      "available": false,
+      "unavailable_reason": "DEPENDENCY_UNAVAILABLE"
+    },
+    {
+      "name": "create_override_version",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/create-override-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/create-override-version-response.json",
+      "state_changing": true,
+      "available": true
+    },
+    {
+      "name": "validate_plan_version",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/validate-plan-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/validate-plan-version-response.json",
+      "state_changing": true,
+      "available": true
+    },
+    {
+      "name": "publish_plan_version",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/publish-plan-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/publish-plan-version-response.json",
+      "state_changing": true,
+      "available": true
+    }
+  ],
+  "generated_at": "2026-01-10T14:30:00Z",
+  "synthetic": true
+}

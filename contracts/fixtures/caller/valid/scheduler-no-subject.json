@@ -1,0 +1,5 @@
+{
+  "channel": "scheduler",
+  "correlation_id": "corr-synthetic-0001",
+  "synthetic": true
+}

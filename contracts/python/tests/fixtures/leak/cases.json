@@ -1,0 +1,205 @@
+{
+  "synthetic": true,
+  "description": "Leak-scan fixtures (OWN-03, ENV-08). Texts are committed with {{TOKEN}} placeholders so this repository stays clean; tests substitute synthetic look-alike values at run time.",
+  "tokens": [
+    "ACCOUNT_ID",
+    "ACCOUNT_DASHED",
+    "BUCKET",
+    "API_ID",
+    "AWS_KEY_ID",
+    "AWS_SECRET",
+    "APIKEY",
+    "APIKEY_PREFIX",
+    "PEM",
+    "OPENAI",
+    "GITHUB",
+    "BEARER",
+    "SECRET_VALUE"
+  ],
+  "positive": [
+    {
+      "name": "account-id-yaml",
+      "text": "account: {{ACCOUNT_ID}}\n",
+      "rules": [
+        "account-id"
+      ]
+    },
+    {
+      "name": "account-id-dashed",
+      "text": "Billing account {{ACCOUNT_DASHED}} (console format)\n",
+      "rules": [
+        "account-id"
+      ]
+    },
+    {
+      "name": "arn-with-account",
+      "text": "\"RoleArn\": \"arn:aws:iam::{{ACCOUNT_ID}}:role/finplan-beta-tool\"\n",
+      "rules": [
+        "arn"
+      ]
+    },
+    {
+      "name": "codeconnection-arn",
+      "text": "connection = \"arn:aws:codeconnections:us-east-2:{{ACCOUNT_ID}}:connection/abc\"\n",
+      "rules": [
+        "arn"
+      ]
+    },
+    {
+      "name": "s3-uri",
+      "text": "input = \"s3://{{BUCKET}}/snapshots/2026-10-07/payload.json\"\n",
+      "rules": [
+        "s3-bucket"
+      ]
+    },
+    {
+      "name": "s3-arn",
+      "text": "Resource: arn:aws:s3:::{{BUCKET}}/*\n",
+      "rules": [
+        "s3-bucket"
+      ]
+    },
+    {
+      "name": "bucket-name-property",
+      "text": "{\"BucketName\": \"{{BUCKET}}\"}\n",
+      "rules": [
+        "s3-bucket"
+      ]
+    },
+    {
+      "name": "s3-virtual-host",
+      "text": "https://{{BUCKET}}.s3.us-east-2.amazonaws.com/report.csv\n",
+      "rules": [
+        "s3-bucket"
+      ]
+    },
+    {
+      "name": "execute-api-endpoint",
+      "text": "PLAN_API = \"https://{{API_ID}}.execute-api.us-east-2.amazonaws.com/prod\"\n",
+      "rules": [
+        "endpoint-url"
+      ]
+    },
+    {
+      "name": "aws-access-key-id",
+      "text": "aws_access_key_id = {{AWS_KEY_ID}}\n",
+      "rules": [
+        "aws-access-key-id"
+      ]
+    },
+    {
+      "name": "aws-secret-access-key",
+      "text": "aws_secret_access_key = {{AWS_SECRET}}\n",
+      "rules": [
+        "aws-secret-key"
+      ]
+    },
+    {
+      "name": "third-party-apikey",
+      "text": "JEV_API_KEY={{APIKEY}}\n",
+      "rules": [
+        "apikey"
+      ]
+    },
+    {
+      "name": "jev-secret-ref-holds-value",
+      "text": "{\"name\": \"/finplan/shared/financemodel/secret-ref/jev-api-key\", \"value\": \"{{APIKEY}}\"}\n",
+      "rules": [
+        "apikey"
+      ]
+    },
+    {
+      "name": "private-key",
+      "text": "{{PEM}}\nMIIEpAIBAAKCAQEA\n",
+      "rules": [
+        "private-key"
+      ]
+    },
+    {
+      "name": "openai-key",
+      "text": "OPENAI_API_KEY = {{OPENAI}}\n",
+      "rules": [
+        "openai-key"
+      ]
+    },
+    {
+      "name": "github-token",
+      "text": "token: {{GITHUB}}\n",
+      "rules": [
+        "github-token"
+      ]
+    },
+    {
+      "name": "bearer-token",
+      "text": "Authorization: Bearer {{BEARER}}\n",
+      "rules": [
+        "bearer-token"
+      ]
+    },
+    {
+      "name": "secret-assignment",
+      "text": "{\"client_secret\": \"{{SECRET_VALUE}}\"}\n",
+      "rules": [
+        "secret-assignment"
+      ]
+    }
+  ],
+  "negative": [
+    {
+      "name": "placeholder-account",
+      "text": "account: <account-id>\nregion: us-east-2\n"
+    },
+    {
+      "name": "placeholder-arn",
+      "text": "arn:aws:iam::<account-id>:role/finplan-beta-tool\n"
+    },
+    {
+      "name": "cfn-substitution-arn",
+      "text": "{\"Fn::Sub\": \"arn:${AWS::Partition}:iam::${AWS::AccountId}:role/finplan-${Env}-tool\"}\n"
+    },
+    {
+      "name": "aws-managed-policy-arn",
+      "text": "arn:aws:iam::aws:policy/ReadOnlyAccess\n"
+    },
+    {
+      "name": "foundation-model-arn",
+      "text": "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-opus-5\n"
+    },
+    {
+      "name": "placeholder-bucket",
+      "text": "s3://example-bucket/snapshots/x.json and arn:aws:s3:::example-bucket/* and s3://<bucket>/key\n"
+    },
+    {
+      "name": "bucket-name-from-cfn",
+      "text": "{\"BucketName\": {\"Fn::Sub\": \"finplan-${Env}-raw\"}}\n"
+    },
+    {
+      "name": "jev-secret-ref-holds-name",
+      "text": "{\"name\": \"/finplan/shared/financemodel/secret-ref/jev-api-key\", \"value\": \"finplan/shared/financemodel/jev-api-key\"}\nsecret_name: finplan/shared/financemodel/jev-api-key\n"
+    },
+    {
+      "name": "identifiers-and-checksums",
+      "text": "plan_version_id: pv_01JA2B3C4D5E6F7G8H9JKMNPQR\nchecksum: sha256:aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899\nrelease_id: rel_01JA2B3C4D5E6F7G8H9JKMNPQR\n"
+    },
+    {
+      "name": "aws-documentation-key",
+      "text": "aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n"
+    },
+    {
+      "name": "non-secret-key-names",
+      "text": "\"idempotency_key\": \"k-2026-10-07-abc\"\npassword_field = \"password\"\n\"token_type\": \"Bearer\"\n{{APIKEY_PREFIX}}header = \"X-Api-Key\"\n"
+    },
+    {
+      "name": "long-numbers",
+      "text": "timestamp_ms = 1759840000000\nratio = 0.123456789012\n"
+    },
+    {
+      "name": "public-service-endpoints",
+      "text": "https://bedrock-runtime.us-east-2.amazonaws.com and https://s3.us-east-2.amazonaws.com\n"
+    },
+    {
+      "name": "ssm-names",
+      "text": "/finplan/gamma/financelambdastool/lambda/refresh-market-data-arn\n/finplan/shared/<repo>/config/codeconnection-ref\n"
+    }
+  ]
+}

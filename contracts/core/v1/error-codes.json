@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/error-codes.json",
+  "title": "Registered error codes",
+  "description": "Registered error codes with their default retryable value. The root validates one registration entry. Codes with x-finplan-retryable-fixed must always carry their default. Adding a code is a minor release.",
+  "x-finplan-checks": [
+    "error_retryable"
+  ],
+  "x-finplan-error-codes": {
+    "VALIDATION_FAILED": {
+      "retryable": false,
+      "retryable_fixed": true,
+      "description": "Request or document failed schema or semantic validation."
+    },
+    "INVALID_IDENTIFIER": {
+      "retryable": false,
+      "retryable_fixed": true,
+      "description": "An identifier has the wrong prefix or format for its field."
+    },
+    "NOT_FOUND": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "The referenced record does not exist in this environment."
+    },
+    "CONFLICT": {
+      "retryable": false,
+      "retryable_fixed": true,
+      "description": "expected_revision does not match the current revision."
+    },
+    "IDEMPOTENCY_KEY_REUSED": {
+      "retryable": false,
+      "retryable_fixed": true,
+      "description": "The idempotency key was used with a different request hash."
+    },
+    "IMMUTABLE_RECORD": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "The record is immutable; create a child version instead."
+    },
+    "PRECONDITION_FAILED": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "A lifecycle precondition is not met (for example publishing an unvalidated version)."
+    },
+    "UNAUTHORIZED": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "The caller could not be authenticated."
+    },
+    "FORBIDDEN": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "The caller is not allowed to perform the operation."
+    },
+    "OPERATION_NOT_PERMITTED": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "The operation is not permitted in this phase (for example live execution)."
+    },
+    "BUDGET_EXCEEDED": {
+      "retryable": false,
+      "retryable_fixed": true,
+      "description": "The cost estimate exceeds the remaining budget allocation, or budget enforcement is active."
+    },
+    "RATE_LIMITED": {
+      "retryable": true,
+      "retryable_fixed": false,
+      "description": "A dependency or the producer throttled the request."
+    },
+    "DEPENDENCY_UNAVAILABLE": {
+      "retryable": true,
+      "retryable_fixed": false,
+      "description": "A required producer release or dependency is absent or unavailable."
+    },
+    "UNSUPPORTED_CONTRACT_VERSION": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "The declared contract major is not served; details list the served majors."
+    },
+    "INTERNAL": {
+      "retryable": false,
+      "retryable_fixed": false,
+      "description": "Unexpected producer failure."
+    }
+  },
+  "type": "object",
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/code"
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "description": {
+      "type": "string"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "code",
+    "retryable"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "code": {
+      "type": "string",
+      "enum": [
+        "VALIDATION_FAILED",
+        "INVALID_IDENTIFIER",
+        "NOT_FOUND",
+        "CONFLICT",
+        "IDEMPOTENCY_KEY_REUSED",
+        "IMMUTABLE_RECORD",
+        "PRECONDITION_FAILED",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "OPERATION_NOT_PERMITTED",
+        "BUDGET_EXCEEDED",
+        "RATE_LIMITED",
+        "DEPENDENCY_UNAVAILABLE",
+        "UNSUPPORTED_CONTRACT_VERSION",
+        "INTERNAL"
+      ]
+    }
+  }
+}

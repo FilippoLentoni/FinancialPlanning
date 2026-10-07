@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/configuration.json",
+  "title": "Configuration",
+  "description": "Domain-neutral configuration envelope. configuration_id = 'cfg_' + lowercase hex SHA-256 of this document canonicalized per RFC 8785.",
+  "x-finplan-checks": [
+    "domain_payload"
+  ],
+  "x-finplan-domain-payloads": [
+    {
+      "pointer": "/payload",
+      "kind": "configuration"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "payload": {
+      "type": "object"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "domain",
+    "domain_schema_version",
+    "payload"
+  ],
+  "additionalProperties": false
+}

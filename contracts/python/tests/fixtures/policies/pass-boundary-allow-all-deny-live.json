@@ -1,0 +1,28 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowWithinBoundary",
+      "Effect": "Allow",
+      "Action": "*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyLiveFinancial",
+      "Effect": "Deny",
+      "Action": [
+        "payments:*",
+        "payment-cryptography:*",
+        "payment-cryptography-data:*",
+        "wallet:*",
+        "coinbase:*",
+        "brokerage:*",
+        "trading:*",
+        "bedrock-agentcore:*Payment*",
+        "bedrock-agentcore:*Wallet*",
+        "bedrock-agentcore:TransferFunds"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

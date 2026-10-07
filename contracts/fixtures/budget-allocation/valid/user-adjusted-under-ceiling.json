@@ -1,0 +1,7 @@
+{
+  "platform_infra": 6,
+  "cpu_research": 7,
+  "bedrock_explanations": 5,
+  "gpu": 20,
+  "reserve": 5
+}

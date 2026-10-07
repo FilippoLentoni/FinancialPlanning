@@ -1,0 +1,42 @@
+{
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "job_type": "fixture_optimizer",
+  "purpose": "research",
+  "dry_run": false,
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration": {
+    "domain": "finance",
+    "domain_schema_version": "1.0",
+    "payload": {
+      "strategy": "mean_variance",
+      "objective": "portfolio_optimization",
+      "universe": [
+        "SPY",
+        "CASH"
+      ],
+      "risk_aversion": 2.0,
+      "lookback_days": 252,
+      "rebalance_frequency": "monthly",
+      "constraints": {
+        "long_only": true,
+        "max_weight": 1.0
+      },
+      "fees": {
+        "transaction_cost_bps": 5
+      }
+    },
+    "synthetic": true
+  },
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "evaluation_window": {
+    "start": "2026-01-02",
+    "end": "2026-01-09"
+  },
+  "compute_class": "cpu",
+  "max_runtime_seconds": 900,
+  "idempotency_key": "client-key-0002",
+  "contract_version": "1.0.0",
+  "synthetic": true,
+  "ticker": "SPY"
+}

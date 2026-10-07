@@ -1,0 +1,7 @@
+{
+  "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "name": "Synthetic plan",
+  "idempotency_key": "client-key-0011",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

@@ -1,0 +1,57 @@
+# --- Python / uv
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+htmlcov/
+build/
+dist/
+# uv.lock IS committed; only caches are ignored
+.uv-cache/
+# generated at build time from contracts/VERSION
+contracts/python/src/finplan_contracts/_version.py
+
+# --- Node / npm
+node_modules/
+npm-debug.log*
+*.tsbuildinfo
+*.tgz
+# synced copy of the contract data inside the npm package (scripts/sync.mjs)
+contracts/typescript/data/
+
+# --- CDK / CloudFormation
+cdk.out/
+cdk.context.local.json
+.cdk.staging/
+
+# --- Environment, credentials and local configuration (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.aws/
+# local, untracked bootstrap configuration (account check, connection reference)
+.finplan/
+bootstrap.json
+bootstrap.local.json
+*.local.json
+release-metadata.json
+
+# --- Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# --- build-stage scratch and the filtered bootstrap assembly (scripts/build_stage.py, scripts/bootstrap.py)
+.build/
+build-output/
+cdk.out.bootstrap/

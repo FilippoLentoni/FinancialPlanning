@@ -1,0 +1,48 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "FinanceModel gamma research role with the research boundary.",
+  "Metadata": {
+    "synthetic": true
+  },
+  "Resources": {
+    "ResearchJobRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-gamma-financemodel-research-job",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/finplan-gamma-research-permission-boundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "gamma"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "research-job-role"
+          }
+        ]
+      }
+    }
+  }
+}

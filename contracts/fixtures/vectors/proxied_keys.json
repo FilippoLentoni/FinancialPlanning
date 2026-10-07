@@ -1,0 +1,98 @@
+{
+  "synthetic": true,
+  "description": "derived_key = 'lt_' + lowercase hex SHA-256 of the UTF-8 string 'caller_identity|env|tool|idempotency_key' (no spaces around '|').",
+  "algorithm": {
+    "preimage": "caller_identity|env|tool|idempotency_key",
+    "hash": "SHA-256",
+    "encoding": "UTF-8",
+    "prefix": "lt_"
+  },
+  "equal_groups": [
+    [
+      "caller-a",
+      "caller-a-retry"
+    ]
+  ],
+  "cases": [
+    {
+      "name": "caller-a",
+      "description": "Gateway caller A.",
+      "caller_identity": "gateway:beta:subject-a",
+      "env": "beta",
+      "tool": "create_override_version",
+      "idempotency_key": "client-key-0001",
+      "preimage": "gateway:beta:subject-a|beta|create_override_version|client-key-0001",
+      "derived_key": "lt_70ab07fafac14d5250abfbcab7925b8bbbab1a64e943c68dfc7c583bb3eb4ebe"
+    },
+    {
+      "name": "caller-b-same-key",
+      "description": "Different caller, same key and tool: distinct derived key (ID-10).",
+      "caller_identity": "gateway:beta:subject-b",
+      "env": "beta",
+      "tool": "create_override_version",
+      "idempotency_key": "client-key-0001",
+      "preimage": "gateway:beta:subject-b|beta|create_override_version|client-key-0001",
+      "derived_key": "lt_79921ef8a25d2acd620b42b0fe2267bb91b3aa212d1f1726b66ab1183a90443f"
+    },
+    {
+      "name": "caller-a-retry",
+      "description": "Same caller retries with the same key: same derived key as 'caller-a' (ID-10).",
+      "caller_identity": "gateway:beta:subject-a",
+      "env": "beta",
+      "tool": "create_override_version",
+      "idempotency_key": "client-key-0001",
+      "preimage": "gateway:beta:subject-a|beta|create_override_version|client-key-0001",
+      "derived_key": "lt_70ab07fafac14d5250abfbcab7925b8bbbab1a64e943c68dfc7c583bb3eb4ebe"
+    },
+    {
+      "name": "caller-a-other-env",
+      "description": "Same caller and key in gamma: distinct derived key.",
+      "caller_identity": "gateway:gamma:subject-a",
+      "env": "gamma",
+      "tool": "create_override_version",
+      "idempotency_key": "client-key-0001",
+      "preimage": "gateway:gamma:subject-a|gamma|create_override_version|client-key-0001",
+      "derived_key": "lt_9efdf4920f328723464c2554da8b1bbac3830ac43d6aa3d50ed350c159646f3d"
+    },
+    {
+      "name": "caller-a-other-tool",
+      "description": "Same caller and key, different tool: distinct derived key.",
+      "caller_identity": "gateway:beta:subject-a",
+      "env": "beta",
+      "tool": "publish_plan_version",
+      "idempotency_key": "client-key-0001",
+      "preimage": "gateway:beta:subject-a|beta|publish_plan_version|client-key-0001",
+      "derived_key": "lt_ee05929ea90912b8312e4ab6a477352ba0fb5c85b2796fa5d1e5fd44b6656be0"
+    },
+    {
+      "name": "direct-test",
+      "description": "Direct-test identity class.",
+      "caller_identity": "direct:beta",
+      "env": "beta",
+      "tool": "refresh_market_data",
+      "idempotency_key": "test-key_42",
+      "preimage": "direct:beta|beta|refresh_market_data|test-key_42",
+      "derived_key": "lt_1b872ae869277e8d8a13a2e4bfd376d1924ba3eab625b549fc81e04d77c5d737"
+    },
+    {
+      "name": "max-length-key",
+      "description": "128-character client key.",
+      "caller_identity": "direct:prod",
+      "env": "prod",
+      "tool": "submit_experiment",
+      "idempotency_key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+      "preimage": "direct:prod|prod|submit_experiment|kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
+      "derived_key": "lt_35b54ccac258967b099b234e3708c0c2d75079bcf8a59c944a134a2588bbb4b5"
+    },
+    {
+      "name": "non-ascii-caller",
+      "description": "Caller identity with non-ASCII characters is hashed as UTF-8.",
+      "caller_identity": "gateway:beta:subjéct",
+      "env": "beta",
+      "tool": "validate_plan_version",
+      "idempotency_key": "k1",
+      "preimage": "gateway:beta:subjéct|beta|validate_plan_version|k1",
+      "derived_key": "lt_a80b885f08755307ae59614fecb887680f72cd70c4e1ed30cb3dcc93dd2352f5"
+    }
+  ]
+}

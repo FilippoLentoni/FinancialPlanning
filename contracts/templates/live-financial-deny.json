@@ -1,0 +1,95 @@
+{
+  "Description": "Live-financial deny statements included in every finplan permission boundary (ENV-05). Use these statements; do not grant any of these actions or secrets.",
+  "Statement": [
+    {
+      "Sid": "DenyLiveFinancialActions",
+      "Effect": "Deny",
+      "Action": [
+        "payments:*",
+        "payment:*",
+        "payment-cryptography:*",
+        "payment-cryptography-data:*",
+        "managedblockchain:*",
+        "managedblockchain-query:*",
+        "wallet:*",
+        "wallets:*",
+        "coinbase:*",
+        "brokerage:*",
+        "trading:*",
+        "exchange:*",
+        "crypto-exchange:*",
+        "bedrock-agentcore:*Payment*",
+        "bedrock-agentcore:*Wallet*",
+        "bedrock-agentcore:*Funds*",
+        "bedrock-agentcore-control:*Payment*",
+        "bedrock-agentcore-control:*Wallet*",
+        "bedrock-agentcore-control:*Funds*"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "DenyLiveFinancialSecrets",
+      "Effect": "Deny",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:BatchGetSecretValue"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "secretsmanager:SecretId": [
+            "*brokerage*",
+            "*broker*",
+            "*trading*",
+            "*trade-*",
+            "*coinbase*",
+            "*binance*",
+            "*kraken*",
+            "*alpaca*",
+            "*ibkr*",
+            "*robinhood*",
+            "*exchange-api*",
+            "*crypto-exchange*",
+            "*wallet*",
+            "*payment*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "DenyLiveFinancialSecretCreation",
+      "Effect": "Deny",
+      "Action": [
+        "secretsmanager:CreateSecret"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "secretsmanager:Name": [
+            "*brokerage*",
+            "*broker*",
+            "*trading*",
+            "*trade-*",
+            "*coinbase*",
+            "*binance*",
+            "*kraken*",
+            "*alpaca*",
+            "*ibkr*",
+            "*robinhood*",
+            "*exchange-api*",
+            "*crypto-exchange*",
+            "*wallet*",
+            "*payment*"
+          ]
+        }
+      }
+    }
+  ],
+  "Metadata": {
+    "finplan": {
+      "generated_by": "finplan_contracts.boundaries"
+    }
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/release-manifest.json",
+  "title": "Release manifest",
+  "description": "Per repository and environment release manifest written to /finplan/<env>/<repo>/release/manifest on every deploy. Prod manifests record the approver and approval time; rollbacks record rolled_back_from.",
+  "x-finplan-checks": [
+    "manifest_outputs_own_segment"
+  ],
+  "type": "object",
+  "properties": {
+    "repo": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/repo"
+    },
+    "environment": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/environment"
+    },
+    "region": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-gov)?-[a-z]+-[0-9]$"
+    },
+    "release_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/release_id"
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "artifact_digest": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "contract_digest": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "deployed_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "previous_release_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/release_id_or_null"
+    },
+    "outputs": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "additionalProperties": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/ssm_parameter_name"
+      }
+    },
+    "served_contract_majors": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_major"
+      },
+      "uniqueItems": true
+    },
+    "approved_by": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "approved_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "rolled_back_from": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/release_id_or_null"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "repo",
+    "environment",
+    "region",
+    "release_id",
+    "source_commit",
+    "artifact_digest",
+    "contract_version",
+    "deployed_at",
+    "previous_release_id",
+    "outputs",
+    "served_contract_majors"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "environment": {
+            "const": "prod"
+          }
+        },
+        "required": [
+          "environment"
+        ]
+      },
+      "then": {
+        "required": [
+          "approved_by",
+          "approved_at"
+        ]
+      }
+    }
+  ]
+}

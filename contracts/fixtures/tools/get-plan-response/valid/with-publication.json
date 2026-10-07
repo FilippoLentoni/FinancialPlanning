@@ -1,0 +1,25 @@
+{
+  "plan": {
+    "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "name": "Synthetic plan",
+    "head": {
+      "current_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+      "revision": 2
+    },
+    "current_publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "created_at": "2026-01-03T14:30:00Z",
+    "synthetic": true
+  },
+  "current_publication": {
+    "publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "plan_version_checksum": "sha256:60f424bfa087ab458b0e32518ba51734e1009d8833294b4b73aaa9d706ed9008",
+    "plan_version_status": "validated",
+    "supersedes_publication_id": null,
+    "published_at": "2026-01-12T14:30:00Z",
+    "synthetic": true
+  },
+  "synthetic": true
+}

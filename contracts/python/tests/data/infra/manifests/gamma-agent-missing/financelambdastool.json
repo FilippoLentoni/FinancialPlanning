@@ -1,0 +1,18 @@
+{
+  "repo": "financelambdastool",
+  "environment": "gamma",
+  "region": "us-east-2",
+  "release_id": "rel_01KDVDNA004HW7SQ5T1D09E9D2",
+  "source_commit": "abc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+  "artifact_digest": "sha256:cdc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+  "contract_version": "1.1.0",
+  "deployed_at": "2026-01-15T14:30:00Z",
+  "previous_release_id": null,
+  "outputs": {
+    "tool-catalog": "/finplan/gamma/financelambdastool/contract/tool-catalog"
+  },
+  "served_contract_majors": [
+    1
+  ],
+  "synthetic": true
+}

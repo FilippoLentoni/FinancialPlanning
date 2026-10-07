@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/refresh-market-data-response.json",
+  "title": "refresh_market_data response",
+  "description": "Response schema for the 'refresh_market_data' tool (the platform's POST /v1/ingestions result). A refresh that creates or reuses a snapshot carries it in 'snapshot'. A refresh on a non-session day (holiday or weekend) makes no provider call and creates no snapshot: it carries quality flag no_session, new_snapshot false and the latest committed snapshot of the dataset when one exists; when none exists, 'snapshot' is absent and input_snapshot_id is null (0.2.0).",
+  "type": "object",
+  "properties": {
+    "snapshot": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/input-snapshot.json"
+    },
+    "requested_range": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+    },
+    "coverage_complete": {
+      "type": "boolean"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id_or_null"
+    },
+    "new_snapshot": {
+      "type": "boolean",
+      "description": "true when this refresh committed a new snapshot; false for a no-session result or a reused snapshot."
+    },
+    "content_checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "quality_flags": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/input-snapshot.json#/$defs/quality_flag"
+      },
+      "uniqueItems": true,
+      "description": "Result-level quality flags; no_session marks a non-session day (no provider call, no new snapshot)."
+    },
+    "session_status": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "regular",
+        "early_close",
+        "holiday",
+        "weekend",
+        "no_session_in_range"
+      ],
+      "description": "Session status of the requested day for a no-session result."
+    },
+    "trigger": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "on_demand",
+        "scheduled"
+      ]
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "coverage_complete"
+  ],
+  "anyOf": [
+    {
+      "required": [
+        "snapshot"
+      ]
+    },
+    {
+      "required": [
+        "quality_flags",
+        "new_snapshot",
+        "input_snapshot_id"
+      ],
+      "properties": {
+        "new_snapshot": {
+          "const": false
+        },
+        "quality_flags": {
+          "contains": {
+            "const": "no_session"
+          }
+        },
+        "input_snapshot_id": {
+          "type": "null"
+        }
+      }
+    }
+  ]
+}

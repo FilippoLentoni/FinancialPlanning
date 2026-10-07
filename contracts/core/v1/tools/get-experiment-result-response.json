@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-experiment-result-response.json",
+  "title": "get_experiment_result response",
+  "description": "Response schema for the 'get_experiment_result' tool.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-result.json"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/cost-estimate.json",
+  "title": "Cost estimate",
+  "description": "Pre-flight cost estimate block used by job submission, dry runs and job status. budget_category is one of the registered budget categories.",
+  "type": "object",
+  "properties": {
+    "estimated_usd_upper_bound": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+    },
+    "price_retrieved_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "remaining_allocation_usd": {
+      "type": "number",
+      "description": "Remaining allocation of budget_category in USD at estimate time."
+    },
+    "budget_category": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/budget-allocation.json#/$defs/category"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "estimated_usd_upper_bound",
+    "price_retrieved_at",
+    "remaining_allocation_usd",
+    "budget_category"
+  ]
+}

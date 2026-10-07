@@ -1,0 +1,45 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Plan metadata table in a shared resource (ENV-16).",
+  "Metadata": {
+    "synthetic": true
+  },
+  "Resources": {
+    "PlanTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Properties": {
+        "KeySchema": [
+          {
+            "AttributeName": "pk",
+            "KeyType": "HASH"
+          }
+        ],
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "pk",
+            "AttributeType": "S"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-table"
+          }
+        ]
+      }
+    }
+  }
+}

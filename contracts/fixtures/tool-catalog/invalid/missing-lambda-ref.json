@@ -1,0 +1,115 @@
+{
+  "environment": "gamma",
+  "release_id": "rel_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "contract_version": "1.0.0",
+  "tools": [
+    {
+      "name": "describe_capabilities",
+      "description": "Synthetic catalog entry for describe_capabilities.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/describe-capabilities-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/describe-capabilities-response.json",
+      "state_changing": false,
+      "role_class": "reader",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/describe-capabilities-arn"
+    },
+    {
+      "name": "query_market_data",
+      "description": "Synthetic catalog entry for query_market_data.",
+      "input_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/query-market-data-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/query-market-data-response.json",
+      "state_changing": false,
+      "role_class": "reader",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/query-market-data-arn"
+    },
+    {
+      "name": "get_plan",
+      "description": "Synthetic catalog entry for get_plan.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-response.json",
+      "state_changing": false,
+      "role_class": "reader",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/get-plan-arn"
+    },
+    {
+      "name": "get_plan_version",
+      "description": "Synthetic catalog entry for get_plan_version.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-version-response.json",
+      "state_changing": false,
+      "role_class": "reader"
+    },
+    {
+      "name": "list_plan_versions",
+      "description": "Synthetic catalog entry for list_plan_versions.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/list-plan-versions-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/list-plan-versions-response.json",
+      "state_changing": false,
+      "role_class": "reader",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/list-plan-versions-arn"
+    },
+    {
+      "name": "get_job_status",
+      "description": "Synthetic catalog entry for get_job_status.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-job-status-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-job-status-response.json",
+      "state_changing": false,
+      "role_class": "reader",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/get-job-status-arn"
+    },
+    {
+      "name": "get_experiment_result",
+      "description": "Synthetic catalog entry for get_experiment_result.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-experiment-result-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/get-experiment-result-response.json",
+      "state_changing": false,
+      "role_class": "reader",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/get-experiment-result-arn"
+    },
+    {
+      "name": "refresh_market_data",
+      "description": "Synthetic catalog entry for refresh_market_data.",
+      "input_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/refresh-market-data-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/finance/v1/tools/refresh-market-data-response.json",
+      "state_changing": true,
+      "role_class": "submitter",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/refresh-market-data-arn"
+    },
+    {
+      "name": "submit_experiment",
+      "description": "Synthetic catalog entry for submit_experiment.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/submit-experiment-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/submit-experiment-response.json",
+      "state_changing": true,
+      "role_class": "submitter",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/submit-experiment-arn"
+    },
+    {
+      "name": "create_override_version",
+      "description": "Synthetic catalog entry for create_override_version.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/create-override-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/create-override-version-response.json",
+      "state_changing": true,
+      "role_class": "plan-writer",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/create-override-version-arn"
+    },
+    {
+      "name": "validate_plan_version",
+      "description": "Synthetic catalog entry for validate_plan_version.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/validate-plan-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/validate-plan-version-response.json",
+      "state_changing": true,
+      "role_class": "plan-writer",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/validate-plan-version-arn"
+    },
+    {
+      "name": "publish_plan_version",
+      "description": "Synthetic catalog entry for publish_plan_version.",
+      "input_schema_id": "https://contracts.finplan.invalid/core/v1/tools/publish-plan-version-request.json",
+      "output_schema_id": "https://contracts.finplan.invalid/core/v1/tools/publish-plan-version-response.json",
+      "state_changing": true,
+      "role_class": "plan-writer",
+      "lambda_ref_parameter": "/finplan/gamma/financelambdastool/lambda/publish-plan-version-arn"
+    }
+  ],
+  "synthetic": true
+}

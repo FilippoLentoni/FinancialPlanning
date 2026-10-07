@@ -1,0 +1,60 @@
+[project]
+name = "finplan-contracts"
+dynamic = ["version"]
+description = "FinancialPlanning cross-repo contract package: JSON Schemas, synthetic fixtures, validators and the finplan-conformance runner."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "jsonschema>=4.26.0",
+    "python-ulid>=4.0.1",
+    "pyyaml>=6.0.3",
+    "referencing>=0.37.0",
+    "rfc8785>=0.1.4",
+]
+
+[project.scripts]
+finplan-conformance = "finplan_contracts.cli:main"
+
+[project.optional-dependencies]
+aws = [
+    "boto3>=1.43.108",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+# Single source of version truth: contracts/VERSION (one directory up).
+[tool.hatch.version]
+path = "../VERSION"
+pattern = "^(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+(?:[-.]?[0-9A-Za-z.]+)?)\\s*$"
+
+[tool.hatch.build.hooks.version]
+path = "src/finplan_contracts/_version.py"
+template = "__version__ = \"{version}\"\n"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/finplan_contracts"]
+
+# The wheel ships the language-neutral contract data so consumer mode can run
+# the same suite against an installed package.
+[tool.hatch.build.targets.wheel.force-include]
+"../VERSION" = "finplan_contracts/data/VERSION"
+"../core" = "finplan_contracts/data/core"
+"../finance" = "finplan_contracts/data/finance"
+"../domains" = "finplan_contracts/data/domains"
+"../fixtures" = "finplan_contracts/data/fixtures"
+"../conformance" = "finplan_contracts/data/conformance"
+"../ownership" = "finplan_contracts/data/ownership"
+
+[tool.hatch.build.targets.sdist.force-include]
+"../VERSION" = "VERSION"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

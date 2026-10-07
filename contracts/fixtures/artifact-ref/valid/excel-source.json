@@ -1,0 +1,8 @@
+{
+  "artifact_id": "art_01KDVDPJ18G9X5HG8JNDZ6HPWB",
+  "owner": "financialplanning",
+  "kind": "excel_source",
+  "checksum": "sha256:a5d618192e56be6383f445e0bf7978095c4ea8ae5bf944643ecb894b38298d90",
+  "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "synthetic": true
+}

@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/query-market-data-response.json",
+  "title": "query_market_data response",
+  "description": "Response schema for the 'query_market_data' tool.",
+  "type": "object",
+  "properties": {
+    "snapshot": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/input-snapshot.json"
+    },
+    "observation_kinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "completed_daily",
+          "intraday_partial"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "instrument_id": {
+            "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/instrument_id"
+          },
+          "observation_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "first_date": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+          },
+          "last_date": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+          },
+          "close_min": {
+            "type": "number"
+          },
+          "close_max": {
+            "type": "number"
+          },
+          "close_last": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "observation_count"
+        ]
+      }
+    },
+    "partial": {
+      "type": "boolean"
+    },
+    "data_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+      }
+    },
+    "next_token": {
+      "anyOf": [
+        {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/next_token"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "snapshot",
+    "observation_kinds",
+    "instruments",
+    "partial",
+    "data_refs"
+  ]
+}

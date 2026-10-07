@@ -1,0 +1,9 @@
+{
+  "name": "Synthetic smoke portfolio",
+  "base_currency": "USD",
+  "synthetic": true,
+  "settings": {
+    "risk_profile": "moderate"
+  },
+  "contract_version": "1.0.0"
+}

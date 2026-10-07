@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/sample-record.json",
+  "title": "Sample record (SYNTHETIC compatibility fixture)",
+  "description": "A small record used only by the compatibility-gate tests.",
+  "type": "object",
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "pattern": "^rec_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "retired",
+        "paused"
+      ]
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/flag"
+      },
+      "uniqueItems": true
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "synthetic": {
+      "const": true
+    }
+  },
+  "required": [
+    "record_id",
+    "status"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "flag": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "stale_source",
+        "partial_response"
+      ]
+    }
+  }
+}

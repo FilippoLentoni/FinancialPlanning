@@ -1,0 +1,7 @@
+{
+  "instrument_id": "SPY",
+  "session_date": "2026-01-05",
+  "kind": "completed_daily",
+  "close": 102.0,
+  "synthetic": true
+}

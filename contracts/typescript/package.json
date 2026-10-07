@@ -1,0 +1,48 @@
+{
+  "name": "@finplan/contracts",
+  "version": "0.2.0",
+  "description": "FinancialPlanning cross-repo contract package: JSON Schemas, synthetic fixtures, validators, RFC 8785 identifiers and the conformance runner (TypeScript).",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js"
+    },
+    "./data/*": "./data/*",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "finplan-conformance-ts": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "data",
+    "README.md"
+  ],
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "build": "node scripts/sync.mjs && tsc -p tsconfig.json",
+    "test": "npm run build && node --test \"test/**/*.test.mjs\"",
+    "conformance": "node dist/cli.js conformance",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "typescript": "5.9.3"
+  }
+}

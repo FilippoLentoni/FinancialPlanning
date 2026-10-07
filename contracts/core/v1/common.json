@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/common.json",
+  "title": "Common scalar types",
+  "description": "Shared scalar definitions. The root validates a sample object of common scalars so the fragment has its own fixtures.",
+  "type": "object",
+  "properties": {
+    "checksum": {
+      "$ref": "#/$defs/checksum"
+    },
+    "timestamp": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "date": {
+      "$ref": "#/$defs/date"
+    },
+    "semver": {
+      "$ref": "#/$defs/semver"
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "repo": {
+      "$ref": "#/$defs/repo"
+    },
+    "domain": {
+      "$ref": "#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "#/$defs/domain_schema_version"
+    },
+    "correlation_id": {
+      "$ref": "#/$defs/correlation_id"
+    },
+    "ssm_parameter_name": {
+      "$ref": "#/$defs/ssm_parameter_name"
+    },
+    "schema_id": {
+      "$ref": "#/$defs/schema_id"
+    },
+    "synthetic": {
+      "$ref": "#/$defs/synthetic"
+    }
+  },
+  "additionalProperties": false,
+  "minProperties": 1,
+  "$defs": {
+    "checksum": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 digest, 'sha256:' + 64 lowercase hex characters."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]{1,9})?Z$",
+      "description": "RFC 3339 UTC timestamp ending in 'Z'."
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+      "description": "Calendar date YYYY-MM-DD."
+    },
+    "date_range": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/date"
+        },
+        "end": {
+          "$ref": "#/$defs/date"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": false
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?(\\+[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$",
+      "description": "Semantic version."
+    },
+    "contract_version": {
+      "$ref": "#/$defs/semver",
+      "description": "Contract package version (semver)."
+    },
+    "contract_major": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "beta",
+        "gamma",
+        "prod"
+      ]
+    },
+    "environment_or_shared": {
+      "type": "string",
+      "enum": [
+        "beta",
+        "gamma",
+        "prod",
+        "shared"
+      ]
+    },
+    "repo": {
+      "type": "string",
+      "enum": [
+        "financialplanning",
+        "financemodel",
+        "financelambdastool",
+        "financeagent"
+      ],
+      "description": "Lowercase repository name."
+    },
+    "domain": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,31}$",
+      "description": "Domain adapter key; must be registered in domains/registry.json."
+    },
+    "domain_schema_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "description": "Domain payload schema version (major.minor) served by the domain adapter."
+    },
+    "correlation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{7,127}$"
+    },
+    "synthetic": {
+      "type": "boolean",
+      "description": "true marks synthetic test data (fixtures, smoke portfolios)."
+    },
+    "usd_amount": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Amount in US dollars."
+    },
+    "ssm_parameter_name": {
+      "type": "string",
+      "pattern": "^/finplan/(beta|gamma|prod|shared)/(financialplanning|financemodel|financelambdastool|financeagent)/(release|contract|api|lambda|job|model|agent|config|secret-ref)/[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "SSM parameter name per the convention /finplan/<env|shared>/<repo>/<category>/<name>."
+    },
+    "schema_id": {
+      "type": "string",
+      "pattern": "^https://contracts\\.finplan\\.invalid/[a-z][a-z0-9_]*/v[0-9]+/[a-z0-9]+([/-][a-z0-9]+)*\\.json$",
+      "description": "A contract schema $id (identifier only, never fetched)."
+    },
+    "page_size": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "next_token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_=-]{1,2048}$",
+      "description": "Opaque continuation token (never a storage pointer)."
+    },
+    "vocabulary_value": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "json_pointer": {
+      "type": "string",
+      "pattern": "^(/([^/~]|~[01])*)*$"
+    }
+  }
+}

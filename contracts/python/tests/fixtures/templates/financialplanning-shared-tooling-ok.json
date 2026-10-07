@@ -1,0 +1,103 @@
+{
+  "Description": "SYNTHETIC fixture template (OWN-01/ENV-16 pass: FinancialPlanning account-level tooling tagged environment=shared)",
+  "Resources": {
+    "CDKMetadata": {
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "ContractRegistry": {
+      "Properties": {
+        "DomainName": "finplan",
+        "RepositoryName": "finplan-contracts",
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "contract-registry"
+          }
+        ]
+      },
+      "Type": "AWS::CodeArtifact::Repository"
+    },
+    "Pipeline": {
+      "Properties": {
+        "PipelineType": "V2",
+        "RoleArn": "<pipeline-role-arn>",
+        "Stages": [],
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline"
+          }
+        ]
+      },
+      "Type": "AWS::CodePipeline::Pipeline"
+    },
+    "PipelineArtifactBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-artifact-bucket"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket"
+    },
+    "ProjectBudget": {
+      "Metadata": {
+        "logical-role": "project-budget"
+      },
+      "Properties": {
+        "Budget": {
+          "BudgetLimit": {
+            "Amount": {
+              "Ref": "CostCeilingUsd"
+            },
+            "Unit": "USD"
+          },
+          "BudgetType": "COST",
+          "TimeUnit": "MONTHLY"
+        }
+      },
+      "Type": "AWS::Budgets::Budget"
+    }
+  }
+}

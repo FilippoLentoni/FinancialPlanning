@@ -1,0 +1,824 @@
+{
+  "Description": "SYNTHETIC fixture template (OWN-01/ENV-16/ENV-18 pass): the FinancialPlanning account-level tooling stack's resource kinds: permission-boundary managed policies, budget topic with policy and subscriptions, budget roles, pipeline store bucket policy, the shared pipeline role, and per-environment deploy, execution and stage roles tagged with their environment. Contracts 0.2.0, design D13.",
+  "Parameters": {
+    "NotificationEmail": {
+      "Type": "String",
+      "Default": ""
+    }
+  },
+  "Resources": {
+    "BetaPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Metadata": {
+        "logical-role": "permission-boundary"
+      },
+      "Properties": {
+        "ManagedPolicyName": "finplan-beta-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "BetaResearchPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Metadata": {
+        "logical-role": "permission-boundary"
+      },
+      "Properties": {
+        "ManagedPolicyName": "finplan-beta-research-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "BudgetActionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-shared-financialplanning-budget-action",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "SharedPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "budget-action"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "BudgetAlertEmail": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "TopicArn": {
+          "Ref": "BudgetAlertTopic"
+        },
+        "Protocol": "email",
+        "Endpoint": {
+          "Ref": "NotificationEmail"
+        }
+      }
+    },
+    "BudgetAlertTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "budget-alert-topic"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "BudgetAlertTopicPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [
+          {
+            "Ref": "BudgetAlertTopic"
+          }
+        ],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "budgets.amazonaws.com"
+              },
+              "Action": "sns:Publish",
+              "Resource": {
+                "Ref": "BudgetAlertTopic"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BudgetStateWriter": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Runtime": "python3.12",
+        "Handler": "index.handler",
+        "Code": {
+          "ZipFile": "def handler(event, context):\n    return {}\n"
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "BudgetStateWriterRole",
+            "Arn"
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "budget-state-writer"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "BudgetStateWriterAllowInvoke": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "BudgetStateWriter",
+            "Arn"
+          ]
+        },
+        "Principal": "sns.amazonaws.com",
+        "SourceArn": {
+          "Ref": "BudgetAlertTopic"
+        }
+      }
+    },
+    "BudgetStateWriterRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-shared-financialplanning-budget-state-writer",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "SharedPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "budget-state-writer"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "BudgetStateWriterRoleDefaultPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "BudgetStateWriterRoleDefaultPolicy",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "ssm:PutParameter",
+              "Resource": "*"
+            }
+          ]
+        },
+        "Roles": [
+          {
+            "Ref": "BudgetStateWriterRole"
+          }
+        ]
+      }
+    },
+    "BudgetStateWriterSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "TopicArn": {
+          "Ref": "BudgetAlertTopic"
+        },
+        "Protocol": "lambda",
+        "Endpoint": {
+          "Fn::GetAtt": [
+            "BudgetStateWriter",
+            "Arn"
+          ]
+        }
+      },
+      "Metadata": {
+        "logical-role": "budget-alert-topic"
+      }
+    },
+    "DeployExecRoleBeta": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-cfn-exec",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "BetaPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "DeployExecRoleGamma": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-gamma-financialplanning-cfn-exec",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "GammaPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "gamma"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "DeployExecRoleProd": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-prod-financialplanning-cfn-exec",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "ProdPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "prod"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "DeployRoleBeta": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-deploy",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "BetaPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "DeployRoleGamma": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-gamma-financialplanning-deploy",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "GammaPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "gamma"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "DeployRoleProd": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-prod-financialplanning-deploy",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "ProdPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "prod"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "deploy-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "GammaPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Metadata": {
+        "logical-role": "permission-boundary"
+      },
+      "Properties": {
+        "ManagedPolicyName": "finplan-gamma-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "GammaResearchPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Metadata": {
+        "logical-role": "permission-boundary"
+      },
+      "Properties": {
+        "ManagedPolicyName": "finplan-gamma-research-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "PipelineRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-shared-financialplanning-pipeline",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "SharedPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "PipelineStore": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "shared"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-artifact-bucket"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "PipelineStorePolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "PipelineStore"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "PipelineStore",
+                    "Arn"
+                  ]
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ProdPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Metadata": {
+        "logical-role": "permission-boundary"
+      },
+      "Properties": {
+        "ManagedPolicyName": "finplan-prod-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "ProdResearchPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Metadata": {
+        "logical-role": "permission-boundary"
+      },
+      "Properties": {
+        "ManagedPolicyName": "finplan-prod-research-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "SharedPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Metadata": {
+        "logical-role": "permission-boundary"
+      },
+      "Properties": {
+        "ManagedPolicyName": "finplan-shared-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "StageRoleBeta": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-beta-financialplanning-pipeline-stage",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "BetaPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "StageRoleGamma": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-gamma-financialplanning-pipeline-stage",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "GammaPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "gamma"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    },
+    "StageRoleProd": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-prod-financialplanning-pipeline-stage",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "ProdPermissionBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "prod"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "pipeline-role"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "project",
+            "Value": "finplan"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "code": "VALIDATION_FAILED",
+  "message": "synthetic validation failed error",
+  "retryable": false,
+  "details": {
+    "pointer": "/allocation/weights/0/weight"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

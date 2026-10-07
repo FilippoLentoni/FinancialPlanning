@@ -1,0 +1,311 @@
+{
+  "Description": "SYNTHETIC fixture template (task 1.5 pass: FinanceModel beta job API with the helper resources CDK generates, each attributed to its parent construct or a reviewed allow-list entry)",
+  "Resources": {
+    "CDKMetadata": {
+      "Metadata": {
+        "aws:cdk:path": "FinanceModelBeta/CDKMetadata/Default"
+      },
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+      "Properties": {
+        "Code": {
+          "ZipFile": "def handler(e, c): return {}"
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.12"
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "JobApiHandler": {
+      "Properties": {
+        "Code": {
+          "ZipFile": "def handler(e, c): return {}"
+        },
+        "Handler": "app.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "JobApiHandlerServiceRole",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.12",
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financemodel"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "job-api-handler"
+          }
+        ]
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "JobApiHandlerInvokePermission": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "JobApiHandler",
+            "Arn"
+          ]
+        },
+        "Principal": "<tool-role-submitter-principal>"
+      },
+      "Type": "AWS::Lambda::Permission"
+    },
+    "JobApiHandlerLogRetention": {
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Join": [
+            "",
+            [
+              "/aws/lambda/",
+              {
+                "Ref": "JobApiHandler"
+              }
+            ]
+          ]
+        },
+        "RetentionInDays": 30,
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8a",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::LogRetention"
+    },
+    "JobApiHandlerServiceRole": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financemodel"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "job-api-handler"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "JobApiHandlerServiceRoleDefaultPolicy": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "dynamodb:GetItem",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "JobControlTable",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "JobApiHandlerServiceRoleDefaultPolicy",
+        "Roles": [
+          {
+            "Ref": "JobApiHandlerServiceRole"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "JobControlTable": {
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "pk",
+            "AttributeType": "S"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "KeySchema": [
+          {
+            "AttributeName": "pk",
+            "KeyType": "HASH"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financemodel"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "job-control-table"
+          }
+        ]
+      },
+      "Type": "AWS::DynamoDB::Table"
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8a": {
+      "DependsOn": [
+        "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB"
+      ],
+      "Properties": {
+        "Code": {
+          "ZipFile": "def handler(e, c): return {}"
+        },
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.12"
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB": {
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::IAM::Role"
+    },
+    "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRoleDefaultPolicyADDA7DEB": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "logs:PutRetentionPolicy",
+                "logs:DeleteRetentionPolicy"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "LogRetentionDefaultPolicy",
+        "Roles": [
+          {
+            "Ref": "LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aServiceRole9741ECFB"
+          }
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "ResearchBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financemodel"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "research-workspace-bucket"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket"
+    },
+    "ResearchBucketAutoDeleteObjectsCustomResource": {
+      "Properties": {
+        "BucketName": {
+          "Ref": "ResearchBucket"
+        },
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+            "Arn"
+          ]
+        }
+      },
+      "Type": "Custom::S3AutoDeleteObjects"
+    }
+  }
+}

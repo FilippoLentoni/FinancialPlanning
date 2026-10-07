@@ -1,0 +1,5 @@
+{
+  "$comment": "Account-level defaults written only by the authenticated bootstrap (environment 'shared'). The project cost ceiling default is USD 50 (user decision 2026-10-07); the live value is /finplan/shared/financialplanning/config/cost-ceiling-usd. The default category allocation comes from the pinned contract budget-allocation schema, not from this file. The budget notification address is supplied by a human at bootstrap and is never committed.",
+  "region": "us-east-2",
+  "cost_ceiling_usd_default": 50
+}

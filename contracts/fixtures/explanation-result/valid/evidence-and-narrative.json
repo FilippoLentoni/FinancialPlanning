@@ -1,0 +1,21 @@
+{
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "subject": {
+    "plan_version_id": "pv_01KDVDNCXRT6ARCWBJ7P43NRJ8",
+    "compare_to_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM"
+  },
+  "evidence": [
+    {
+      "artifact_id": "art_01KDVDQ5J8RTWTF074F76QH1JF",
+      "owner": "financemodel",
+      "kind": "explanation_evidence",
+      "checksum": "sha256:a52f20561660735fd2c720b82b948c086017ad681bd532fe05802ef1f512a20a",
+      "content_type": "application/json",
+      "domain": "finance"
+    }
+  ],
+  "narrative": "The synthetic allocation moved toward cash; see the evidence artifact for the decomposition.",
+  "generated_at": "2026-01-18T14:30:00Z",
+  "synthetic": true
+}

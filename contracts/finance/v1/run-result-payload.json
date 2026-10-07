@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/run-result-payload.json",
+  "title": "Run result payload",
+  "description": "Finance adapter run-result payload (kind run_result). Portfolio performance, model accuracy and compute cost are separate sections.",
+  "type": "object",
+  "properties": {
+    "performance": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "accuracy": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "compute_cost": {
+      "type": "object",
+      "properties": {
+        "estimated_usd": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+        },
+        "actual_usd": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/usd_amount"
+        },
+        "instance_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "proposed_allocation": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/allocation.json"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "performance",
+    "accuracy",
+    "compute_cost"
+  ]
+}

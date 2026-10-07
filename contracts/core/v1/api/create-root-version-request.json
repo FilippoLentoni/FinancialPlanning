@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/api/create-root-version-request.json",
+  "title": "Create root plan version request",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Body of POST /v1/plans/{plan_id}/versions for a root version (no parent): origin model_run with its full lineage (input snapshot, configuration, model version and run). Child versions use tools/create-override-version-request. The platform mints plan_version_id.",
+  "x-finplan-checks": [
+    "no_storage_locations",
+    "domain_payload"
+  ],
+  "x-finplan-domain-payloads": [
+    {
+      "pointer": "/content",
+      "kind": "plan_content"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "parent_plan_version_id": {
+      "type": "null"
+    },
+    "expected_revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/expected_revision"
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "origin": {
+      "const": "model_run"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "configuration_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+    },
+    "model_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/model_version"
+    },
+    "run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    },
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "content": {
+      "type": "object"
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_id",
+    "expected_revision",
+    "idempotency_key",
+    "input_snapshot_id",
+    "configuration_id",
+    "model_version",
+    "run_id",
+    "domain",
+    "domain_schema_version",
+    "content"
+  ],
+  "additionalProperties": false
+}

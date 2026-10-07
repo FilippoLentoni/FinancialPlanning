@@ -1,0 +1,28 @@
+{
+  "run_id": "run_01KDVDNBYGX5V5HY2JSK5XWKHC",
+  "state": "queued",
+  "purpose": "tuning",
+  "dry_run": false,
+  "compute_class": "gpu",
+  "cost_estimate": {
+    "estimated_usd_upper_bound": 4.5,
+    "price_retrieved_at": "2026-01-10T09:00:00Z",
+    "remaining_allocation_usd": 25,
+    "budget_category": "gpu",
+    "synthetic": true
+  },
+  "transitions": [],
+  "elapsed_seconds": 0,
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "domain": "finance",
+  "submitted_at": "2026-01-10T09:00:00Z",
+  "updated_at": "2026-01-10T09:06:00Z",
+  "synthetic": true,
+  "approval": {
+    "approved_by": "synthetic-approver",
+    "approved_at": "2026-01-10T10:00:00Z",
+    "approved_estimate_usd": 2.0
+  }
+}

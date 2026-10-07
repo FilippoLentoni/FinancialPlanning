@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/plan-content.json",
+  "title": "Plan content",
+  "description": "Finance adapter payload for plan versions (kind plan_content).",
+  "type": "object",
+  "properties": {
+    "base_currency": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/currency"
+    },
+    "allocation": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/allocation.json"
+    },
+    "constraints": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/constraints.json"
+    },
+    "fees": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/fees.json"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "base_currency",
+    "allocation"
+  ]
+}

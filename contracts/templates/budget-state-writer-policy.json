@@ -1,0 +1,68 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Policy of the FinancialPlanning budget-state writer Lambda: the only runtime principal that writes under /finplan/shared/ (design D4).",
+  "Resources": {
+    "BudgetStateWriterPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "ManagedPolicyName": "finplan-shared-financialplanning-budget-state-writer",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "WriteBudgetStateOnly",
+              "Effect": "Allow",
+              "Action": [
+                "ssm:PutParameter"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/shared/financialplanning/config/budget-state"
+                }
+              ]
+            },
+            {
+              "Sid": "ReadBudgetInputs",
+              "Effect": "Allow",
+              "Action": [
+                "ssm:GetParameter",
+                "ssm:GetParameters"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/shared/financialplanning/config/*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/*/*/config/budget-enforced-role-names"
+                }
+              ]
+            },
+            {
+              "Sid": "DenyAnyOtherSsmWrite",
+              "Effect": "Deny",
+              "Action": [
+                "ssm:PutParameter",
+                "ssm:DeleteParameter",
+                "ssm:DeleteParameters",
+                "ssm:AddTagsToResource",
+                "ssm:RemoveTagsFromResource",
+                "ssm:LabelParameterVersion"
+              ],
+              "NotResource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/shared/financialplanning/config/budget-state"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Metadata": {
+    "finplan": {
+      "generated_by": "finplan_contracts.iam",
+      "cdk_wiring": "add-platform-foundation"
+    }
+  }
+}

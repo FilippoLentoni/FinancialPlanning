@@ -1,0 +1,10 @@
+{
+  "weights": [
+    {
+      "instrument_id": "SPY",
+      "weight": 1.5
+    }
+  ],
+  "cash_weight": 0.4,
+  "synthetic": true
+}

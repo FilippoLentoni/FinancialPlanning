@@ -1,0 +1,6 @@
+{
+  "project": "finplan",
+  "environment": "beta",
+  "logical-role": "snapshot-artifact-bucket",
+  "synthetic": true
+}

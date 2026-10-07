@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/plan.json",
+  "title": "Plan",
+  "description": "A plan with its mutable head pointer {current_version_id, revision} and current publication.",
+  "type": "object",
+  "properties": {
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "head": {
+      "type": "object",
+      "properties": {
+        "current_version_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id_or_null"
+        },
+        "revision": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/revision"
+        }
+      },
+      "required": [
+        "current_version_id",
+        "revision"
+      ]
+    },
+    "current_publication_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/publication_id_or_null"
+    },
+    "publication_revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/revision",
+      "description": "Revision of the plan's publication head (current_publication_id), the expected_revision of the next publish. Optional (added in 0.2.0); readers that do not publish may ignore it."
+    },
+    "created_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_id",
+    "portfolio_id",
+    "head",
+    "created_at"
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "template_version": "xlsx-plan-v1",
+  "metadata": {
+    "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "base_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "base_checksum": "sha256:60f424bfa087ab458b0e32518ba51734e1009d8833294b4b73aaa9d706ed9008",
+    "expected_revision": 2,
+    "exported_at": "2026-01-12T14:30:00Z"
+  },
+  "allocation_rows": [
+    {
+      "row": 2,
+      "instrument_id": "SPY",
+      "target_weight": 0.6,
+      "formula_tolerant": false
+    },
+    {
+      "row": 3,
+      "instrument_id": "CASH",
+      "target_weight": 0.4
+    }
+  ],
+  "synthetic": true
+}

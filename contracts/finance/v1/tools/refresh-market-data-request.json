@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/refresh-market-data-request.json",
+  "title": "refresh_market_data request",
+  "description": "Request schema for the 'refresh_market_data' tool. State-changing; one platform ingestion call; daily granularity only.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "dataset_id": {
+      "type": "string",
+      "pattern": "^finance/[a-z0-9-]+/[A-Za-z0-9._-]+$"
+    },
+    "instrument_ids": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/instrument_id"
+      },
+      "uniqueItems": true
+    },
+    "start_date": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "end_date": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "granularity": {
+      "type": "string",
+      "enum": [
+        "daily"
+      ]
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "start_date",
+    "end_date",
+    "granularity",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

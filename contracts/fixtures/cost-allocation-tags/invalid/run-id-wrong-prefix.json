@@ -1,0 +1,8 @@
+{
+  "project": "finplan",
+  "owner-repo": "financialplanning",
+  "environment": "beta",
+  "logical-role": "snapshot-artifact-bucket",
+  "synthetic": true,
+  "run-id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM"
+}

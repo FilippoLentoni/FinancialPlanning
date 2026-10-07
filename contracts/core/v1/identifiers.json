@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/identifiers.json",
+  "title": "Canonical identifiers",
+  "description": "The nine canonical identifiers (plus release_id). The root validates an identifier set: an object whose keys are identifier names, so a value in the wrong field (for example a 'pl_' value in plan_version_id) fails with INVALID_IDENTIFIER naming the field.",
+  "x-finplan-minted-by": {
+    "portfolio_id": "financialplanning",
+    "plan_id": "financialplanning",
+    "plan_version_id": "financialplanning",
+    "input_snapshot_id": "financialplanning",
+    "publication_id": "financialplanning",
+    "execution_id": "financialplanning",
+    "model_version": "financemodel",
+    "run_id": "financemodel",
+    "configuration_id": "any"
+  },
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "#/$defs/portfolio_id"
+    },
+    "plan_id": {
+      "$ref": "#/$defs/plan_id"
+    },
+    "plan_version_id": {
+      "$ref": "#/$defs/plan_version_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "#/$defs/input_snapshot_id"
+    },
+    "model_version": {
+      "$ref": "#/$defs/model_version"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "publication_id": {
+      "$ref": "#/$defs/publication_id"
+    },
+    "execution_id": {
+      "$ref": "#/$defs/execution_id"
+    },
+    "configuration_id": {
+      "$ref": "#/$defs/configuration_id"
+    },
+    "release_id": {
+      "$ref": "#/$defs/release_id"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "additionalProperties": false,
+  "minProperties": 1,
+  "$defs": {
+    "ulid": {
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "26-character Crockford base32 ULID (first character 0-7)."
+    },
+    "portfolio_id": {
+      "type": "string",
+      "pattern": "^pf_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Portfolio identifier, minted by FinancialPlanning. Format: 'pf_' + ULID.",
+      "x-finplan-identifier": "portfolio_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "portfolio_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^pf_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "portfolio_id or null.",
+      "x-finplan-identifier": "portfolio_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "plan_id": {
+      "type": "string",
+      "pattern": "^pl_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Plan identifier, minted by FinancialPlanning. Format: 'pl_' + ULID.",
+      "x-finplan-identifier": "plan_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "plan_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^pl_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "plan_id or null.",
+      "x-finplan-identifier": "plan_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "plan_version_id": {
+      "type": "string",
+      "pattern": "^pv_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Immutable plan version identifier, minted by FinancialPlanning. Format: 'pv_' + ULID.",
+      "x-finplan-identifier": "plan_version_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "plan_version_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^pv_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "plan_version_id or null.",
+      "x-finplan-identifier": "plan_version_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "input_snapshot_id": {
+      "type": "string",
+      "pattern": "^snap_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Immutable input snapshot identifier, minted by FinancialPlanning. Format: 'snap_' + ULID.",
+      "x-finplan-identifier": "input_snapshot_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "input_snapshot_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^snap_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "input_snapshot_id or null.",
+      "x-finplan-identifier": "input_snapshot_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "model_version": {
+      "type": "string",
+      "pattern": "^mv_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Model version identifier, minted by the FinanceModel model registry. Format: 'mv_' + ULID.",
+      "x-finplan-identifier": "model_version",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "model_version_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^mv_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "model_version or null.",
+      "x-finplan-identifier": "model_version",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Run identifier, minted by the FinanceModel job submission interface. Format: 'run_' + ULID.",
+      "x-finplan-identifier": "run_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "run_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^run_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "run_id or null.",
+      "x-finplan-identifier": "run_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "publication_id": {
+      "type": "string",
+      "pattern": "^pub_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Publication identifier, minted by FinancialPlanning. Format: 'pub_' + ULID.",
+      "x-finplan-identifier": "publication_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "publication_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^pub_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "publication_id or null.",
+      "x-finplan-identifier": "publication_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "execution_id": {
+      "type": "string",
+      "pattern": "^exe_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Execution (paper or simulated) identifier, minted by FinancialPlanning. Format: 'exe_' + ULID.",
+      "x-finplan-identifier": "execution_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "execution_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^exe_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "execution_id or null.",
+      "x-finplan-identifier": "execution_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "release_id": {
+      "type": "string",
+      "pattern": "^rel_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Release identifier assigned at a repository's build stage, shared by all environments for that build. Format: 'rel_' + ULID.",
+      "x-finplan-identifier": "release_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "release_id_or_null": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^rel_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "release_id or null.",
+      "x-finplan-identifier": "release_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "configuration_id": {
+      "type": "string",
+      "pattern": "^cfg_[0-9a-f]{64}$",
+      "description": "Content-addressed configuration identifier: 'cfg_' + lowercase hex SHA-256 of the RFC 8785 (JCS) canonical configuration document. Any party may compute it.",
+      "x-finplan-identifier": "configuration_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    }
+  }
+}

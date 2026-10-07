@@ -1,0 +1,7 @@
+{
+  "long_only": true,
+  "max_weight": 0.8,
+  "min_weight": 0.0,
+  "max_turnover": 0.5,
+  "synthetic": true
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/api/create-root-version-response.json",
+  "title": "Create plan version response",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Response of POST /v1/plans/{plan_id}/versions for a version that is not a manual override (root model_run versions; overrides answer with tools/create-override-version-response): the new version's identity, status, checksum, no-effect flag, the plan head's new revision and the trusted reference of its content.",
+  "type": "object",
+  "properties": {
+    "plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id"
+    },
+    "parent_plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id_or_null"
+    },
+    "origin": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan-version.json#/$defs/origin"
+    },
+    "status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan-version.json#/$defs/status"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "no_effect": {
+      "type": "boolean"
+    },
+    "revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/revision"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "content_ref": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan_version_id",
+    "plan_id",
+    "parent_plan_version_id",
+    "origin",
+    "status",
+    "checksum",
+    "no_effect",
+    "revision",
+    "content_ref"
+  ]
+}

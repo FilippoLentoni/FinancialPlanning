@@ -1,0 +1,30 @@
+{
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "decided_at": "2026-01-10T09:40:00Z",
+  "correlation_id": "corr-synthetic-0001",
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "completion_status": "succeeded",
+  "manifest_checksum": "sha256:d0df349c23640f6298e8e193c1014a5208fbefc977d2e5a7b2f81b333d3d08cb",
+  "contract_version": "1.0.0",
+  "synthetic": true,
+  "outcome": "rejected",
+  "rejection_kind": "run_outcome",
+  "error": {
+    "code": "PRECONDITION_FAILED",
+    "message": "synthetic precondition failed error",
+    "retryable": false,
+    "details": {
+      "reason": "run_not_succeeded",
+      "completion_status": "failed",
+      "run_id": "run_01KDVDNBYGX5V5HY2JSK5XWKHC"
+    },
+    "correlation_id": "corr-synthetic-0001",
+    "contract_version": "1.0.0",
+    "synthetic": true
+  },
+  "plan_version_id": "pv_01KDVDNCXRT6ARCWBJ7P43NRJ8"
+}

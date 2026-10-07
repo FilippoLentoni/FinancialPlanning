@@ -1,0 +1,12 @@
+{
+  "code": "PRECONDITION_FAILED",
+  "message": "synthetic precondition failed error",
+  "retryable": false,
+  "details": {
+    "plan_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+    "status": "pending_validation"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

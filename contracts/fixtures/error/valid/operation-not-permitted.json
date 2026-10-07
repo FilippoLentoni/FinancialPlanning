@@ -1,0 +1,12 @@
+{
+  "code": "OPERATION_NOT_PERMITTED",
+  "message": "synthetic operation not permitted error",
+  "retryable": false,
+  "details": {
+    "pointer": "/mode",
+    "mode": "live"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

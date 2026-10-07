@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/portfolio.json",
+  "title": "Portfolio",
+  "description": "Finance adapter: a portfolio record. Phase 1 portfolios are synthetic. settings is a mutable head guarded by revision.",
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "base_currency": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/currency"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "settings": {
+      "type": "object"
+    },
+    "revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/revision"
+    },
+    "created_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    }
+  },
+  "required": [
+    "portfolio_id",
+    "name",
+    "base_currency",
+    "synthetic",
+    "revision",
+    "created_at"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "repo": "financemodel",
+  "environment": "gamma",
+  "region": "us-east-2",
+  "release_id": "rel_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "source_commit": "abb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+  "artifact_digest": "sha256:cdb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+  "contract_version": "1.2.0",
+  "deployed_at": "2026-01-15T14:30:00Z",
+  "previous_release_id": null,
+  "outputs": {
+    "job-endpoint": "/finplan/gamma/financemodel/api/job-endpoint"
+  },
+  "served_contract_majors": [
+    1,
+    2
+  ],
+  "synthetic": true
+}

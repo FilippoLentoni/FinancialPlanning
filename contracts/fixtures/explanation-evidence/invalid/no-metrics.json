@@ -1,0 +1,25 @@
+{
+  "evidence_kind": "allocation_delta",
+  "subject": {
+    "plan_version_id": "pv_01KDVDNCXRT6ARCWBJ7P43NRJ8",
+    "compare_to_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM"
+  },
+  "metrics": [],
+  "source_refs": [
+    {
+      "artifact_id": "art_01KDVDNYG8A6KFTN7C0C2W0YH8",
+      "owner": "financialplanning",
+      "kind": "plan_content",
+      "checksum": "sha256:2a225dc0568d82a780dc7f265f2c6c2f0d88378edfaaa4e08ac8ba6d7cf98c18",
+      "content_type": "application/json"
+    },
+    {
+      "artifact_id": "art_01KDVDP0ER5XDA3V2J1H6A3QSQ",
+      "owner": "financialplanning",
+      "kind": "plan_content",
+      "checksum": "sha256:16720e5c45e299a89cef2f1d895cacab5a65835039f4e42ecb0fd8acfe6926f9",
+      "content_type": "application/json"
+    }
+  ],
+  "synthetic": true
+}

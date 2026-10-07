@@ -1,0 +1,103 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "SSM access for a repository's per-environment deploy role: PutParameter only on /finplan/<env>/<own-repo>/*, reads on /finplan/<same-env>/* and /finplan/shared/* (design D4, ENV-07). Generated equivalent: finplan_contracts.iam.ssm_access_policy.",
+  "Parameters": {
+    "Repo": {
+      "Type": "String",
+      "AllowedValues": [
+        "financialplanning",
+        "financemodel",
+        "financelambdastool",
+        "financeagent"
+      ]
+    },
+    "Environment": {
+      "Type": "String",
+      "AllowedValues": [
+        "beta",
+        "gamma",
+        "prod"
+      ]
+    }
+  },
+  "Resources": {
+    "SsmAccessPolicy": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "ManagedPolicyName": {
+          "Fn::Sub": "finplan-${Environment}-${Repo}-ssm-access"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "WriteOwnRepoSegment",
+              "Effect": "Allow",
+              "Action": [
+                "ssm:PutParameter",
+                "ssm:DeleteParameter",
+                "ssm:DeleteParameters",
+                "ssm:AddTagsToResource",
+                "ssm:RemoveTagsFromResource",
+                "ssm:LabelParameterVersion"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/${Environment}/${Repo}/*"
+                }
+              ]
+            },
+            {
+              "Sid": "ReadSameEnvironmentAndShared",
+              "Effect": "Allow",
+              "Action": [
+                "ssm:GetParameter",
+                "ssm:GetParameters",
+                "ssm:GetParametersByPath",
+                "ssm:GetParameterHistory",
+                "ssm:DescribeParameters"
+              ],
+              "Resource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/${Environment}"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/${Environment}/*"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/shared"
+                },
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/shared/*"
+                }
+              ]
+            },
+            {
+              "Sid": "DenyWritesOutsideOwnSegment",
+              "Effect": "Deny",
+              "Action": [
+                "ssm:PutParameter",
+                "ssm:DeleteParameter",
+                "ssm:DeleteParameters",
+                "ssm:AddTagsToResource",
+                "ssm:RemoveTagsFromResource",
+                "ssm:LabelParameterVersion"
+              ],
+              "NotResource": [
+                {
+                  "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/finplan/${Environment}/${Repo}/*"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Metadata": {
+    "finplan": {
+      "generated_by": "finplan_contracts.boundaries",
+      "cdk_wiring": "add-platform-foundation"
+    }
+  }
+}

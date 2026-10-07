@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tool-catalog.json",
+  "title": "Tool catalog",
+  "description": "Tool catalog published by FinanceLambdasTool at /finplan/<env>/financelambdastool/contract/tool-catalog. Each entry names the tool, its request/response schema $ids (which must resolve in the pinned contract version), state-changing flag, role class and Lambda reference parameter.",
+  "x-finplan-checks": [
+    "schema_ids_resolve",
+    "tool_catalog_environment"
+  ],
+  "type": "object",
+  "properties": {
+    "environment": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/environment"
+    },
+    "release_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/release_id"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "input_schema_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/schema_id"
+          },
+          "output_schema_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/schema_id"
+          },
+          "state_changing": {
+            "type": "boolean"
+          },
+          "role_class": {
+            "type": "string",
+            "enum": [
+              "reader",
+              "submitter",
+              "plan-writer"
+            ]
+          },
+          "lambda_ref_parameter": {
+            "type": "string",
+            "pattern": "^/finplan/(beta|gamma|prod)/financelambdastool/lambda/[a-z0-9]+(-[a-z0-9]+)*-arn$"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "input_schema_id",
+          "output_schema_id",
+          "state_changing",
+          "role_class",
+          "lambda_ref_parameter"
+        ]
+      }
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "environment",
+    "release_id",
+    "contract_version",
+    "tools"
+  ]
+}

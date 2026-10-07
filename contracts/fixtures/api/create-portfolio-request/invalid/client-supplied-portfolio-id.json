@@ -1,0 +1,11 @@
+{
+  "name": "Synthetic smoke portfolio",
+  "base_currency": "USD",
+  "synthetic": true,
+  "settings": {
+    "risk_profile": "moderate"
+  },
+  "idempotency_key": "client-key-0010",
+  "contract_version": "1.0.0",
+  "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM"
+}

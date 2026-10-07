@@ -1,0 +1,7 @@
+{
+  "instrument_id": "SPY",
+  "name": "Synthetic S&P 500 tracking ETF series",
+  "asset_class": "etf",
+  "exchange_mic": "XNYS",
+  "synthetic": true
+}

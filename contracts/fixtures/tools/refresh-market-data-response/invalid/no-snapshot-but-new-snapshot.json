@@ -1,0 +1,15 @@
+{
+  "input_snapshot_id": null,
+  "requested_range": {
+    "start": "2026-01-19",
+    "end": "2026-01-19"
+  },
+  "coverage_complete": false,
+  "new_snapshot": true,
+  "quality_flags": [
+    "no_session"
+  ],
+  "session_status": "holiday",
+  "trigger": "scheduled",
+  "synthetic": true
+}

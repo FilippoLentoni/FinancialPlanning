@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/caller.json",
+  "title": "On-behalf-of caller block",
+  "description": "Set only by a trusted hop (the FinanceAgent Gateway interceptor or a tool's resolved invocation source). Travels in a transport header outside the hashed request body, so it never changes idempotency request hashes; recorded in producer audit events. It never grants authority by itself.",
+  "type": "object",
+  "properties": {
+    "subject_hash": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+      },
+      "uniqueItems": true
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "hosted_agent",
+        "direct_mcp",
+        "ci_test",
+        "direct_test",
+        "website",
+        "scheduler",
+        "operator"
+      ]
+    },
+    "correlation_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/correlation_id"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "channel",
+    "correlation_id"
+  ],
+  "additionalProperties": false
+}

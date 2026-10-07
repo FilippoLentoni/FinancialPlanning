@@ -1,0 +1,8 @@
+{
+  "artifact_id": "/data/plans/content.json",
+  "owner": "financialplanning",
+  "kind": "plan_content",
+  "checksum": "sha256:6ec717831ccc10be8435accd37fbc5f57a7ef8b7fda4bea05e1b44343ae73ca2",
+  "content_type": "application/json",
+  "synthetic": true
+}

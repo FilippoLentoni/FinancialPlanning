@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/sample-extra.json",
+  "type": "object",
+  "properties": {
+    "synthetic": {
+      "const": true
+    }
+  }
+}

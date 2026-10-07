@@ -1,0 +1,192 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Permission boundary for account-level tooling roles (pipelines, budget action execution): live-financial deny and boundary/budget protection.",
+  "Resources": {
+    "SharedPermissionBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "ManagedPolicyName": "finplan-shared-permission-boundary",
+        "Description": "Permission boundary for account-level tooling roles (pipelines, budget action execution): live-financial deny and boundary/budget protection.",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AllowWithinBoundary",
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            },
+            {
+              "Sid": "DenyLiveFinancialActions",
+              "Effect": "Deny",
+              "Action": [
+                "payments:*",
+                "payment:*",
+                "payment-cryptography:*",
+                "payment-cryptography-data:*",
+                "managedblockchain:*",
+                "managedblockchain-query:*",
+                "wallet:*",
+                "wallets:*",
+                "coinbase:*",
+                "brokerage:*",
+                "trading:*",
+                "exchange:*",
+                "crypto-exchange:*",
+                "bedrock-agentcore:*Payment*",
+                "bedrock-agentcore:*Wallet*",
+                "bedrock-agentcore:*Funds*",
+                "bedrock-agentcore-control:*Payment*",
+                "bedrock-agentcore-control:*Wallet*",
+                "bedrock-agentcore-control:*Funds*"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "DenyLiveFinancialSecrets",
+              "Effect": "Deny",
+              "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:PutSecretValue",
+                "secretsmanager:UpdateSecret",
+                "secretsmanager:BatchGetSecretValue"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringLike": {
+                  "secretsmanager:SecretId": [
+                    "*brokerage*",
+                    "*broker*",
+                    "*trading*",
+                    "*trade-*",
+                    "*coinbase*",
+                    "*binance*",
+                    "*kraken*",
+                    "*alpaca*",
+                    "*ibkr*",
+                    "*robinhood*",
+                    "*exchange-api*",
+                    "*crypto-exchange*",
+                    "*wallet*",
+                    "*payment*"
+                  ]
+                }
+              }
+            },
+            {
+              "Sid": "DenyLiveFinancialSecretCreation",
+              "Effect": "Deny",
+              "Action": [
+                "secretsmanager:CreateSecret"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "StringLike": {
+                  "secretsmanager:Name": [
+                    "*brokerage*",
+                    "*broker*",
+                    "*trading*",
+                    "*trade-*",
+                    "*coinbase*",
+                    "*binance*",
+                    "*kraken*",
+                    "*alpaca*",
+                    "*ibkr*",
+                    "*robinhood*",
+                    "*exchange-api*",
+                    "*crypto-exchange*",
+                    "*wallet*",
+                    "*payment*"
+                  ]
+                }
+              }
+            },
+            {
+              "Sid": "ProtectBoundaries",
+              "Effect": "Deny",
+              "Action": [
+                "iam:DeleteRolePermissionsBoundary",
+                "iam:DeleteUserPermissionsBoundary"
+              ],
+              "Resource": "*"
+            },
+            {
+              "Sid": "RequireBoundaryOnRoleCreation",
+              "Effect": "Deny",
+              "Action": [
+                "iam:CreateRole",
+                "iam:PutRolePermissionsBoundary",
+                "iam:CreateUser",
+                "iam:PutUserPermissionsBoundary"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "ArnNotLike": {
+                  "iam:PermissionsBoundary": [
+                    "arn:*:iam::*:policy/finplan-shared-permission-boundary",
+                    "arn:*:iam::*:policy/finplan-beta-permission-boundary",
+                    "arn:*:iam::*:policy/finplan-gamma-permission-boundary",
+                    "arn:*:iam::*:policy/finplan-prod-permission-boundary",
+                    "arn:*:iam::*:policy/finplan-beta-research-permission-boundary",
+                    "arn:*:iam::*:policy/finplan-gamma-research-permission-boundary",
+                    "arn:*:iam::*:policy/finplan-prod-research-permission-boundary"
+                  ]
+                }
+              }
+            },
+            {
+              "Sid": "ProtectBoundaryPolicies",
+              "Effect": "Deny",
+              "Action": [
+                "iam:CreatePolicyVersion",
+                "iam:DeletePolicy",
+                "iam:DeletePolicyVersion",
+                "iam:SetDefaultPolicyVersion"
+              ],
+              "Resource": [
+                "arn:*:iam::*:policy/finplan-*-permission-boundary"
+              ]
+            },
+            {
+              "Sid": "ProtectBudgetEnforcement",
+              "Effect": "Deny",
+              "Action": [
+                "iam:DetachRolePolicy",
+                "iam:DetachUserPolicy",
+                "iam:DetachGroupPolicy"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "ArnLike": {
+                  "iam:PolicyARN": "arn:*:iam::*:policy/finplan-budget-enforcement-deny"
+                }
+              }
+            },
+            {
+              "Sid": "OnlyHumansExecuteBudgetActions",
+              "Effect": "Deny",
+              "Action": [
+                "budgets:ExecuteBudgetAction"
+              ],
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "SharedPermissionBoundaryArn": {
+      "Value": {
+        "Ref": "SharedPermissionBoundary"
+      }
+    }
+  },
+  "Metadata": {
+    "finplan": {
+      "generated_by": "finplan_contracts.boundaries",
+      "environment": "shared",
+      "cdk_wiring": "add-platform-foundation"
+    }
+  }
+}

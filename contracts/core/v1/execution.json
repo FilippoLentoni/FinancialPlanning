@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/execution.json",
+  "title": "Execution",
+  "description": "An execution is a separate record referencing one publication. Phase 1 modes are 'paper' and 'simulated' only; any other mode, including 'live', is rejected with OPERATION_NOT_PERMITTED. Executions never modify the publication or plan version.",
+  "type": "object",
+  "properties": {
+    "execution_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/execution_id"
+    },
+    "publication_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/publication_id"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "paper",
+        "simulated"
+      ],
+      "x-finplan-error-code": "OPERATION_NOT_PERMITTED"
+    },
+    "status": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/vocabulary_value"
+    },
+    "requested_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "execution_id",
+    "publication_id",
+    "mode",
+    "requested_at"
+  ]
+}

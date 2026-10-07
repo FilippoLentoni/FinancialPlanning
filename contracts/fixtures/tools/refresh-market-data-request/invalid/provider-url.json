@@ -1,0 +1,12 @@
+{
+  "dataset_id": "finance/etf-daily/SPY",
+  "instrument_ids": [
+    "SPY"
+  ],
+  "start_date": "2026-01-02",
+  "end_date": "2026-01-09",
+  "granularity": "daily",
+  "idempotency_key": "client-key-0008",
+  "synthetic": true,
+  "provider_url": "https://example.invalid/quote"
+}

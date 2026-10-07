@@ -1,0 +1,4 @@
+{
+  "ssm_parameter_name": "/finplan/gamma/financemodel/secrets/jev-api-key",
+  "synthetic": true
+}

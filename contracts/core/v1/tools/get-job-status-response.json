@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-job-status-response.json",
+  "title": "get_job_status response",
+  "description": "Response schema for the 'get_job_status' tool.",
+  "x-finplan-checks": [
+    "gpu_approval_required"
+  ],
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json"
+    }
+  ]
+}

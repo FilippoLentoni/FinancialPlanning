@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/api/create-plan-response.json",
+  "title": "Create plan response",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Response of POST /v1/portfolios/{portfolio_id}/plans: the new plan record (empty head, revision 1), its publication-head revision and the portfolio's new revision.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan.json"
+    }
+  ],
+  "properties": {
+    "publication_revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/revision"
+    },
+    "portfolio_revision": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/concurrency.json#/$defs/revision"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    }
+  },
+  "required": [
+    "publication_revision",
+    "portfolio_revision"
+  ]
+}

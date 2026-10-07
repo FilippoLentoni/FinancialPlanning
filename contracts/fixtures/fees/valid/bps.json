@@ -1,0 +1,5 @@
+{
+  "transaction_cost_bps": 5,
+  "management_fee_bps": 9,
+  "synthetic": true
+}

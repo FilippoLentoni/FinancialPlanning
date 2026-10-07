@@ -1,0 +1,24 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "base_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "expected_revision": 2,
+  "template_version": "xlsx-plan-v1",
+  "source_artifact": {
+    "artifact_id": "art_01KDVDPJ18G9X5HG8JNDZ6HPWB",
+    "owner": "financialplanning",
+    "kind": "excel_source",
+    "checksum": "sha256:a5d618192e56be6383f445e0bf7978095c4ea8ae5bf944643ecb894b38298d90",
+    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  },
+  "outcome": "rejected",
+  "findings": [
+    {
+      "severity": "warning",
+      "code": "VALIDATION_FAILED",
+      "message": "synthetic warning"
+    }
+  ],
+  "correlation_id": "corr-synthetic-0001",
+  "created_at": "2026-01-13T14:30:00Z",
+  "synthetic": true
+}

@@ -1,0 +1,8 @@
+{
+  "artifact_id": "s3://example-bucket/plans/content.json",
+  "owner": "financialplanning",
+  "kind": "plan_content",
+  "checksum": "sha256:71a9ad2ee7d4bb692f39332b6dd625a49212304ecef7a8780f346e807c5dc1d6",
+  "content_type": "application/json",
+  "synthetic": true
+}

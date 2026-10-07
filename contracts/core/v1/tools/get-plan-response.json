@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-plan-response.json",
+  "title": "get_plan response",
+  "description": "Response schema for the 'get_plan' tool.",
+  "type": "object",
+  "properties": {
+    "plan": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/plan.json"
+    },
+    "current_publication": {
+      "anyOf": [
+        {
+          "$ref": "https://contracts.finplan.invalid/core/v1/publication.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "plan",
+    "current_publication"
+  ]
+}

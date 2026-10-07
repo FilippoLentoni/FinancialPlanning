@@ -1,0 +1,9 @@
+{
+  "record_id": "rec_01JABCDEFGHJKMNPQRSTVWXYZ0",
+  "status": "active",
+  "flags": [
+    "stale_source"
+  ],
+  "note": "made under the old version",
+  "synthetic": true
+}

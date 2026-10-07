@@ -1,0 +1,27 @@
+{
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "completion_status": "failed",
+  "artifacts": [],
+  "artifacts_complete": false,
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "evaluator_version": "eval-1.0.0",
+  "dataset_checksum": "sha256:6198fbe991c7dd2b8fbfbb06763b0286c9d12cc17ae4033f35314d195e7b02f2",
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "completed_at": "2026-01-10T09:30:00Z",
+  "synthetic": true,
+  "error": {
+    "code": "INTERNAL",
+    "message": "job container exited abnormally",
+    "retryable": false,
+    "details": {
+      "exit": "abnormal"
+    },
+    "correlation_id": "corr-synthetic-0001",
+    "contract_version": "1.0.0",
+    "synthetic": true
+  },
+  "solution_status": "infeasible"
+}

@@ -1,0 +1,12 @@
+{
+  "code": "IMMUTABLE_RECORD",
+  "message": "synthetic immutable record error",
+  "retryable": false,
+  "details": {
+    "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+    "hint": "create a child version"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

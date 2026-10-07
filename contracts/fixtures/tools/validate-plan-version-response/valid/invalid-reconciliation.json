@@ -1,0 +1,12 @@
+{
+  "plan_version_id": "pv_01KDVDNBYGX5V5HY2JSK5XWKHC",
+  "status": "invalid",
+  "findings": [
+    {
+      "code": "VALIDATION_FAILED",
+      "message": "weights plus cash do not sum to 1",
+      "pointer": "/allocation"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,21 @@
+{
+  "plan_content": {
+    "base_currency": "USD",
+    "allocation": {
+      "weights": [
+        {
+          "instrument_id": "SPY",
+          "weight": 2
+        }
+      ]
+    },
+    "constraints": {
+      "long_only": true,
+      "max_weight": 0.8
+    },
+    "fees": {
+      "transaction_cost_bps": 5
+    }
+  },
+  "synthetic": true
+}

@@ -1,0 +1,7 @@
+{
+  "project": "finplan",
+  "owner-repo": "financialplanning",
+  "environment": "dev",
+  "logical-role": "snapshot-artifact-bucket",
+  "synthetic": true
+}

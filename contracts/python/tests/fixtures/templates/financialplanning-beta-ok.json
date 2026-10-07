@@ -1,0 +1,188 @@
+{
+  "Description": "SYNTHETIC fixture template (OWN-01 pass: FinancialPlanning beta platform resources, all owned and mapped)",
+  "Resources": {
+    "CDKMetadata": {
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "DailyIngestSchedule": {
+      "Metadata": {
+        "logical-role": "daily-ingest-schedule"
+      },
+      "Properties": {
+        "FlexibleTimeWindow": {
+          "Mode": "OFF"
+        },
+        "ScheduleExpression": "cron(0 9 ? * MON-FRI *)",
+        "ScheduleExpressionTimezone": "America/New_York",
+        "Target": {
+          "Arn": {
+            "Fn::GetAtt": [
+              "IngestionHandler",
+              "Arn"
+            ]
+          },
+          "RoleArn": "<scheduler-role-arn>"
+        }
+      },
+      "Type": "AWS::Scheduler::Schedule"
+    },
+    "IngestionHandler": {
+      "Properties": {
+        "Code": {
+          "ZipFile": "def handler(e, c): return {}"
+        },
+        "Handler": "app.handler",
+        "Role": "<ingestion-role-arn>",
+        "Runtime": "python3.12",
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "ingestion-handler"
+          }
+        ]
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "PlanTable": {
+      "Properties": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "pk",
+            "AttributeType": "S"
+          }
+        ],
+        "BillingMode": "PAY_PER_REQUEST",
+        "KeySchema": [
+          {
+            "AttributeName": "pk",
+            "KeyType": "HASH"
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-table"
+          }
+        ]
+      },
+      "Type": "AWS::DynamoDB::Table"
+    },
+    "PlatformKey": {
+      "Properties": {
+        "EnableKeyRotation": true,
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "platform-kms-key"
+          }
+        ]
+      },
+      "Type": "AWS::KMS::Key"
+    },
+    "PlatformKeyAlias": {
+      "Properties": {
+        "AliasName": "alias/finplan-beta-platform",
+        "TargetKeyId": {
+          "Ref": "PlatformKey"
+        }
+      },
+      "Type": "AWS::KMS::Alias"
+    },
+    "RawInputBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "raw-input-bucket"
+          }
+        ],
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        }
+      },
+      "Type": "AWS::S3::Bucket"
+    },
+    "RawInputBucketPolicy": {
+      "Properties": {
+        "Bucket": {
+          "Ref": "RawInputBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "RawInputBucket",
+                    "Arn"
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      },
+      "Type": "AWS::S3::BucketPolicy"
+    }
+  }
+}

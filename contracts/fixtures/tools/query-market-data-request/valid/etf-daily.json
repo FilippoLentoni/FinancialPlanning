@@ -1,0 +1,10 @@
+{
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "instrument_ids": [
+    "SPY"
+  ],
+  "start_date": "2026-01-02",
+  "end_date": "2026-01-09",
+  "page_size": 50,
+  "synthetic": true
+}

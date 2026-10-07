@@ -1,0 +1,30 @@
+{
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "expected_revision": 4,
+  "idempotency_key": "client-key-0005",
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "content": {
+    "base_currency": "USD",
+    "allocation": {
+      "weights": [
+        {
+          "instrument_id": "SPY",
+          "weight": 0.6
+        }
+      ],
+      "cash_weight": 0.4
+    },
+    "constraints": {
+      "long_only": true,
+      "max_weight": 0.8
+    },
+    "fees": {
+      "transaction_cost_bps": 5
+    }
+  },
+  "reason": "synthetic override",
+  "synthetic": true,
+  "content_location": "s3://example-bucket/content.json"
+}

@@ -1,0 +1,8 @@
+{
+  "code": "INTERNAL",
+  "message": "synthetic internal error",
+  "retryable": false,
+  "details": {},
+  "correlation_id": "corr-synthetic-0001",
+  "synthetic": true
+}

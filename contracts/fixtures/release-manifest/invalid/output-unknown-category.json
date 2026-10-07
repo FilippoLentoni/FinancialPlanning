@@ -1,0 +1,19 @@
+{
+  "repo": "financelambdastool",
+  "environment": "gamma",
+  "region": "us-east-2",
+  "release_id": "rel_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "source_commit": "834c7570a9c4f04aabd741e7faefaf221e413270",
+  "artifact_digest": "sha256:1f4717c371f68ee3de7c11de38b6b7b88fed8e4356387159d4d98a62725faaf7",
+  "contract_version": "1.0.0",
+  "contract_digest": "sha256:975ab72656b354f2a78ac88eaa944eb1e6c24ffea96d4a7179fa2c1c3f38401a",
+  "deployed_at": "2026-01-15T14:30:00Z",
+  "previous_release_id": "rel_01KDVDNA004HW7SQ5T1D09E9D2",
+  "outputs": {
+    "x": "/finplan/gamma/financelambdastool/secrets/x"
+  },
+  "served_contract_majors": [
+    1
+  ],
+  "synthetic": true
+}

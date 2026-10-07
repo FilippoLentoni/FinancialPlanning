@@ -1,0 +1,47 @@
+{
+  "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "completion_status": "succeeded",
+  "artifacts": [
+    {
+      "artifact_id": "art_01KDVDP88REHGPBXFX6CHX92KS",
+      "owner": "financemodel",
+      "kind": "run_artifact",
+      "checksum": "sha256:94643d4f46a325d686ee612d9152d14853aaf0c939d939714d4b0030ef770770",
+      "content_type": "application/json"
+    }
+  ],
+  "artifacts_complete": true,
+  "model_version": "mv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration_id": "cfg_9eda1821d7a3f8b5c965f4375058e544a3aba022644d6a94d9e446a63100a5f0",
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "evaluator_version": "eval-1.0.0",
+  "dataset_checksum": "sha256:6198fbe991c7dd2b8fbfbb06763b0286c9d12cc17ae4033f35314d195e7b02f2",
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "payload": {
+    "performance": {
+      "total_return": 0.012,
+      "annualized_volatility": 0.1,
+      "max_drawdown": -0.02
+    },
+    "accuracy": {
+      "directional_hit_rate": 0.5
+    },
+    "compute_cost": {
+      "estimated_usd": 0.35,
+      "actual_usd": 0.12,
+      "instance_seconds": 300
+    },
+    "proposed_allocation": {
+      "weights": [
+        {
+          "instrument_id": "SPY",
+          "weight": 0.6
+        }
+      ],
+      "cash_weight": 0.4
+    }
+  },
+  "completed_at": "2026-01-10T09:30:00Z",
+  "synthetic": true
+}

@@ -1,0 +1,11 @@
+{
+  "code": "NOT_FOUND",
+  "message": "synthetic not found error",
+  "retryable": false,
+  "details": {
+    "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

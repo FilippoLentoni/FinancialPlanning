@@ -1,0 +1,12 @@
+{
+  "subject_hash": "sha256:f4c4c8fdcdb77eb7e3a0b2f2f934d290cc595c3f01885484948a01289ffa51dc",
+  "roles": [
+    "planner"
+  ],
+  "channel": "hosted_agent",
+  "correlation_id": "corr-synthetic-0001",
+  "synthetic": true,
+  "grants": [
+    "plan-writer"
+  ]
+}

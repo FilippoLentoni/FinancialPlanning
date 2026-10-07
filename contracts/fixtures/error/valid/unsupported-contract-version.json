@@ -1,0 +1,14 @@
+{
+  "code": "UNSUPPORTED_CONTRACT_VERSION",
+  "message": "synthetic unsupported contract version error",
+  "retryable": false,
+  "details": {
+    "requested_major": 2,
+    "served_contract_majors": [
+      1
+    ]
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

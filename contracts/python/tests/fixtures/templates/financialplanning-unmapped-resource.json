@@ -1,0 +1,91 @@
+{
+  "Description": "SYNTHETIC fixture template (OWN-01 fail: resources with no entry in the ownership matrix)",
+  "Resources": {
+    "CDKMetadata": {
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "PlanTableAsBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-table"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket"
+    },
+    "RawInputBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "raw-input-bucket"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket"
+    },
+    "ScratchBucket": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "scratch-bucket"
+          }
+        ]
+      },
+      "Type": "AWS::S3::Bucket"
+    },
+    "WorkQueue": {
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "environment",
+            "Value": "beta"
+          }
+        ]
+      },
+      "Type": "AWS::SQS::Queue"
+    }
+  }
+}

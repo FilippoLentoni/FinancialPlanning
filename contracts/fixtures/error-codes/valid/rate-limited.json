@@ -1,0 +1,5 @@
+{
+  "code": "RATE_LIMITED",
+  "retryable": true,
+  "synthetic": true
+}

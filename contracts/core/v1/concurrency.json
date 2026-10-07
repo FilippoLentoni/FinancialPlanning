@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/concurrency.json",
+  "title": "Optimistic concurrency",
+  "description": "Mutable heads carry a monotonically increasing integer revision. Writes supply expected_revision; a mismatch fails with CONFLICT and applies nothing. The root validates a mutable head.",
+  "type": "object",
+  "properties": {
+    "revision": {
+      "$ref": "#/$defs/revision"
+    },
+    "updated_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "revision"
+  ],
+  "$defs": {
+    "revision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Current revision of a mutable head."
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Revision the writer last read; must equal the current revision."
+    }
+  }
+}

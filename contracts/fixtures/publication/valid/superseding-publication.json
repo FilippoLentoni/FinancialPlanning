@@ -1,0 +1,10 @@
+{
+  "publication_id": "pub_01KDVDNBYGX5V5HY2JSK5XWKHC",
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "plan_version_id": "pv_01KDVDNCXRT6ARCWBJ7P43NRJ8",
+  "plan_version_checksum": "sha256:b227969f6cf4da71c20123bd0955de3a1b37b26300d03e88d4a9572ac92c9368",
+  "plan_version_status": "validated",
+  "supersedes_publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "published_at": "2026-01-14T14:30:00Z",
+  "synthetic": true
+}

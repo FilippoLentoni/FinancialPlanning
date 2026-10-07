@@ -1,0 +1,5 @@
+{
+  "code": "IDEMPOTENCY_KEY_REUSED",
+  "retryable": false,
+  "synthetic": true
+}

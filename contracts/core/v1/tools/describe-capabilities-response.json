@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/describe-capabilities-response.json",
+  "title": "describe_capabilities response",
+  "description": "Response schema for the 'describe_capabilities' tool.",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/core/v1/capability.json"
+    }
+  ]
+}

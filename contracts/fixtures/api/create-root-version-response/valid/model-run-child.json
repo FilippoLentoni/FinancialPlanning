@@ -1,0 +1,20 @@
+{
+  "plan_version_id": "pv_01KDVDNDX0F04BD29EMMMJPAQD",
+  "plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "parent_plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "origin": "model_run",
+  "status": "pending_validation",
+  "checksum": "sha256:60f424bfa087ab458b0e32518ba51734e1009d8833294b4b73aaa9d706ed9008",
+  "no_effect": false,
+  "revision": 3,
+  "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "content_ref": {
+    "artifact_id": "art_01KDVDP1E0HB88SSQ3MPTKF5CC",
+    "owner": "financialplanning",
+    "kind": "plan_content",
+    "checksum": "sha256:cf07e09e512fccf134e7af78af19f926303e10bf7ceffe67cd1ed100d3b38fb4",
+    "content_type": "application/json"
+  },
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

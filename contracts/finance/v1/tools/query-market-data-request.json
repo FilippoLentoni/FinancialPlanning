@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/query-market-data-request.json",
+  "title": "query_market_data request",
+  "description": "Request schema for the 'query_market_data' tool. Read-only; only approved snapshots; returns metadata, observation kinds, per-instrument summaries and trusted references.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "instrument_ids": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/instrument_id"
+      },
+      "uniqueItems": true
+    },
+    "start_date": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "end_date": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "page_size": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/page_size"
+    },
+    "next_token": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/next_token"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "input_snapshot_id"
+  ],
+  "additionalProperties": false
+}

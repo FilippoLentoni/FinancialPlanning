@@ -1,0 +1,83 @@
+{
+  "Description": "SYNTHETIC fixture template (task 1.5 fail: CDK-generated helpers that have no owned parent and no reviewed allow-list entry)",
+  "Resources": {
+    "CDKMetadata": {
+      "Properties": {
+        "Analytics": "v2:deflate64:synthetic"
+      },
+      "Type": "AWS::CDK::Metadata"
+    },
+    "ImportedRolePolicy": {
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:GetObject",
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "ImportedRolePolicy",
+        "Roles": [
+          "<imported-role-name>"
+        ]
+      },
+      "Type": "AWS::IAM::Policy"
+    },
+    "PlanApiHandler": {
+      "Properties": {
+        "Code": {
+          "ZipFile": "def handler(e, c): return {}"
+        },
+        "Handler": "app.handler",
+        "Role": "<plan-api-role-arn>",
+        "Runtime": "python3.12",
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "beta"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-api-handler"
+          }
+        ]
+      },
+      "Type": "AWS::Lambda::Function"
+    },
+    "PlanApiHandlerInvokePermission": {
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "PlanApiHandler",
+            "Arn"
+          ]
+        },
+        "Principal": "<tool-role-reader-principal>"
+      },
+      "Type": "AWS::Lambda::Permission"
+    },
+    "SomeProviderHandlerABCDEF12": {
+      "Properties": {
+        "Code": {
+          "ZipFile": "def handler(e, c): return {}"
+        },
+        "Handler": "index.handler",
+        "Role": "<provider-role-arn>",
+        "Runtime": "python3.12"
+      },
+      "Type": "AWS::Lambda::Function"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/submit-experiment-request.json",
+  "title": "submit_experiment request",
+  "description": "Request schema for the 'submit_experiment' tool. State-changing; calls FinanceModel submit_job (dry run first). Never mints run_id.",
+  "x-finplan-checks": [
+    "no_storage_locations",
+    "domain_payload"
+  ],
+  "x-finplan-domain-payloads": [
+    {
+      "pointer": "/configuration/payload",
+      "kind": "configuration",
+      "domain_pointer": "/configuration"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "domain": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain"
+    },
+    "domain_schema_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/domain_schema_version"
+    },
+    "job_type": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/vocabulary_value"
+    },
+    "purpose": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/job-status.json#/$defs/purpose"
+    },
+    "dry_run": {
+      "type": "boolean",
+      "default": false
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "configuration": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/configuration.json"
+    },
+    "evaluation_window": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "domain",
+    "domain_schema_version",
+    "job_type",
+    "purpose",
+    "input_snapshot_id",
+    "configuration",
+    "evaluation_window",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

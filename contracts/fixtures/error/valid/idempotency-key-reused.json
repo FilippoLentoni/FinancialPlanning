@@ -1,0 +1,11 @@
+{
+  "code": "IDEMPOTENCY_KEY_REUSED",
+  "message": "synthetic idempotency key reused error",
+  "retryable": false,
+  "details": {
+    "idempotency_key": "client-key-0001"
+  },
+  "correlation_id": "corr-synthetic-0001",
+  "contract_version": "1.0.0",
+  "synthetic": true
+}

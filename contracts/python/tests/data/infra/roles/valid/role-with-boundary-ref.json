@@ -1,0 +1,64 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Prod role referencing a boundary declared in the same template.",
+  "Metadata": {
+    "synthetic": true
+  },
+  "Resources": {
+    "ProdBoundary": {
+      "Type": "AWS::IAM::ManagedPolicy",
+      "Properties": {
+        "ManagedPolicyName": "finplan-prod-permission-boundary",
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            }
+          ]
+        }
+      }
+    },
+    "PlanApiHandlerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "finplan-prod-financialplanning-plan-api-handler",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codepipeline.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "PermissionsBoundary": {
+          "Ref": "ProdBoundary"
+        },
+        "Tags": [
+          {
+            "Key": "project",
+            "Value": "finplan"
+          },
+          {
+            "Key": "owner-repo",
+            "Value": "financialplanning"
+          },
+          {
+            "Key": "environment",
+            "Value": "prod"
+          },
+          {
+            "Key": "logical-role",
+            "Value": "plan-api-handler"
+          }
+        ]
+      }
+    }
+  }
+}

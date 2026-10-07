@@ -1,0 +1,10 @@
+{
+  "artifact_id": "art_01KDVDNMQRGZCENY514M1YB22J",
+  "owner": "financialplanning",
+  "kind": "snapshot_manifest",
+  "checksum": "sha256:b8f49193a276fceb387334fe0212a33c007a9be61088bb879da85e770abbc25e",
+  "content_type": "application/json",
+  "size_bytes": 2048,
+  "domain": "finance",
+  "synthetic": true
+}

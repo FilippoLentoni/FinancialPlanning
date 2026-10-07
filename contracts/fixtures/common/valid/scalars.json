@@ -1,0 +1,14 @@
+{
+  "checksum": "sha256:f23c41470c2ef31e926c0b4c6f1090bff4acefd04f12e234cb1888f3812dc79c",
+  "timestamp": "2026-01-01T14:30:00Z",
+  "date": "2026-01-01",
+  "semver": "1.2.3",
+  "environment": "beta",
+  "repo": "financemodel",
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "correlation_id": "corr-synthetic-0001",
+  "ssm_parameter_name": "/finplan/shared/financialplanning/config/budget-allocation",
+  "schema_id": "https://contracts.finplan.invalid/core/v1/error.json",
+  "synthetic": true
+}

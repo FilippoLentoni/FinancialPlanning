@@ -1,0 +1,9 @@
+{
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "payload_kind": "plan_content",
+  "payload": {
+    "base_currency": "USD"
+  },
+  "synthetic": true
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/create-portfolio-request.json",
+  "title": "Create portfolio request",
+  "description": "Plan lifecycle API route schema (FinancialPlanning platform; added in contracts 0.2.0, design D13). Body of POST /v1/portfolios. State-changing and idempotent: the platform mints portfolio_id; a client-supplied identifier is rejected. Phase 1 portfolios are synthetic.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "base_currency": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/instrument.json#/$defs/currency"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "settings": {
+      "type": "object"
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    }
+  },
+  "required": [
+    "name",
+    "base_currency",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

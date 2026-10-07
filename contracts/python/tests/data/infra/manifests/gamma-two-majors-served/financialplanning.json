@@ -1,0 +1,19 @@
+{
+  "repo": "financialplanning",
+  "environment": "gamma",
+  "region": "us-east-2",
+  "release_id": "rel_01KDVDNBYGX5V5HY2JSK5XWKHC",
+  "source_commit": "aba1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+  "artifact_digest": "sha256:cda1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+  "contract_version": "1.0.0",
+  "deployed_at": "2026-01-15T14:30:00Z",
+  "previous_release_id": null,
+  "outputs": {
+    "plan-endpoint": "/finplan/gamma/financialplanning/api/plan-endpoint"
+  },
+  "served_contract_majors": [
+    1,
+    2
+  ],
+  "synthetic": true
+}
