@@ -36,11 +36,13 @@ def run(*, env: str, s3: Any, dynamodb: Any, buckets: Mapping[str, str], grace_h
 def handler(event: Mapping[str, Any], context: Any) -> dict[str, Any]:  # pragma: no cover - AWS entry point
     import boto3
 
+    from ..core.aws_clients import s3_client
+
     env = os.environ["FINPLAN_ENV"]
     retention = os.environ.get("FINPLAN_SNAPSHOT_RETENTION_DAYS") or None
     result = run(
         env=env,
-        s3=boto3.client("s3"),
+        s3=s3_client(),
         dynamodb=boto3.client("dynamodb"),
         buckets={"plans": os.environ["FINPLAN_BUCKET_PLANS"], "snapshots": os.environ["FINPLAN_BUCKET_SNAPSHOTS"]},
         grace_hours=int(os.environ.get("FINPLAN_ORPHAN_GRACE_HOURS", "24")),

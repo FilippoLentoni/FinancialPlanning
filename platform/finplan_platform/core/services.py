@@ -57,10 +57,12 @@ class Services:
         """Build from the Lambda environment (``FINPLAN_ENV``, ``FINPLAN_BUCKET_*``, ``FINPLAN_KMS_KEY_ARN``)."""
         import boto3
 
+        from .aws_clients import s3_client
+
         env_vars = dict(environ if environ is not None else os.environ)
         env = env_vars["FINPLAN_ENV"]
         cfg = load_config(env)
         buckets = {r: env_vars[f"FINPLAN_BUCKET_{r.upper()}"] for r in BUCKET_ROLES if env_vars.get(f"FINPLAN_BUCKET_{r.upper()}")}
         repo = MetadataRepository(boto3.client("dynamodb"), env, idempotency_ttl_days=int(cfg.metadata["idempotency_ttl_days"]))
-        store = ArtifactStore(boto3.client("s3"), buckets, kms_key_id=env_vars.get("FINPLAN_KMS_KEY_ARN") or None) if buckets else None
+        store = ArtifactStore(s3_client(), buckets, kms_key_id=env_vars.get("FINPLAN_KMS_KEY_ARN") or None) if buckets else None
         return cls(cfg=cfg, repo=repo, artifacts=store, extras={"ssm": boto3.client("ssm")})

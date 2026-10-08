@@ -160,12 +160,14 @@ def deps_from_environment(environ: Mapping[str, str] | None = None) -> Ingestion
     ``FINPLAN_BUDGET_STATE_PARAMETER`` (default: the contract parameter)."""
     import boto3
 
+    from .aws_clients import s3_client
+
     from ..providers.registry import provider_for_config
 
     e = dict(environ or os.environ)
     cfg = load_config(e["FINPLAN_ENV"])
     buckets = {role: e[f"FINPLAN_BUCKET_{role.upper()}"] for role in ("raw", "curated", "snapshots") if e.get(f"FINPLAN_BUCKET_{role.upper()}")}
-    store = ArtifactStore(boto3.client("s3"), buckets, kms_key_id=e.get("FINPLAN_KMS_KEY_ARN") or None)
+    store = ArtifactStore(s3_client(), buckets, kms_key_id=e.get("FINPLAN_KMS_KEY_ARN") or None)
     repo = MetadataRepository(boto3.client("dynamodb"), cfg.env, idempotency_ttl_days=int(cfg.metadata["idempotency_ttl_days"]))
     gate = SsmBudgetGate(boto3.client("ssm"), e.get("FINPLAN_BUDGET_STATE_PARAMETER") or BUDGET_STATE_PARAMETER)
     return IngestionDeps(config=cfg, repo=repo, store=store, provider=provider_for_config(cfg), calendar=calendar_for_provider(cfg.provider), budget_gate=gate)
