@@ -201,7 +201,7 @@ def stage_role_statements(env: str, store_bucket_arn: str) -> list[iam.PolicySta
     own = f"/finplan/{env}/{REPO}"
     param = lambda p: _arn("ssm", f"parameter{p}")  # noqa: E731
     return [
-        iam.PolicyStatement(sid="WriteReleaseKeys", actions=["ssm:PutParameter", "ssm:AddTagsToResource"], resources=[param(f"{own}/release/*"), param(f"{own}/config/budget-enforced-role-names"), param(f"{own}/config/smoke-portfolio-id")]),
+        iam.PolicyStatement(sid="WriteReleaseKeys", actions=["ssm:PutParameter", "ssm:AddTagsToResource"], resources=[param(f"{own}/release/*"), param(f"{own}/config/budget-enforced-role-names"), param(f"{own}/config/smoke-portfolio-id"), param(f"{own}/config/integration-snapshot-id")]),
         iam.PolicyStatement(sid="ReadEnvAndShared", actions=list(contract_iam.SSM_READ_ACTIONS), resources=[param(f"/finplan/{env}"), param(f"/finplan/{env}/*"), param("/finplan/shared"), param("/finplan/shared/*")]),
         iam.PolicyStatement(sid="ReleaseLedger", actions=["s3:PutObject", "s3:GetObject"], resources=[f"{store_bucket_arn}/{RELEASES_PREFIX}*"]),
         iam.PolicyStatement(sid="ApprovalRecord", actions=["codepipeline:ListActionExecutions", "codepipeline:GetPipelineExecution"], resources=[_arn("codepipeline", PIPELINE_NAME)]),

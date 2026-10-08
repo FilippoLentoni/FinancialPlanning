@@ -74,6 +74,15 @@ def test_synthetic_lifecycle_end_to_end(deployed: dict[str, Any]) -> None:  # pr
     run_key = run_key_from(ENV, os.environ.get("FINPLAN_RELEASE_ID"), (os.environ.get("CODEBUILD_BUILD_ID") or "manual").rsplit(":", 1)[-1][:8], now.strftime("%Y%m%d%H%M%S"))
     result = run_lifecycle(deployed["transport"], run_key=run_key, dataset_id=deployed["cfg"].dataset_id, today=now.date(), parallel=_parallel)
     assert result.execution_id.startswith("exe_") and result.checksum.startswith("sha256:")
+    # Publish the approved synthetic snapshot this run used, so consumer repos' deployed suites
+    # (FinanceModel) have a fresh, approved input without operator action.
+    if result.input_snapshot_id:
+        deployed["session"].client("ssm").put_parameter(
+            Name=f"/finplan/{ENV}/financialplanning/config/integration-snapshot-id",
+            Value=result.input_snapshot_id,
+            Type="String",
+            Overwrite=True,
+        )
 
 
 @pytest.mark.skipif(ENV != "gamma", reason="gamma isolation suite (task 11.3)")
