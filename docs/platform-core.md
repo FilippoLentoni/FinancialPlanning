@@ -9,7 +9,7 @@ the details; this page is the map.
 | Path | Contents |
 |---|---|
 | `pyproject.toml`, `uv.lock` | uv project, Python 3.12; `finplan-contracts` pinned by version and wheel digest |
-| `contracts-pin.json`, `vendor/finplan-contracts/` | the contract pin and the pinned wheel (0.2.2, built from `contracts/python`, beta-only until 1.0.0 is published) |
+| `contracts-pin.json`, `vendor/finplan-contracts/` | the contract pin and the pinned wheel (1.0.0, built from `contracts/python` and vendored; published to the contract registry by the build stage once the registry exists) |
 | `platform/finplan_platform/core/` | operations and shared interfaces |
 | `platform/finplan_platform/handlers/` | thin Lambda adapters (API, scheduler, sweep) |
 | `platform/finplan_platform/providers/`, `excel/` | market-data adapters, workbook import/export |

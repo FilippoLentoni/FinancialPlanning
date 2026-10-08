@@ -37,7 +37,7 @@
 # Untaggable helper types are attributed to their parent construct (cdk_generated_helpers below).
 
 version: 1
-source: openspec/changes/establish-cross-repo-contracts/design.md (D1, D4, D5, D10, D11, D12, D13)
+source: openspec/changes/establish-cross-repo-contracts/design.md (D1, D4, D5, D10, D11, D12, D13, D16)
 repositories: [financialplanning, financemodel, financelambdastool, financeagent]
 
 resources:
@@ -175,6 +175,7 @@ resources:
       - /finplan/shared/financialplanning/config/budget-allocation
       - /finplan/shared/financialplanning/config/budget-state
       - /finplan/<env>/<repo>/config/budget-enforced-role-names
+      - /finplan/shared/<repo>/config/budget-enforced-role-names (account-level tooling role names, 1.0.0, D16)
     scope: shared
     environment_data: false
     resource_types:
@@ -188,7 +189,7 @@ resources:
       - AWS::SNS::TopicPolicy
       - AWS::SNS::Subscription
     logical_roles: [project-budget, budget-action, budget-deny-policy, budget-state-writer, budget-alert-topic]
-    decisions: [D1, D4, D10, D11]
+    decisions: [D1, D4, D10, D11, D16]
 
   - id: cost-allocation-tag-keys
     resource: Cost-allocation tag keys (project, owner-repo, environment, logical-role, run-id)
@@ -225,9 +226,10 @@ resources:
     reference: /finplan/shared/financialplanning/contract/registry-ref
     scope: shared
     environment_data: false
-    resource_types: [AWS::CodeArtifact::Domain, AWS::CodeArtifact::Repository]
+    # AWS::SSM::Parameter (1.0.0, D16): the registry-ref parameter the tooling stack publishes
+    resource_types: [AWS::CodeArtifact::Domain, AWS::CodeArtifact::Repository, AWS::SSM::Parameter]
     logical_roles: [contract-registry-domain, contract-registry]
-    decisions: [D1, D3, D10]
+    decisions: [D1, D3, D10, D16]
 
   - id: website
     resource: Website (plan UI)
@@ -259,9 +261,11 @@ resources:
       - /finplan/<env>/financemodel/job/*
       - /finplan/<env>/financemodel/job/job-role-ref (per-environment job-execution role, named in the platform's snapshot read and staging write grants)
     scope: environment
-    resource_types: [AWS::SageMaker::Pipeline]
-    logical_roles: [sagemaker-job-definition, sagemaker-pipeline]
-    decisions: [D1]
+    # AWS::IAM::Role / job-execution-role (1.0.0, D16): the per-environment job-execution role
+    # finplan-<env>-financemodel-job-execution-role (research boundary) named by job-role-ref
+    resource_types: [AWS::SageMaker::Pipeline, AWS::IAM::Role]
+    logical_roles: [sagemaker-job-definition, sagemaker-pipeline, job-execution-role]
+    decisions: [D1, D16]
 
   - id: financemodel-ecr-repositories
     resource: FinanceModel ECR repositories (account-level, immutable digest-addressed images)
@@ -280,9 +284,11 @@ resources:
     consumers: [financelambdastool, financialplanning-production-runs]
     reference: /finplan/<env>/financemodel/api/job-endpoint
     scope: environment
-    resource_types: [AWS::ApiGateway::RestApi, AWS::ApiGatewayV2::Api]
+    # AWS::ApiGateway::Deployment and ::Stage (1.0.0, D16): the IAM-authenticated job REST API's
+    # deployment and stage (an OpenAPI-body RestApi synthesizes both)
+    resource_types: [AWS::ApiGateway::RestApi, AWS::ApiGatewayV2::Api, AWS::ApiGateway::Deployment, AWS::ApiGateway::Stage]
     logical_roles: [job-api]
-    decisions: [D1, D2]
+    decisions: [D1, D2, D16]
 
   - id: model-registry
     resource: Model artifacts and model registry (mints model_version)
@@ -290,9 +296,11 @@ resources:
     consumers: [financialplanning-lineage, financelambdastool]
     reference: /finplan/<env>/financemodel/model/registry-ref
     scope: environment
-    resource_types: [AWS::SageMaker::ModelPackageGroup, AWS::S3::Bucket]
+    # AWS::S3::BucketPolicy (1.0.0, D16): the registry bucket policy (TLS only, other environments
+    # denied, write-once records, no deletes)
+    resource_types: [AWS::SageMaker::ModelPackageGroup, AWS::S3::Bucket, AWS::S3::BucketPolicy]
     logical_roles: [model-registry, model-artifact-bucket]
-    decisions: [D1, D2]
+    decisions: [D1, D2, D16]
 
   - id: job-control-plane
     resource: >-
@@ -541,16 +549,18 @@ resources:
 
   - id: pipeline-financemodel
     resource: >-
-      FinanceModel CodePipeline, CodeBuild projects, pipeline artifact bucket and its policy, and the
+      FinanceModel CodePipeline, CodeBuild projects and their log groups, pipeline artifact bucket and its policy, and the
       account-level pipeline, build and deploy roles (tagged environment shared, shared boundary)
     owner: financemodel
     consumers: []
     reference: n/a
     scope: shared
     environment_data: false
-    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role]
+    # AWS::Logs::LogGroup (1.0.0, D16): the explicit 30-day CodeBuild project log groups, tagged
+    # logical-role pipeline-build-project (as 0.2.1 did for the FinancialPlanning row)
+    resource_types: [AWS::CodePipeline::Pipeline, AWS::CodeBuild::Project, AWS::S3::Bucket, AWS::S3::BucketPolicy, AWS::IAM::Role, AWS::Logs::LogGroup]
     logical_roles: [pipeline, pipeline-build-project, pipeline-artifact-bucket, pipeline-role, deploy-role]
-    decisions: [D1, D6]
+    decisions: [D1, D6, D16]
 
   - id: pipeline-environment-roles-financemodel
     resource: >-

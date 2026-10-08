@@ -29,7 +29,8 @@ re-implemented here); this entry point supplies the platform specifics:
    ``/finplan/shared/financialplanning/config/budget-allocation`` (:func:`ensure_budget_allocation`,
    COST-06: written only when absent, a user-set value is preserved, an allocation above the
    ceiling stops the bootstrap) - then ``npx aws-cdk@2 deploy --all`` of the filtered assembly with
-   the human-supplied notification address and the published ``budget-enforced-role-names``.
+   the human-supplied notification address and the published ``budget-enforced-role-names``
+   (each repository's account-level ``shared`` list plus its beta, gamma and prod lists; contracts D16).
 7. **Source-stage dry run** (contract): an execution that must fetch ``main`` before the stages
    after Source are enabled; on failure it stops with the extend-the-GitHub-App-installation message.
 
@@ -218,19 +219,23 @@ def ensure_budget_allocation(ssm: Any, ceiling_usd: float) -> AllocationResult:
 
 
 def published_enforced_role_names(ssm: Any) -> list[str]:
-    """Role names every repository published for the budget action (contract D4; read-only)."""
+    """Role names every repository published for the budget action (contract D4, D16; read-only).
+
+    Per repository: the account-level list ``/finplan/shared/<repo>/config/budget-enforced-role-names``
+    (its tooling roles, written by that repository's bootstrap) and the beta, gamma and prod lists
+    ``/finplan/<env>/<repo>/config/budget-enforced-role-names`` (written by its pipeline). Missing
+    parameters are skipped; an invalid value stops the bootstrap.
+    """
     names: list[str] = []
-    for env in contract_ssm.ENVIRONMENTS:
-        for repo in contract_ssm.REPOS:
-            path = contract_ssm.build(env, repo, "config", "budget-enforced-role-names")
-            value = _get(ssm, path)
-            if value is None:
-                continue
-            problems = contract_ssm.validate_value(path, value)
-            if problems:
-                raise BootstrapStop("budget-roles", f"{path}: " + "; ".join(problems))
-            parsed = json.loads(value) if value.strip().startswith("[") else [v.strip() for v in value.split(",")]
-            names += [n for n in parsed if n]
+    for path in contract_ssm.budget_enforced_role_name_keys():
+        value = _get(ssm, path)
+        if value is None:
+            continue
+        problems = contract_ssm.validate_value(path, value)
+        if problems:
+            raise BootstrapStop("budget-roles", f"{path}: " + "; ".join(problems))
+        parsed = json.loads(value) if value.strip().startswith("[") else [v.strip() for v in value.split(",")]
+        names += [n for n in parsed if n]
     return sorted(dict.fromkeys(names))
 
 

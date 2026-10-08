@@ -25,11 +25,40 @@ of contracts". Design: D3, D4, and Risks ("Contract churn before 1.0").
 
 ## Where the package comes from
 
-The registry is CodeArtifact (design D3). Its reference is
-`/finplan/shared/financialplanning/contract/registry-ref`. Build stages authenticate with their
-IAM role, so public repositories never need registry credentials. The domain, repository and
-endpoint are resolved at build time from that parameter and are never written into a repository
-file.
+The registry is CodeArtifact (design D3, D16): domain `finplan`, repository `contracts`, declared
+in the FinancialPlanning tooling stack. Its reference is
+`/finplan/shared/financialplanning/contract/registry-ref`, a JSON value with `domain`,
+`repository`, `region` and `formats` (parse it with `finplan_contracts.registry.parse_registry_ref`).
+Build stages authenticate with their IAM role, so public repositories never need registry
+credentials. The domain owner is the build's own account; the endpoint is resolved at build time
+(`aws codeartifact get-repository-endpoint`) and is never written into a repository file.
+
+**Access.** A consumer's build roles must be named `finplan-shared-<repo>-*` (the registry's
+resource policies admit that pattern, for reads only) and carry the identity policy
+`finplan_contracts.registry.read_policy()` (authorization token, endpoint, read, and
+`sts:GetServiceBearerToken` for CodeArtifact). Install with an explicit index for the contract
+package only, so no public package can shadow it, for example with uv:
+
+```toml
+[[tool.uv.index]]
+name = "finplan"
+url = "https://<domain>-<domain-owner>.d.codeartifact.<region>.amazonaws.com/pypi/contracts/simple/"
+explicit = true
+
+[tool.uv.sources]
+finplan-contracts = { index = "finplan" }
+```
+
+The URL above is a placeholder: the build composes it from the registry reference and its own
+account, and authenticates with `UV_INDEX_FINPLAN_USERNAME=aws` and
+`UV_INDEX_FINPLAN_PASSWORD=$(aws codeartifact get-authorization-token ...)`. Until the registry is
+provisioned, consumers vendor the platform-built wheel byte for byte (same version, same SHA-256).
+
+**Publication.** Only the FinancialPlanning build stage publishes, after every gate passed
+(`scripts/publish_contracts.py` in that repository). A version is published once: if it already
+exists, the stored asset must have the same SHA-256 (the npm tarball may instead match by its file
+contents), otherwise the build fails. No role may delete, dispose or change the status of a
+published version.
 
 ## Example pin
 
@@ -91,6 +120,9 @@ finplan-conformance conformance --mode consumer --expect-version 1.0.0
 
 - Pin format, `digest verify`, consumer conformance and the manifest fields are implemented and
   were tested offline.
+- **1.0.0 (D16).** Contracts 1.0.0 is the first stable release, so gamma and prod consumers can
+  pin it. The registry and the publish step are implemented and tested offline; they take effect
+  after the FinancialPlanning tooling bootstrap is re-run (a human step).
 - **Pending on bootstrap.** The example pin can only be shown to resolve from CodeArtifact in
   **beta** after the contract publish step (task 7.3) and the FinancialPlanning tooling bootstrap
   (task 10.5) have run. That bootstrap was approved in principle on 2026-10-07 (D12) and runs

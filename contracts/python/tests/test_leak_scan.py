@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from finplan_contracts import conformance, leak_scan
-from finplan_contracts.leak_scan import scan_paths, scan_text
+from finplan_contracts.leak_scan import DEFAULT_EXCLUDE_DIRS, scan_paths, scan_text
 
 from conftest import CONTRACTS
 
@@ -80,8 +80,12 @@ def test_env08_jev_secret_ref_holds_only_the_name():
 
 
 def test_own03_whole_repository_passes():
-    """OWN-03 / tasks 1.4, 10.4, 14.2: the scan passes over this whole repository."""
-    count, findings = scan_paths([REPO_ROOT])
+    """OWN-03 / tasks 1.4, 10.4, 14.2: the scan passes over this whole repository.
+
+    Untracked build products (git-ignored) are excluded as the platform's leak-scan gate does: a
+    release synth leaves third-party Lambda dependency bundles in ``.build/`` for its assembly.
+    """
+    count, findings = scan_paths([REPO_ROOT], exclude_dirs=DEFAULT_EXCLUDE_DIRS | {".build", "build-output", "cdk.out.bootstrap"})
     assert count > 100
     assert findings == [], [str(f) for f in findings[:20]]
 

@@ -33,8 +33,9 @@ and the design differ, the design wins.
 10. [Contracts 0.2.0: platform verification fixes (D13)](#contracts-020-platform-verification-fixes-d13) (tasks 15.x)
 11. [Contracts 0.2.1: dead deny entries and pipeline log groups (D14)](#contracts-021-dead-deny-entries-and-pipeline-log-groups-d14) (tasks 16.x)
 12. [Contracts 0.2.2: the budget action can reset its own action (D15)](#contracts-022-the-budget-action-can-reset-its-own-action-d15) (tasks 17.x)
-13. [Open-questions register](#open-questions-register) (task 10.4)
-14. Procedures in [`docs/`](docs/):
+13. [Contracts 1.0.0: first stable release, FinanceModel rows and the contract registry (D16)](#contracts-100-first-stable-release-financemodel-rows-and-the-contract-registry-d16) (tasks 18.x)
+14. [Open-questions register](#open-questions-register) (task 10.4)
+15. Procedures in [`docs/`](docs/):
     - [Local, credential-free testing with fixtures](docs/local-testing.md) (task 6.6)
     - [Consumer pinning and the 0.x beta-only rule](docs/consumer-pinning.md) (task 7.4)
     - [Pipeline standard](docs/pipeline-standard.md) (task 10.1)
@@ -154,13 +155,13 @@ tooling, and `finplan-conformance ownership-check` reads it.
 | Ingestion service | FinancialPlanning | FinanceLambdasTool `refresh_market_data`, scheduler | `/finplan/<env>/financialplanning/api/ingestion-endpoint` |
 | Daily EventBridge Scheduler (America/New_York) | FinancialPlanning | none | `/finplan/<env>/financialplanning/config/ingest-schedule` (OQ-6) |
 | Contract package | FinancialPlanning | all repos | Pinned version plus SHA-256 digest |
-| Project budget (USD 50 ceiling, alerts 50/80/100%), deny action at 100%, budget-state writer, default allocation | FinancialPlanning (tooling stack, `shared`) | all repos | `/finplan/shared/financialplanning/config/{cost-ceiling-usd,budget-allocation,budget-state}`; `/finplan/<env>/<repo>/config/budget-enforced-role-names` |
+| Project budget (USD 50 ceiling, alerts 50/80/100%), deny action at 100%, budget-state writer, default allocation | FinancialPlanning (tooling stack, `shared`) | all repos | `/finplan/shared/financialplanning/config/{cost-ceiling-usd,budget-allocation,budget-state}`; `/finplan/<env>/<repo>/config/budget-enforced-role-names` (per environment, written by the pipeline) and `/finplan/shared/<repo>/config/budget-enforced-role-names` (account-level tooling roles, written by the repo's bootstrap; 1.0.0) |
 | Cost-allocation tag keys | FinancialPlanning (contract package) | all repos | `project`, `owner-repo`, `environment`, `logical-role`, `run-id` |
 | Permission-boundary managed policies (`finplan-<env>-permission-boundary`, `finplan-<env>-research-permission-boundary`, `finplan-shared-permission-boundary`) | FinancialPlanning (tooling stack, `shared`, pipeline tooling) | every pipeline-created role | Policy names from the contract package; ARNs built at deploy time from pseudo parameters |
 | Research workspace storage, evaluation datasets | FinanceModel | none outside FinanceModel | n/a |
-| SageMaker job definitions, containers, ECR repos, SageMaker Pipelines | FinanceModel | FinanceLambdasTool (via the job interface), platform grants | `/finplan/<env>/financemodel/job/*`; the job-execution role at `/finplan/<env>/financemodel/job/job-role-ref` (snapshot read and staging write grants) |
-| Job submission/status/result interface (mints `run_id`) and job control plane | FinanceModel | FinanceLambdasTool, platform | `/finplan/<env>/financemodel/api/job-endpoint`; the job API handler role at `/finplan/<env>/financemodel/job/job-api-role-ref` (may read `GET /v1/staged-outputs/*`) |
-| Model artifacts and registry (mints `model_version`) | FinanceModel | platform (lineage), FinanceLambdasTool | `/finplan/<env>/financemodel/model/registry-ref` |
+| SageMaker job definitions, containers, ECR repos, SageMaker Pipelines, the per-environment job-execution role (`job-execution-role`, 1.0.0) | FinanceModel | FinanceLambdasTool (via the job interface), platform grants | `/finplan/<env>/financemodel/job/*`; the job-execution role at `/finplan/<env>/financemodel/job/job-role-ref` (snapshot read and staging write grants) |
+| Job submission/status/result interface (mints `run_id`; REST API with its deployment and stage, 1.0.0) and job control plane | FinanceModel | FinanceLambdasTool, platform | `/finplan/<env>/financemodel/api/job-endpoint`; the job API handler role at `/finplan/<env>/financemodel/job/job-api-role-ref` (may read `GET /v1/staged-outputs/*`) |
+| Model artifacts and registry (mints `model_version`; registry bucket policy, 1.0.0) | FinanceModel | platform (lineage), FinanceLambdasTool | `/finplan/<env>/financemodel/model/registry-ref` |
 | Self-hosted Qwen3.6-27B serving lifecycle, concurrency lease, staged weight copy | FinanceModel | FinanceModel agent-swarm strategy | Internal. The other project's existing stack is **external and not adopted** |
 | Promotion-criteria store, explanation-evidence artifacts | FinanceModel | FinanceAgent (via tool results) | Trusted artifact refs from `get_job_result` |
 | Account-level SageMaker instance quotas | **external** | FinanceModel | Per-environment lease plus quota-aware requeue; no shared lease |
@@ -173,10 +174,10 @@ tooling, and `finplan-conformance ownership-check` reads it.
 | Bedrock model access (Claude Opus 5 via `us.anthropic.claude-opus-5`) | **external** | FinanceAgent runtime role | Model ID from the FinanceAgent config parameter |
 | Market-data provider source (`yfinance`) | **external** | FinancialPlanning ingestion **only** | Pinned library version; provider selection in `/finplan/<env>/financialplanning/config/*`; no secret |
 | TypeSafe Jev API key secret (pre-existing, account-level) | FinanceModel (reference) | FinanceModel Jev strategy job roles only | Secret name `finplan/shared/financemodel/jev-api-key`, published at `/finplan/shared/financemodel/secret-ref/jev-api-key` |
-| CodePipeline, CodeBuild projects, pipeline artifact bucket and its policy, account-level pipeline/build/deploy roles | each repo for itself (`shared`) | none | n/a |
+| CodePipeline, CodeBuild projects and their log groups (FinancialPlanning since 0.2.1, FinanceModel since 1.0.0), pipeline artifact bucket and its policy, account-level pipeline/build/deploy roles | each repo for itself (`shared`) | none | n/a |
 | Per-environment deploy, CloudFormation execution and stage roles (tagged with their environment, environment boundary) | each repo for itself (`environment`) | none | n/a |
 | GitHub CodeConnection (existing, AVAILABLE, reused) | **external** | each pipeline | `/finplan/shared/<repo>/config/codeconnection-ref` |
-| CodeArtifact domain/repository for the contract package | FinancialPlanning | all build stages | `/finplan/shared/financialplanning/contract/registry-ref` |
+| CodeArtifact domain `finplan` and repository `contracts` for the contract package (declared in the FinancialPlanning tooling stack, 1.0.0) | FinancialPlanning | all build stages (read: `finplan-shared-<repo>-*` build roles) | `/finplan/shared/financialplanning/contract/registry-ref` |
 | Website (plan UI) | **OQ-10**, provisionally FinancialPlanning | users | Plan API only |
 
 The OpenAI secret reference and the per-repo budget-allocation keys were retired on 2026-10-07
@@ -680,6 +681,59 @@ A patch release after a production incident. No schema changes; the compatibilit
   `UpdateAssumeRolePolicy`, `PutRolePolicy`, `AttachRolePolicy`, `PutRolePermissionsBoundary`
   and `PassRole` on that name pattern, so no automation can obtain a role that matches the
   exemption.
+
+## Contracts 1.0.0: first stable release, FinanceModel rows and the contract registry (D16)
+
+The first stable release. 1.0.0 may be pinned in **beta, gamma and prod** (the 0.x beta-only
+rule no longer applies to consumers that re-pin). Schemas are unchanged: the compatibility gate
+against 0.2.2 passes as a major bump with no schema change (`finplan-conformance compat --old
+<0.2.2 data> --new contracts`), so 0.2.2 records stay valid under the same `v1` `$id`s. Producers
+that hold 0.2.2 records keep serving major 0 next to 1 (the platform does, `served_contract_majors`
+`[0, 1]`).
+
+- **Ownership matrix: the FinanceModel rows its verification asked for.** Each pair maps to a
+  FinanceModel row, so FinanceModel can deploy its job API and job role with zero ownership
+  problems. Nothing else changed for FinanceModel.
+
+  | Row | Added |
+  |---|---|
+  | `job-interface` | `AWS::ApiGateway::Deployment`, `AWS::ApiGateway::Stage` (the job REST API's deployment and stage) |
+  | `sagemaker-job-definitions` | logical role `job-execution-role` and `AWS::IAM::Role` (the per-environment job-execution role named by `job-role-ref`) |
+  | `model-registry` | `AWS::S3::BucketPolicy` (the registry bucket policy) |
+  | `pipeline-financemodel` | `AWS::Logs::LogGroup` (explicit CodeBuild project log groups, `pipeline-build-project`, as 0.2.1 did for FinancialPlanning) |
+
+- **Contract registry.** The `contract-registry` row also lists `AWS::SSM::Parameter`: the
+  FinancialPlanning tooling stack declares the CodeArtifact domain `finplan`, the repository
+  `contracts` (no upstream; retained on stack deletion) and the reference parameter
+  `/finplan/shared/financialplanning/contract/registry-ref`. Its value is JSON text with
+  `domain`, `repository`, `region` and `formats` (`pypi`, `npm`); it never holds an account ID or
+  an endpoint (`finplan_contracts.registry.parse_registry_ref`). The domain owner is the reader's
+  own account (single account, D5).
+  - Packages: `finplan-contracts` (pypi) and `@finplan/contracts` (npm).
+  - Publishing: only the FinancialPlanning build stage, after every gate passed. A version is
+    published once. When the version already exists, the step compares SHA-256 digests (the wheel
+    byte for byte; the npm tarball byte for byte or, failing that, by its file contents) and either
+    does nothing or fails the build. It never overwrites, deletes or disposes a version.
+  - Reading: `finplan_contracts.registry.read_policy()` is the identity policy a consumer attaches
+    to its build roles (`codeartifact:GetAuthorizationToken` on the domain,
+    `GetRepositoryEndpoint` and `ReadFromRepository` on the repository, `sts:GetServiceBearerToken`
+    for CodeArtifact only, and a read of the reference). The domain and repository resource
+    policies admit the build roles of the other repositories by name pattern
+    (`finplan-shared-<repo>-*`, this account only), for reads only.
+- **SSM convention: account-level tooling role names.** New registered key
+  `/finplan/shared/<repo>/config/budget-enforced-role-names` (value: role names, written only by
+  that repository's bootstrap). It lists a repository's account-level tooling roles, for example
+  its pipeline and build roles, so that the budget action can deny them. The FinancialPlanning
+  bootstrap reads, for every repository, the `shared` list plus the beta, gamma and prod lists
+  (`finplan_contracts.ssm.budget_enforced_role_name_keys`). The budget template fragment takes the
+  four `shared` lists too.
+- **Bootstrap cost estimate.** `AWS::CodeArtifact::Domain` is listed as not billed (its
+  repositories bill storage and requests; the repository has a pricing rule).
+
+Consumers: re-pin `finplan-contracts==1.0.0` by version and SHA-256 (see
+[docs/consumer-pinning.md](docs/consumer-pinning.md)). Until the registry is provisioned (the
+FinancialPlanning tooling bootstrap re-run), the wheel built reproducibly by the platform is
+vendored byte for byte; afterwards the same bytes resolve from CodeArtifact.
 
 ## Open-questions register
 

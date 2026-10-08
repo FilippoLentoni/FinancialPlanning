@@ -82,7 +82,7 @@ The total AWS cost ceiling SHALL be read from `/finplan/shared/financialplanning
 - **THEN** its cost is recorded separately as TypeSafe prepaid-credit usage and is not counted against the AWS ceiling or any category
 
 ### Requirement: Budget alerts and enforcement action
-The project budget SHALL notify a human-configured target at 50%, 80% and 100% of actual spend against the ceiling and MUST, at 100%, apply a budget action that attaches a deny policy blocking new billable compute, model invocations and pipeline executions to the roles published at `/finplan/<env>/<repo>/config/budget-enforced-role-names`. Only a human MAY remove the deny.
+The project budget SHALL notify a human-configured target at 50%, 80% and 100% of actual spend against the ceiling and MUST, at 100%, apply a budget action that attaches a deny policy blocking new billable compute, model invocations and pipeline executions to the roles each repository publishes as `budget-enforced-role-names`. Only a human MAY remove the deny.
 
 #### Scenario: Ceiling reached
 - **WHEN** actual project spend reaches 100% of the ceiling
@@ -91,6 +91,10 @@ The project budget SHALL notify a human-configured target at 50%, 80% and 100% o
 #### Scenario: Eighty percent alert
 - **WHEN** actual project spend crosses 80% of the ceiling
 - **THEN** the notification target receives an alert and no deny is applied
+
+#### Scenario: Environment and account-level role names
+- **WHEN** a repository publishes environment role names at `/finplan/<env>/<repo>/config/budget-enforced-role-names` (written by its pipeline) and account-level tooling role names at `/finplan/shared/<repo>/config/budget-enforced-role-names` (written only by its bootstrap)
+- **THEN** the budget action's role list includes both after the next FinancialPlanning bootstrap
 
 #### Scenario: Only the budget action undoes its own deny
 - **WHEN** a human reverses the budget action, or AWS Budgets resets it

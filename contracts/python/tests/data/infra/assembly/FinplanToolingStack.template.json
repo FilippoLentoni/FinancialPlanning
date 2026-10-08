@@ -21,6 +21,26 @@
         "ANNUALLY"
       ]
     },
+    "EnforcedRoleNamesSharedFinancialplanning": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/shared/financialplanning/config/budget-enforced-role-names",
+      "Description": "Account-level tooling role names financialplanning publishes for the budget action (written by its bootstrap)."
+    },
+    "EnforcedRoleNamesSharedFinancemodel": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/shared/financemodel/config/budget-enforced-role-names",
+      "Description": "Account-level tooling role names financemodel publishes for the budget action (written by its bootstrap)."
+    },
+    "EnforcedRoleNamesSharedFinancelambdastool": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/shared/financelambdastool/config/budget-enforced-role-names",
+      "Description": "Account-level tooling role names financelambdastool publishes for the budget action (written by its bootstrap)."
+    },
+    "EnforcedRoleNamesSharedFinanceagent": {
+      "Type": "AWS::SSM::Parameter::Value<List<String>>",
+      "Default": "/finplan/shared/financeagent/config/budget-enforced-role-names",
+      "Description": "Account-level tooling role names financeagent publishes for the budget action (written by its bootstrap)."
+    },
     "EnforcedRoleNamesBetaFinancialplanning": {
       "Type": "AWS::SSM::Parameter::Value<List<String>>",
       "Default": "/finplan/beta/financialplanning/config/budget-enforced-role-names",
@@ -356,6 +376,38 @@
                   "Fn::Join": [
                     ",",
                     [
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesSharedFinancialplanning"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesSharedFinancemodel"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesSharedFinancelambdastool"
+                          }
+                        ]
+                      },
+                      {
+                        "Fn::Join": [
+                          ",",
+                          {
+                            "Ref": "EnforcedRoleNamesSharedFinanceagent"
+                          }
+                        ]
+                      },
                       {
                         "Fn::Join": [
                           ",",

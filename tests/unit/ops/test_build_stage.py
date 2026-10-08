@@ -186,6 +186,23 @@ def test_boundary_gate_needs_no_pseudo_parameter_workaround() -> None:
     assert not hasattr(build_gates, "normalize_pseudo") and not hasattr(build_gates, "load_known_gaps")
 
 
+def test_both_language_conformance_runs_in_the_build_stage_6_5b() -> None:
+    """Contracts task 6.5b (CS-10): the pre gates run the Python and TypeScript conformance suites."""
+    assert ("conformance-ts", "pre") in {(n, st) for n, st, _ in build_gates.GATES}
+    if shutil.which("npm") is None:  # pragma: no cover - the build image and the dev host have Node.js
+        pytest.skip("needs node/npm")
+    (res,) = build_gates.run_gates(build_gates.GateContext(root=ROOT), only=["conformance-ts"])
+    assert res.ok, res.problems
+    notes = " ".join(res.notes)
+    assert "python producer: PASS" in notes and "typescript producer: PASS" in notes and "typescript consumer: PASS" in notes
+
+
+def test_conformance_ts_fails_without_node(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _name: None)
+    (res,) = build_gates.run_gates(build_gates.GateContext(root=ROOT), only=["conformance-ts"])
+    assert not res.ok and any("node/npm not found" in p for p in res.problems)
+
+
 def test_unknown_gate_is_rejected() -> None:
     with pytest.raises(ValueError):
         build_gates.run_gates(build_gates.GateContext(), only=["nope"])

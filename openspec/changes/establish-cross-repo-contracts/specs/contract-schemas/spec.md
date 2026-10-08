@@ -77,8 +77,12 @@ The package SHALL follow semver. A minor release MUST only add optional fields, 
 Published contract versions SHALL be immutable and carry a SHA-256 digest. Consumers MUST pin an exact version and digest in their build configuration and MUST record the pinned version in their release manifest entry.
 
 #### Scenario: Republish attempt
-- **WHEN** the pipeline tries to publish a version number that already exists
+- **WHEN** the pipeline tries to publish a version number that already exists with an artifact whose digest differs from the published one
 - **THEN** publication fails and the existing version remains unchanged
+
+#### Scenario: Unchanged version rebuilt
+- **WHEN** a later build produces the already published version with the same digest
+- **THEN** nothing is published, the existing version remains unchanged and the build continues
 
 #### Scenario: Digest mismatch
 - **WHEN** a consumer build downloads the pinned version and its digest differs from the pinned digest

@@ -78,6 +78,7 @@ in the tooling stack (`infra/stacks/pipeline.py`), and its stages run in this or
 | `leak-scan` | pre | `finplan_contracts.leak_scan` over the repository |
 | `copied-id` | pre | `finplan_contracts.copied_id` (`contracts/`, the producer source, is excluded; `openspec/` is scanned) |
 | `conformance` | pre | `finplan-conformance conformance --mode consumer --expect-version <pin>` |
+| `conformance-ts` | pre | contracts task 6.5b (CS-10): Python producer suite over `contracts/`, then in `contracts/typescript` `npm ci` (when `node_modules` is absent), `npm run build`, and the TypeScript runner in producer mode and in consumer mode `--expect-version <pin>`. Needs Node.js: the build image installs nodejs 22 (`runtime-versions`), so this gate needs no tooling-stack change |
 | `unit` | pre | `pytest tests/unit tests/contract -m "not live_provider"` |
 | `ownership` | post | `finplan_contracts.ownership` per template. Every problem fails the gate; there is no accepted-gap list |
 | `boundaries` | post | `check_role_boundaries` (ENV-18) and `check_shared_resources` (ENV-16), on the templates as synthesized |
@@ -98,6 +99,39 @@ A plain `scripts/synth.py --out cdk.out` packages the source tree, and the `lamb
 rejects that assembly. To check that the handlers import from a bundle alone on this machine, build
 for the host platform: `uv run python scripts/lambda_bundle.py --out /tmp/b --local --import-check`
 (the unit suite does the same in `tests/unit/ops/test_lambda_bundle.py`).
+
+## Contract registry and publish step (contracts task 7.3)
+
+The tooling stack declares the contract registry (contracts D3, D16; matrix row
+`contract-registry`): the CodeArtifact domain `finplan`, the repository `contracts` (no upstream;
+both retained when the stack is deleted) and `/finplan/shared/financialplanning/contract/registry-ref`
+(JSON: domain, repository, region, formats). The other repositories' build roles
+(`finplan-shared-<repo>-*`, this account) may read it through the domain and repository resource
+policies; they attach `finplan_contracts.registry.read_policy()` to their own build roles for the
+identity side (`sts:GetServiceBearerToken` has no resource policy).
+
+After `scripts/build_stage.py` succeeds (every gate passed, BuildOutput packaged), the build spec runs
+`scripts/publish_contracts.py --rollback-to "$ROLLBACK_TO_RELEASE_ID"` (a rollback publishes
+nothing). For the pinned, vendored wheel (`contracts-pin.json`; its version must equal
+`contracts/VERSION`, and the `contracts-pin` gate proved it is the reproducible build of
+`contracts/python`) and for the `npm pack` tarball of `contracts/typescript`:
+
+1. `DescribePackageVersion`. Not found: publish (`uv publish` with `UV_PUBLISH_*` variables, or
+   `npm publish --ignore-scripts` with a temporary npm config); the 15-minute CodeArtifact token is
+   never on a command line or in the log. Then the stored asset must have the local SHA-256.
+2. Found: the stored wheel must have the same SHA-256 and be the only asset; the stored npm
+   `package.tgz` must have the same SHA-256 or the same file contents (archive metadata may differ
+   across Node.js releases). Equal: `already published`, nothing is written. Different: the build
+   **fails**, because a published version is immutable; publish a new version instead.
+
+The build role's grant is `finplan_contracts.registry.publish_policy()`: an authorization token
+for the domain, read and publish in the `contracts` repository and its packages, the registry
+reference, and nothing that deletes, disposes or changes the status of a version. The vendored pin
+remains the platform's build input; the registry serves the same bytes to the other repositories.
+
+**Takes effect after one human bootstrap re-run** ([bootstrap](bootstrap.md), "Re-run for the
+contract registry"). Until then the running pipeline keeps its current build spec and build role;
+the `conformance-ts` gate already runs there, the publish step does not.
 
 ## Release manifest and published references (PIPE-04)
 
@@ -270,7 +304,9 @@ contract policy that denies:
 - Bedrock invocations;
 - pipeline executions and builds.
 
-The action applies to the tooling roles and to every published `budget-enforced-role-names`. Reads,
+The action applies to the tooling roles and to every published `budget-enforced-role-names`: per
+repository the account-level list `/finplan/shared/<repo>/config/budget-enforced-role-names` (its
+tooling roles, written by its bootstrap; contracts 1.0.0) and the beta, gamma and prod lists. Reads,
 plan reads and Lambda invocation (so ingestion still answers with `BUDGET_EXCEEDED`) are not denied.
 Only a human lifts the cap, by `REVERSE_BUDGET_ACTION` or a manual detach ([bootstrap](bootstrap.md),
 "When the cap is reached"). The action's own execution role is the only principal a boundary lets
@@ -330,8 +366,9 @@ named no IAM action (`bedrock-agentcore-control:*`, `bedrock:Converse*`).
 Still open:
 
 - **Image assets.** There is no FinancialPlanning image-repository row.
-- **Contracts version.** The pin is 0.2.2, which is beta-only. Gamma and prod need 1.0.0 once it
-  is published (task 1.2).
+- **Contract registry.** The pin is 1.0.0 (allowed in beta, gamma and prod). The registry and the
+  publish step exist in code but need the tooling bootstrap re-run before the first publish (see
+  "Contract registry and publish step").
 
 ### CloudFormation lint
 

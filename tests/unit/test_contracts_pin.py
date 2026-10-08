@@ -70,8 +70,21 @@ def test_version_range_is_rejected(tmp_path: Path) -> None:
     assert any("exactly" in p for p in check(root))
 
 
+@pytest.mark.parametrize("env", ["beta", "gamma", "prod"])
+def test_1x_pin_is_allowed_in_every_environment(env: str) -> None:
+    """Contracts 1.0.0 (D16): the stable pin may be promoted to gamma and prod."""
+    assert int(PIN["version"].split(".")[0]) >= 1
+    assert check(ROOT, env=env) == []
+    assert set(PIN["served_environments"]) == {"beta", "gamma", "prod"}
+
+
 @pytest.mark.parametrize("env", ["gamma", "prod"])
-def test_0x_pin_is_beta_only(env: str) -> None:
-    problems = check(ROOT, env=env)
-    assert PIN["version"].startswith("0.") and any("beta only" in p for p in problems)
-    assert check(ROOT, env="beta") == []
+def test_0x_pin_is_beta_only(env: str, tmp_path: Path) -> None:
+    root = _copy_root(tmp_path)
+    pin = json.loads((root / "contracts-pin.json").read_text())
+    pin["version"] = "0.2.2"
+    pin_path = root / "pin-0x.json"
+    pin_path.write_text(json.dumps(pin))
+    problems = check(root, env=env, pin_path=pin_path)
+    assert any("beta only" in p for p in problems)
+    assert not any("beta only" in p for p in check(root, env="beta", pin_path=pin_path))

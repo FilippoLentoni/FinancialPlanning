@@ -34,6 +34,11 @@ pipeline it defines. Contents:
   reverse its action (contracts 0.2.2, D15); its own policy allows attach/detach of the deny policy
   only. The action's logical ID carries a ``V2`` suffix: it replaced the action that failed its
   reset (``RESET_FAILURE``) on 2026-10-07. The bootstrap/admin identity is never in the list.
+* **Contract registry** (design P10; contracts D3, D16, task 7.3): the CodeArtifact domain
+  ``finplan`` and repository ``contracts`` (matrix row ``contract-registry``; retained on stack
+  deletion) and the reference ``/finplan/shared/financialplanning/contract/registry-ref``. The
+  other repositories' build roles (``finplan-shared-<repo>-*``) may read; the build stage of this
+  pipeline publishes each contract version once (``scripts/publish_contracts.py``).
 * **Budget-state writer** (9.2): an SNS-subscribed Lambda (inline code from
   :mod:`finplan_platform.handlers.budget_state`) that sets
   ``/finplan/shared/financialplanning/config/budget-state`` to ``enforced`` on an ACTUAL alert at
@@ -77,6 +82,7 @@ import aws_cdk as cdk
 import jsii
 from aws_cdk import Aws, CfnCondition, CfnParameter, Duration, Fn, Tags
 from aws_cdk import aws_budgets as budgets
+from aws_cdk import aws_codeartifact as codeartifact
 from aws_cdk import aws_iam as iam
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk import aws_logs as logs
@@ -88,6 +94,7 @@ from constructs import Construct, IConstruct
 from finplan_contracts import boundaries as contract_boundaries
 from finplan_contracts import budget as contract_budget
 from finplan_contracts import iam as contract_iam
+from finplan_contracts import registry as contract_registry
 from finplan_contracts import ssm as contract_ssm
 
 __all__ = [
@@ -312,6 +319,7 @@ class ToolingStack(cdk.Stack):
         self.enforced_roles: list[iam.Role] = []
         self._boundaries()
         self._budget()
+        self._contract_registry()
 
     # ------------------------------------------------------------ boundaries (design D5)
     def _managed_policy(self, cid: str, name: str, document: dict[str, Any], logical_role: str, description: str) -> iam.CfnManagedPolicy:
@@ -522,6 +530,45 @@ class ToolingStack(cdk.Stack):
         for child in self.node.find_all():  # the Lambda subscription lives under the function's scope
             if isinstance(child, sns.CfnSubscription) and child is not email:
                 _metadata_role(child, "budget-alert-topic")
+
+    # ------------------------------------------------------------ contract registry (design P10, contracts D3/D16)
+    def _contract_registry(self) -> None:
+        """CodeArtifact domain ``finplan`` and repository ``contracts`` plus the registry reference.
+
+        Matrix row ``contract-registry`` (FinancialPlanning, ``shared``). The repository has no
+        upstream, so it serves only finplan packages. Resource policies admit the other repositories'
+        build roles (``finplan-shared-<repo>-*``, this account) for reads; only the FinancialPlanning
+        build role publishes (its identity policy, :func:`infra.stacks.pipeline.build_role_statements`).
+        Both are retained on stack deletion: published versions are the contract release record
+        (``docs/bootstrap.md`` "Teardown").
+        """
+        tokens = {"partition": Aws.PARTITION, "account": Aws.ACCOUNT_ID}
+        self.registry_domain = codeartifact.CfnDomain(
+            self,
+            "ContractRegistryDomain",
+            domain_name=contract_registry.DOMAIN,
+            permissions_policy_document=contract_registry.domain_policy(**tokens),
+        )
+        tag_role(self.registry_domain, "contract-registry-domain")
+        self.registry_repository = codeartifact.CfnRepository(
+            self,
+            "ContractRegistry",
+            domain_name=self.registry_domain.attr_name,
+            repository_name=contract_registry.REPOSITORY,
+            description="finplan contract package (finplan-contracts wheel, @finplan/contracts npm package); published once per version by the FinancialPlanning build stage",
+            permissions_policy_document=contract_registry.repository_policy(**tokens),
+        )
+        tag_role(self.registry_repository, "contract-registry")
+        for res in (self.registry_domain, self.registry_repository):
+            res.apply_removal_policy(cdk.RemovalPolicy.RETAIN)
+        self.registry_ref = ssm.StringParameter(
+            self,
+            "ContractRegistryRef",
+            parameter_name=contract_registry.REGISTRY_REF_PARAMETER,
+            string_value=self.to_json_string(contract_registry.registry_ref_value(Aws.REGION, domain=self.registry_domain.attr_name, repository=self.registry_repository.attr_name)),
+            description="Contract registry reference (CodeArtifact domain, repository, region, formats); written by the tooling stack",
+        )
+        tag_role(self.registry_ref, "contract-registry")
 
     # ------------------------------------------------------------ pipeline module hooks
     def register_enforced_role(self, role: iam.Role) -> None:

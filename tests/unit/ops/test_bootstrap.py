@@ -221,6 +221,26 @@ def test_published_role_names_feed_the_budget_action(ops_assembly: Path, tmp_pat
         bootstrap.published_enforced_role_names(ssm)
 
 
+def test_shared_and_per_environment_role_names_feed_the_budget_action_D16(ops_assembly: Path, tmp_path: Path, ssm: Any) -> None:
+    """Contracts 1.0.0 (D16): each repository's account-level tooling roles come from its shared key."""
+    ssm.put_parameter(Name="/finplan/shared/financemodel/config/budget-enforced-role-names", Value="finplan-shared-financemodel-pipeline-role,finplan-shared-financemodel-pipeline-build-project-role", Type="String")
+    ssm.put_parameter(Name="/finplan/prod/financemodel/config/budget-enforced-role-names", Value='["finplan-prod-financemodel-job-execution-role"]', Type="String")
+    ssm.put_parameter(Name="/finplan/shared/financeagent/config/budget-enforced-role-names", Value="finplan-shared-financeagent-pipeline-role,finplan-shared-financemodel-pipeline-role", Type="String")
+    names = bootstrap.published_enforced_role_names(ssm)
+    assert names == [
+        "finplan-prod-financemodel-job-execution-role",
+        "finplan-shared-financeagent-pipeline-role",
+        "finplan-shared-financemodel-pipeline-build-project-role",
+        "finplan-shared-financemodel-pipeline-role",
+    ]  # sorted, duplicates removed
+    runner = FakeRunner()
+    _run(ops_assembly, tmp_path, ssm, runner=runner)
+    assert f"finplan-shared-financialplanning-tooling:AdditionalEnforcedRoleNames={','.join(names)}" in runner.calls[0]
+    ssm.put_parameter(Name="/finplan/shared/financelambdastool/config/budget-enforced-role-names", Value="arn:aws:iam::<account-id>:role/x", Type="String")
+    with pytest.raises(BootstrapStop, match="role names only"):
+        bootstrap.published_enforced_role_names(ssm)
+
+
 def test_bootstrap_assembly_contains_no_environment_stack(ops_assembly: Path, tmp_path: Path) -> None:
     out = bootstrap.bootstrap_assembly(ops_assembly, tmp_path / "b")
     names = sorted(p.name for p in out.iterdir())

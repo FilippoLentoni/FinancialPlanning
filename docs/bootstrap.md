@@ -26,7 +26,7 @@ Exactly two account-level stacks (environment `shared`), and never an environmen
 | Stack | Contents |
 |---|---|
 | `finplan-shared-financialplanning-pipeline-store` | The pipeline store bucket `finplan-shared-financialplanning-pipeline-store-<account-id>` (SSE-S3, TLS only, Block Public Access, versioned). It holds the pipeline artifacts, the content-addressed CDK file assets (`assets/`), the release ledger (`releases/`) and the staged tooling template (`bootstrap/`). Lifecycle: pipeline artifacts, `assets/` and `bootstrap/` expire after 30 days, the build cache (`cache/`) after 14, noncurrent versions after 7, and incomplete multipart uploads are aborted after 7; `releases/` never expires. The bucket is **retained** when the stack is deleted (see [Teardown](#teardown)) |
-| `finplan-shared-financialplanning-tooling` | Permission boundaries (`finplan-<env>-permission-boundary`, `finplan-<env>-research-permission-boundary` for beta, gamma and prod, and `finplan-shared-permission-boundary`); the project budget, its alerts and the SNS topic; the deny policy and the budget action; the budget-state writer Lambda; the pipeline with its scoped roles and CodeBuild projects. The writer and the four CodeBuild projects (build, and one stage project per environment) log to explicit log groups (`/aws/lambda/<function>`, `/aws/codebuild/<project>`) with 30-day retention, deleted with the stack |
+| `finplan-shared-financialplanning-tooling` | Permission boundaries (`finplan-<env>-permission-boundary`, `finplan-<env>-research-permission-boundary` for beta, gamma and prod, and `finplan-shared-permission-boundary`); the project budget, its alerts and the SNS topic; the deny policy and the budget action; the budget-state writer Lambda; the contract registry (CodeArtifact domain `finplan`, repository `contracts`, both retained on stack deletion, and `/finplan/shared/financialplanning/contract/registry-ref`); the pipeline with its scoped roles and CodeBuild projects. The writer and the four CodeBuild projects (build, and one stage project per environment) log to explicit log groups (`/aws/lambda/<function>`, `/aws/codebuild/<project>`) with 30-day retention, deleted with the stack |
 
 Scoped roles created. The account-level roles carry `environment=shared` and
 `finplan-shared-permission-boundary`; the per-environment deploy, execution and stage roles carry
@@ -35,7 +35,7 @@ Scoped roles created. The account-level roles carry `environment=shared` and
 | Role | Used by |
 |---|---|
 | `finplan-shared-financialplanning-pipeline-role` | CodePipeline |
-| `finplan-shared-financialplanning-pipeline-build-project-role` | The Build stage |
+| `finplan-shared-financialplanning-pipeline-build-project-role` | The Build stage, including the contract publish step (publish to the `contracts` repository only; no delete) |
 | `finplan-shared-financialplanning-deploy-role-<env>` | Deploy actions (the role CodePipeline assumes) |
 | `finplan-shared-financialplanning-deploy-role-<env>-exec` | CloudFormation execution. It is limited to `finplan-<env>-financialplanning-*` resources, may create only roles that carry `finplan-<env>-permission-boundary`, and writes SSM only under `/finplan/<env>/financialplanning/` |
 | `finplan-<env>-financialplanning-operator-pipeline-stage` | Manifest publishing and environment tests. It matches the environment's operator principal, so the plan API admits it |
@@ -114,10 +114,13 @@ the dry run has fetched `main`, the pipeline exists and its first run reaches be
   by setting `"scope_budget_to_project_tag": true` in `~/.finplan/bootstrap.json` (the script then passes
   `ScopeBudgetToProjectTag=true`). The tag was activated on 2026-10-07 after the first bootstrap.
 - **Budget action role names.** The action denies the roles the tooling stack creates, plus every
-  role name published at `/finplan/<env>/<repo>/config/budget-enforced-role-names` at the time of
-  the bootstrap. The platform publishes its own after each deploy (ingestion and plan-API roles).
-  Rerun the bootstrap after other repositories first publish theirs, so the action picks them up.
-  The bootstrap/admin identity is never on the list.
+  role name published at the time of the bootstrap, for each repository: the account-level list
+  `/finplan/shared/<repo>/config/budget-enforced-role-names` (its pipeline and build roles, written
+  by that repository's bootstrap; contracts 1.0.0) and the beta, gamma and prod lists
+  `/finplan/<env>/<repo>/config/budget-enforced-role-names` (written by its pipeline). The platform
+  publishes its environment lists after each deploy (ingestion and plan-API roles); its own tooling
+  roles are in the stack's list already. Rerun the bootstrap after other repositories first publish
+  theirs, so the action picks them up. The bootstrap/admin identity is never on the list.
 - **When the cap is reached,** the action attaches `finplan-budget-enforcement-deny` and the
   budget-state writer sets `/finplan/shared/financialplanning/config/budget-state` to `enforced`.
   On-demand ingestion then returns `BUDGET_EXCEEDED`, while plan reads keep working.
@@ -164,6 +167,27 @@ the dry run has fetched `main`, the pipeline exists and its first run reaches be
 - **Pipeline changes** (the tooling stack itself) are deployed only by rerunning the bootstrap.
   The pipeline never updates itself.
 
+### Re-run for the contract registry (contracts 1.0.0, 2026-10-08)
+
+Contracts 1.0.0 adds the contract registry and its publish step to the tooling stack (design P10;
+contracts D16, task 7.3; platform task 15.6). The running pipeline keeps its old build spec until a
+human re-runs the bootstrap with the usual two steps (synthesize, then `scripts/bootstrap.py`). The
+change set of `finplan-shared-financialplanning-tooling` is, compared with the deployed template:
+
+| Change | Logical ID | Type | What |
+|---|---|---|---|
+| Add | `ContractRegistryDomain` | `AWS::CodeArtifact::Domain` | Domain `finplan` (AWS-managed encryption key), resource policy: `GetAuthorizationToken` for `finplan-shared-<repo>-*` roles of the other three repositories, this account only. `DeletionPolicy: Retain` |
+| Add | `ContractRegistry` | `AWS::CodeArtifact::Repository` | Repository `contracts`, no upstream or external connection, resource policy: `GetRepositoryEndpoint` and `ReadFromRepository` for the same roles. `DeletionPolicy: Retain` |
+| Add | `ContractRegistryRef...` | `AWS::SSM::Parameter` | `/finplan/shared/financialplanning/contract/registry-ref` (JSON: domain, repository, region, formats) |
+| Modify | `BuildProject...` | `AWS::CodeBuild::Project` | Build spec only: runs `scripts/publish_contracts.py` after `scripts/build_stage.py` |
+| Modify | `BuildRoleDefaultPolicy...` | `AWS::IAM::Policy` | Build role gains the registry grant: token for the domain, `sts:GetServiceBearerToken` for CodeArtifact, read and publish in `contracts` and its packages, read of the reference |
+
+Nothing is replaced or removed; no parameter changes; the store stack is unchanged. The cost
+estimate lists the repository (storage and requests; the packages are a few hundred KB); the domain
+has no standing charge. After the re-run, the next pipeline build publishes contracts 1.0.0 (wheel
+and npm package) and logs `contract registry: published ...`; later builds log `already published`
+until `contracts/VERSION` changes. A build fails if a published version would change.
+
 ## Teardown
 
 Only when the whole project is retired. Delete the environment stacks first (beta and gamma
@@ -180,7 +204,12 @@ for stack in finplan-shared-financialplanning-tooling finplan-shared-financialpl
 done
 ```
 
-Deleting the tooling stack also deletes its log groups (`RemovalPolicy.DESTROY`). The pipeline
+Deleting the tooling stack also deletes its log groups (`RemovalPolicy.DESTROY`). The contract
+registry domain and repository are **retained** (published contract versions are the release
+record of every consumer pin): delete them by hand only when no repository pins a contract
+version any more (`aws codeartifact delete-repository --domain finplan --repository contracts`,
+then `aws codeartifact delete-domain --domain finplan`), and delete the
+`/finplan/shared/financialplanning/contract/registry-ref` parameter if it remains. The pipeline
 store bucket has `DeletionPolicy: Retain`: deleting its stack leaves the bucket and every object
 version in place, because it holds the release ledger (`releases/`). To remove it, first keep
 any release records you still need, then delete **every object version and delete marker** (the

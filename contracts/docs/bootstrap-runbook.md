@@ -79,10 +79,18 @@ not a blocker (OQ-11).
 
 ## Order across repositories
 
-1. FinancialPlanning (tooling, budget, contract registry). Then publish contracts 0.x to beta,
-   then 1.0.0.
+1. FinancialPlanning (tooling, budget, contract registry). Contracts 0.x went to beta vendored;
+   the registry was added for 1.0.0 (D16), so the FinancialPlanning bootstrap is re-run once and
+   its build stage then publishes 1.0.0.
 2. FinanceModel, then FinanceLambdasTool, then FinanceAgent, in the integration order. Each pins
-   contracts 1.x and runs its own bootstrap with this runbook and its own `repo` value.
+   contracts 1.x and runs its own bootstrap with this runbook and its own `repo` value. Each
+   bootstrap also:
+   - writes `/finplan/shared/<repo>/config/budget-enforced-role-names` with its account-level
+     tooling role names (pipeline and build roles; a bootstrap-only `shared` key, 1.0.0). Rerun the
+     FinancialPlanning bootstrap afterwards so the budget action picks them up;
+   - names its build roles `finplan-shared-<repo>-*` and attaches
+     `finplan_contracts.registry.read_policy()` to them, so they can install the pinned contract
+     package from the contract registry (`/finplan/shared/financialplanning/contract/registry-ref`).
 3. FinanceAgent's bootstrap creates the per-environment Gateway service role and publishes
    `/finplan/<env>/financeagent/agent/gateway-principal-ref`. Until then, FinanceLambdasTool
    deploys with direct-test grants only. Enabling Bedrock model access for Claude Opus 5

@@ -27,7 +27,9 @@ tooling stack (``shared``): one AWS Budgets budget whose limit comes from the
 cost-ceiling parameter, notifications at 50/80/100% of ACTUAL spend, and a budget
 action at 100% that applies :func:`enforcement_deny_policy` to every role name
 published at ``/finplan/<env>/<repo>/config/budget-enforced-role-names`` (this
-includes the FinanceAgent runtime role, so Bedrock invocations stop). The action
+includes the FinanceAgent runtime role, so Bedrock invocations stop) and at
+``/finplan/shared/<repo>/config/budget-enforced-role-names`` (each repository's
+account-level tooling roles, written by its bootstrap; 1.0.0, D16). The action
 uses ``ApprovalModel: AUTOMATIC``; reverting it is a human step (every
 permission boundary denies ``budgets:ExecuteBudgetAction`` and detaching the deny
 policy). The one exception is the action's own execution role: the shared boundary lets it
@@ -298,13 +300,17 @@ def budget_template() -> dict[str, Any]:
         "BudgetTimeUnit": {"Type": "String", "Default": "ANNUALLY", "AllowedValues": ["MONTHLY", "QUARTERLY", "ANNUALLY"]},
     }
     role_lists = []
-    for env in _ssm.ENVIRONMENTS:
+    for env in (_ssm.SHARED, *_ssm.ENVIRONMENTS):
         for repo in _ssm.REPOS:
             pid = _role_names_parameter_id(env, repo)
+            if env == _ssm.SHARED:
+                description = f"Account-level tooling role names {repo} publishes for the budget action (written by its bootstrap)."
+            else:
+                description = f"Role names {repo} publishes for the {env} budget action (includes the FinanceAgent runtime role for Bedrock)."
             params[pid] = {
                 "Type": "AWS::SSM::Parameter::Value<List<String>>",
-                "Default": _ssm.build(env, repo, "config", "budget-enforced-role-names"),
-                "Description": f"Role names {repo} publishes for the {env} budget action (includes the FinanceAgent runtime role for Bedrock).",
+                "Default": _ssm.build(env, repo, "config", _ssm.BUDGET_ENFORCED_ROLE_NAMES),
+                "Description": description,
             }
             role_lists.append({"Fn::Join": [",", {"Ref": pid}]})
     notifications = [

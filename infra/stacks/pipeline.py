@@ -8,10 +8,12 @@ the authenticated bootstrap. CodePipeline **V2** plus CodeBuild, stages in the c
    resolved by CloudFormation (never a literal ARN). The commit ID is exported as
    ``#{SourceVariables.CommitId}``.
 2. **Build**: one CodeBuild project runs ``scripts/build_stage.py``: the build-stage gates
-   (unit, contract conformance, ownership, leak scan, copied-id, live-permission scan, boundary,
-   pipeline-structure, cost and configuration checks), ``cdk synth`` once
-   (``scripts/synth.py`` with :func:`infra.stacks.tooling.deployment_synthesizer`), asset
-   publishing to the pipeline store, the artifact digest and a new ``release_id``. Its single
+   (unit, contract conformance in Python and TypeScript, ownership, leak scan, copied-id,
+   live-permission scan, boundary, pipeline-structure, cost and configuration checks), ``cdk synth``
+   once (``scripts/synth.py`` with :func:`infra.stacks.tooling.deployment_synthesizer`), asset
+   publishing to the pipeline store, the artifact digest and a new ``release_id``; then
+   ``scripts/publish_contracts.py`` publishes the pinned contract wheel and the npm package to the
+   contract registry when that version is not published yet (never overwriting one). Its single
    output artifact ``BuildOutput`` is the only input of every later stage. With the pipeline
    variable ``rollback_to_release_id`` set to a recorded release, the build stage instead fetches
    that release's stored ``BuildOutput`` from the store (no rebuild) and marks it as a rollback.
@@ -62,6 +64,7 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_ssm as ssm
 from finplan_contracts import boundaries as contract_boundaries
 from finplan_contracts import iam as contract_iam
+from finplan_contracts import registry as contract_registry
 from finplan_contracts import ssm as contract_ssm
 
 from .tooling import (
@@ -207,9 +210,17 @@ def stage_role_statements(env: str, store_bucket_arn: str) -> list[iam.PolicySta
 
 
 def build_role_statements(store_bucket_arn: str) -> list[iam.PolicyStatement]:
+    """Assets and release ledger in the store, plus the contract publish step (contracts task 7.3).
+
+    The registry grant is :func:`finplan_contracts.registry.publish_policy`: an authorization token
+    for the ``finplan`` domain, reads and publishes in the ``contracts`` repository and its
+    packages only, and a read of the registry reference. No delete, dispose or status change.
+    """
+    publish = contract_registry.publish_policy(partition=Aws.PARTITION, region=Aws.REGION, account=Aws.ACCOUNT_ID)
     return [
         iam.PolicyStatement(sid="PublishAssetsAndReleases", actions=["s3:PutObject", "s3:GetObject"], resources=[f"{store_bucket_arn}/{ASSET_PREFIX}*", f"{store_bucket_arn}/{RELEASES_PREFIX}*"]),
         iam.PolicyStatement(sid="ListStore", actions=["s3:ListBucket"], resources=[store_bucket_arn], conditions={"StringLike": {"s3:prefix": [f"{ASSET_PREFIX}*", f"{RELEASES_PREFIX}*"]}}),
+        *(iam.PolicyStatement.from_json(st) for st in publish["Statement"]),
     ]
 
 
@@ -231,6 +242,9 @@ def build_spec() -> dict[str, Any]:
                 "commands": [
                     "uv sync --locked",
                     'uv run python scripts/build_stage.py --out build-output --source-commit "$SOURCE_COMMIT" --rollback-to "$ROLLBACK_TO_RELEASE_ID" --store "$FINPLAN_PIPELINE_STORE"',
+                    # contracts task 7.3: publish the pinned wheel and the npm package to the contract
+                    # registry only after every gate passed; never overwrites (a rollback publishes nothing)
+                    'uv run python scripts/publish_contracts.py --rollback-to "$ROLLBACK_TO_RELEASE_ID"',
                 ]
             },
         },

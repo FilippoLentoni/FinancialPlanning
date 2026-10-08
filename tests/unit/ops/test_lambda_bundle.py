@@ -55,7 +55,8 @@ def test_bundle_contains_the_contract_package_and_the_locked_dependencies(local_
     assert lambda_bundle.verify_bundle(bundle, spec) == []
     for name in ("finplan_platform", "finplan_contracts", "jsonschema", "rfc8785", "openpyxl", "defusedxml", "config", *spec.requires):
         assert (bundle / name).exists(), name
-    assert (bundle / "finplan_contracts-0.2.2.dist-info").is_dir()  # the pinned, vendored wheel
+    pinned = json.loads((ROOT / "contracts-pin.json").read_text())["version"]
+    assert (bundle / f"finplan_contracts-{pinned}.dist-info").is_dir()  # the pinned, vendored wheel
     assert any((bundle / "finplan_platform" / "data" / "calendars").glob("xnys-exchange_calendars-*.json"))
     assert not list(bundle.rglob("__pycache__"))
     manifest = json.loads((bundle / lambda_bundle.MANIFEST).read_text())

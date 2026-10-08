@@ -57,6 +57,7 @@ from finplan_contracts.schemas import load_store
 from finplan_contracts.validate import validate
 
 from ..providers.base import FetchRequest, ProviderAdapter, ProviderThrottled, ProviderUnavailable
+from . import upgrade as _upgrade
 from .artifacts import (
     SNAPSHOT_STATUS_TAG,
     ArtifactExists,
@@ -207,12 +208,13 @@ def _plan_on_demand(ctx: OperationContext, body: Any, deps: IngestionDeps) -> _P
     res = validate(probe, "tools/refresh-market-data-request")
     if not res.valid:
         raise from_validation(res)
-    if "contract_version" in doc and _served_major(str(doc["contract_version"])) != _served_major(deps.contract_version):
+    served = sorted({_served_major(deps.contract_version), *_upgrade.ADDITIONAL_SERVED_MAJORS})
+    if "contract_version" in doc and _served_major(str(doc["contract_version"])) not in served:
         raise PlatformError(
             "UNSUPPORTED_CONTRACT_VERSION",
             "the request's contract major is not served",
             requested=doc["contract_version"],
-            served_majors=[_served_major(deps.contract_version)],
+            served_majors=served,
         )
     dataset = resolve_dataset(deps.config, doc["dataset_id"])
     ids = doc.get("instrument_ids")

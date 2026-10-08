@@ -23,6 +23,11 @@ leak-scan              pre    ``finplan_contracts.leak_scan`` over the repositor
 copied-id              pre    ``finplan_contracts.copied_id`` (CS-01); ``contracts/`` (the producer
                               source) is excluded, planning documents under ``openspec/`` are scanned
 conformance            pre    ``finplan-conformance conformance --mode consumer --expect-version <pin>``
+conformance-ts         pre    the both-language suite on the contract source (task 6.5b, CS-10): Python
+                              producer mode over ``contracts/``, then ``npm ci`` (when
+                              ``node_modules`` is absent), ``npm run build`` and the TypeScript
+                              runner in producer mode and in consumer mode (``--expect-version
+                              <pin>``); needs Node.js (CodeBuild installs nodejs 22)
 ingestion-package      pre    ``scripts/ingestion_package_size.py``: the ingestion dependency
                               closure fits a zip Lambda (task 6.17; image assets not published yet)
 unit                   pre    ``pytest tests/unit tests/contract -m "not live_provider"``
@@ -144,6 +149,50 @@ def gate_config(ctx: GateContext) -> list[str]:
     cal_dir = ctx.root / "platform" / "finplan_platform" / "data" / "calendars"
     for source in ("xnys", "fixture"):
         problems += [f"calendar ({source}): {p}" for p in generate_calendar.check(source, cal_dir, ctx.root / "pyproject.toml")]
+    return problems
+
+
+TS_DIR = Path("contracts") / "typescript"
+
+
+def _last_line(out: str) -> str:
+    lines = [ln for ln in out.strip().splitlines() if ln.strip()]
+    return lines[-1] if lines else "(no output)"
+
+
+def gate_conformance_ts(ctx: GateContext) -> list[str]:
+    """Task 6.5b (CS-10): the same both-language conformance suite the contract package runs locally."""
+    import shutil as _shutil
+
+    from finplan_contracts import conformance
+
+    from scripts.release import contract_pin
+
+    version, _ = contract_pin(ctx.root)
+    problems: list[str] = []
+    rc, out = _call_main(conformance.main, ["--mode", "producer", "--root", str(ctx.root / "contracts")])
+    ctx.note("conformance-ts", "python producer: " + _last_line(out))
+    if rc != 0:
+        problems.append("conformance (python, producer mode on contracts/) failed: " + _last_line(out))
+    npm, node = _shutil.which("npm"), _shutil.which("node")
+    if not (npm and node):
+        return [*problems, "conformance (typescript) cannot run: node/npm not found on PATH (the build image installs nodejs 22)"]
+    ts = ctx.root / TS_DIR
+    steps: list[tuple[str, list[str]]] = []
+    if not (ts / "node_modules").is_dir():
+        steps.append(("npm ci", [npm, "ci", "--no-audit", "--no-fund"]))
+    steps += [
+        ("npm run build", [npm, "run", "build", "--silent"]),
+        ("typescript producer", [node, "dist/cli.js", "conformance", "--mode", "producer", "--root", str(ctx.root / "contracts")]),
+        ("typescript consumer", [node, "dist/cli.js", "conformance", "--mode", "consumer", "--expect-version", version]),
+    ]
+    for label, cmd in steps:
+        rc, out = _run(cmd, ts)
+        if label.startswith("typescript"):
+            ctx.note("conformance-ts", f"{label}: {_last_line(out)}")
+        if rc != 0:
+            problems.append(f"conformance ({label}) failed: {_last_line(out)}")
+            break
     return problems
 
 
@@ -304,6 +353,7 @@ GATES: tuple[Gate, ...] = (
     ("leak-scan", "pre", gate_leak_scan),
     ("copied-id", "pre", gate_copied_id),
     ("conformance", "pre", gate_conformance),
+    ("conformance-ts", "pre", gate_conformance_ts),
     ("ingestion-package", "pre", gate_ingestion_package),
     ("unit", "pre", gate_unit),
     ("ownership", "post", gate_ownership),

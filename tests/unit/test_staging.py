@@ -517,6 +517,6 @@ def test_staging_doc_example_manifest_validates() -> None:
     example = json.loads(block.group(1))
     res = contract_validate(example, "staged-output-manifest")
     assert res.valid, [i.to_dict() for i in res.issues]
-    assert example["contract_version"] == current_version()  # the pinned 0.x version until contracts 1.0.0 is published
+    assert example["contract_version"] == current_version()  # the pinned contract version (1.0.0)
     assert example["synthetic"] is True
     assert not scan_text(text, str(doc))

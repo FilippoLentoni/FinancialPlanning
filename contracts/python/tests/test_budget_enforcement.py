@@ -10,7 +10,7 @@ from finplan_contracts.boundaries import check_role_boundaries, concrete_boundar
 from finplan_contracts.boundaries import env_permission_boundary as _env_permission_boundary
 from finplan_contracts.budget import CostRecord, enforcement_deny_policy, preflight
 from finplan_contracts.iam import EXPLICIT_DENY, Request, evaluate
-from finplan_contracts.ssm import ENVIRONMENTS, REPOS, build
+from finplan_contracts.ssm import ENVIRONMENTS, REPOS, SHARED, build
 from finplan_contracts.validate import validate
 
 from conftest import fixture
@@ -135,7 +135,8 @@ def test_deny_action_at_100_percent_on_published_enforced_role_names(tpl):
     joined = p["Definition"]["IamActionDefinition"]["Roles"]["Fn::Split"][1]["Fn::Join"][1]
     refs = {j["Fn::Join"][1]["Ref"] for j in joined}
     defaults = {tpl["Parameters"][r]["Default"] for r in refs}
-    assert defaults == {build(e, r, "config", "budget-enforced-role-names") for e in ENVIRONMENTS for r in REPOS}
+    # per-environment lists and, since 1.0.0 (D16), each repository's account-level (shared) list
+    assert defaults == {build(e, r, "config", "budget-enforced-role-names") for e in (SHARED, *ENVIRONMENTS) for r in REPOS}
     assert "/finplan/prod/financeagent/config/budget-enforced-role-names" in defaults  # FinanceAgent runtime role (Bedrock)
     for r in refs:
         assert tpl["Parameters"][r]["Type"] == "AWS::SSM::Parameter::Value<List<String>>"

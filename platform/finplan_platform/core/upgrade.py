@@ -14,9 +14,12 @@ Rules implemented here:
   lack filled with read-time defaults (:data:`READ_DEFAULTS`). The stored item and its
   checksum are never touched; a record under an unserved major is refused.
 
-The 0.x caveat: the pinned package is 0.2.2 (a 0.x pre-release, beta only), so the served
-major is ``0`` until contracts 1.0.0 is published and pinned. Within 0.x a minor may break, so the platform pins the
-exact version and treats the major as the compatibility unit, exactly as for 1.x.
+Contracts 1.0.0 (contracts D16): the pinned package is 1.0.0, so the current major is ``1``. Major
+``0`` stays served (:data:`ADDITIONAL_SERVED_MAJORS`): beta, gamma and prod hold records written
+under 0.2.2 (records are immutable and never rewritten), and 1.0.0 ships the same ``v1`` schemas
+with no breaking change (the compatibility gate 0.2.2 -> 1.0.0 reports no change). Clients that
+still declare a 0.x version keep working until they re-pin. The platform pins the exact version
+and treats the major as the compatibility unit.
 """
 
 from __future__ import annotations
@@ -42,8 +45,9 @@ __all__ = [
 ]
 
 CONTRACT_VERSION_HEADER = "x-finplan-contract-version"
-#: Older majors still served next to the current one (empty while only one major exists).
-ADDITIONAL_SERVED_MAJORS: tuple[int, ...] = ()
+#: Older majors still served next to the current one. ``0``: records written under contracts 0.2.2
+#: before the 1.0.0 re-pin (same ``v1`` schemas; see the module docstring).
+ADDITIONAL_SERVED_MAJORS: tuple[int, ...] = (0,)
 #: Overrides the pinned package version (tests simulating a newer build; never set in code).
 CURRENT_VERSION_OVERRIDE: str | None = None
 

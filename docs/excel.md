@@ -2,7 +2,7 @@
 
 How a plan version becomes an `.xlsx` workbook and back (OpenSpec change `add-platform-foundation`, spec `excel-plan-import`, tasks 8.1 to 8.5, design P8). Code: `platform/finplan_platform/excel/`. Tests: `tests/unit/test_excel_package.py`, `tests/unit/test_excel_import.py`.
 
-The logical template is the contract schema `finance/v1/excel-plan-template.json`, and the import outcome is the contract `core/v1/import-report.json`. Both come from the pinned `finplan-contracts` package, which is currently **0.2.2** (a 0.x pre-release, beta only). Contracts 1.0.0 is not published yet; see [platform-core.md](platform-core.md). This page describes the physical workbook that carries the logical template.
+The logical template is the contract schema `finance/v1/excel-plan-template.json`, and the import outcome is the contract `core/v1/import-report.json`. Both come from the pinned `finplan-contracts` package, currently **1.0.0**; see [platform-core.md](platform-core.md). This page describes the physical workbook that carries the logical template.
 
 ## Routes
 
@@ -127,4 +127,4 @@ The commit's idempotency scope is caller, environment and `commit_excel_import`,
 ## Open points
 
 - The cash weight is the reserved `CASH` row, which the contract's `excel-plan-template` documents as reserved since 0.2.0.
-- Contracts 1.0.0 is not yet published; this module runs against the pinned 0.2.2 package.
+- This module runs against the pinned 1.0.0 package (the same `v1` schemas as 0.2.2).

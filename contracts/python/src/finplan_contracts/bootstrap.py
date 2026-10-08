@@ -207,7 +207,8 @@ DEFAULT_PRICING_RULES: dict[str, PricingRule] = {
     "AWS::Budgets::BudgetsAction": PricingRule("AWSBudgets", {"productFamily": "Budgets"}, 30, "Budget-Day", "action-enabled budget days"),
 }
 #: Types AWS does not bill by themselves (IAM, CloudFormation bookkeeping); listed, not priced.
-NOT_BILLED_TYPES = {"AWS::IAM::Role", "AWS::IAM::Policy", "AWS::IAM::ManagedPolicy", "AWS::IAM::InstanceProfile", "AWS::CDK::Metadata", "AWS::CloudFormation::WaitConditionHandle"}
+# A CodeArtifact domain has no standing charge (its repositories bill storage and requests; 1.0.0, D16).
+NOT_BILLED_TYPES = {"AWS::IAM::Role", "AWS::IAM::Policy", "AWS::IAM::ManagedPolicy", "AWS::IAM::InstanceProfile", "AWS::CDK::Metadata", "AWS::CloudFormation::WaitConditionHandle", "AWS::CodeArtifact::Domain"}
 
 
 @dataclass
