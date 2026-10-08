@@ -23,8 +23,9 @@ Operation :func:`accept_staged_output` (request ``{expected_revision, idempotenc
 5. **Manifest**: strict JSON, contract ``staged-output-manifest`` schema (with its domain
    payload check), ``run_id``/``plan_id`` equal to the path, served contract major.
 6. **Registry** (STG-03): ``run_id`` and ``model_version`` must exist in FinanceModel's
-   published registry reference for this environment (:class:`ModelRegistry`). No FinanceModel
-   release recorded -> ``DEPENDENCY_UNAVAILABLE`` (retryable; nothing written).
+   published registry reference for this environment (:class:`ModelRegistry`; deployed: SigV4
+   ``GET <registry-ref>/lineage/{run_id}?model_version=...``). No FinanceModel release recorded,
+   or the lookup unreachable -> ``DEPENDENCY_UNAVAILABLE`` (retryable; nothing written).
 7. **Outcome** (STG-04): ``failed``/``cancelled``/``timed_out`` -> recorded ``rejected`` with an
    error envelope, no version (not an error response: the decision was recorded).
 8. **Structure** (STG-03, succeeded runs): every listed file exists, matches its size and
@@ -54,7 +55,11 @@ manifest-relative names.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+import logging
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -74,10 +79,13 @@ from .upgrade import check_declared_version, current_version, serve
 from .validation import evaluate_rules, validation_result
 from .versions import new_version_mutation
 
+log = logging.getLogger("finplan_platform.staging")
+
 __all__ = [
     "ACCEPT_STAGED_OUTPUT_REQUEST",
     "ACCEPT_STAGED_OUTPUT_RESPONSE",
     "COMMITTABLE_SOLUTIONS",
+    "FinanceModelLineageClient",
     "MANIFEST_NAME",
     "NO_VERSION_SOLUTIONS",
     "REJECTED_COMPLETIONS",
@@ -179,10 +187,9 @@ class SsmModelRegistry:
 
     A missing parameter means FinanceModel has no release in the environment
     (``release_recorded`` false -> ``DEPENDENCY_UNAVAILABLE``). The lookup itself goes through
-    FinanceModel's job API (explicit invoke grant, design P7); that client is injected as
-    ``lookup_client(registry_ref, run_id, model_version) -> RegistryLookup``. Until FinanceModel
-    publishes that interface no client exists, and acceptance fails with
-    ``DEPENDENCY_UNAVAILABLE`` instead of guessing.
+    FinanceModel's job API (design P7): ``lookup_client(registry_ref, run_id, model_version) ->
+    RegistryLookup``, by default :class:`FinanceModelLineageClient` (SigV4 ``GET
+    <registry_ref>/lineage/{run_id}?model_version=...`` with the plan-api role).
     """
 
     def __init__(self, ssm_client: Any, env: str, lookup_client: Any = None) -> None:
@@ -201,23 +208,118 @@ class SsmModelRegistry:
             if exc.response.get("Error", {}).get("Code") == "ParameterNotFound":
                 return RegistryLookup(False)
             raise PlatformError("DEPENDENCY_UNAVAILABLE", "the model registry reference could not be read", retryable=True) from None
-        if self.lookup_client is None:
-            raise PlatformError("DEPENDENCY_UNAVAILABLE", "the model registry lookup is not available in this release", retryable=True, dependency="financemodel-registry")
-        result = self.lookup_client(value, run_id, model_version)
+        client = self.lookup_client or FinanceModelLineageClient(self.ssm.meta.region_name)
+        result = client(value, run_id, model_version)
         if not isinstance(result, RegistryLookup):  # pragma: no cover - defensive
             raise PlatformError.internal("model registry lookup returned an unexpected result")
         return result
 
 
+#: ``transport(url, headers, timeout) -> (status, parsed JSON body or None)``
+RegistryTransport = Callable[[str, Mapping[str, str], float], tuple[int, Any]]
+
+
+def _urllib_get(url: str, headers: Mapping[str, str], timeout: float) -> tuple[int, Any]:  # pragma: no cover - network
+    req = urllib.request.Request(url, headers=dict(headers), method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status, raw = resp.status, resp.read()
+    except urllib.error.HTTPError as exc:
+        status, raw = exc.code, exc.read()
+    try:
+        return status, json.loads(raw or b"null")
+    except ValueError:
+        return status, None
+
+
+class FinanceModelLineageClient:
+    """FinanceModel's registry lineage route (``REG-03``), IAM-signed with the caller's role.
+
+    ``registry_ref`` is the value FinanceModel publishes at
+    ``/finplan/<env>/financemodel/model/registry-ref``: ``<job-endpoint>/v1/registry``. The call is
+    ``GET <registry_ref>/lineage/{run_id}?model_version=<model_version>`` (SigV4, ``execute-api``):
+
+    * ``200 {run_id, model_version, matches: true, ...}`` -> both known;
+    * ``404 NOT_FOUND`` with ``details.record_type`` ``model_version`` -> the model version is not
+      registered; ``run_lineage`` -> the version exists but the run is unknown or used another one;
+    * anything else (403, 5xx, a 404 for an unknown route, a network failure, a malformed reference)
+      -> ``DEPENDENCY_UNAVAILABLE`` (retryable; acceptance writes nothing).
+    """
+
+    def __init__(self, region: str, *, credentials: Any = None, transport: RegistryTransport | None = None, timeout: float = 8.0) -> None:
+        self.region = region
+        self.credentials = credentials
+        self.transport = transport or _urllib_get
+        self.timeout = timeout
+
+    def _credentials(self) -> Any:
+        if self.credentials is None:
+            import boto3
+
+            self.credentials = boto3.session.Session().get_credentials()
+        if self.credentials is None:
+            raise _registry_unavailable("no credentials to sign the model registry lookup")
+        return self.credentials
+
+    @staticmethod
+    def lineage_url(registry_ref: str, run_id: str, model_version: str) -> str:
+        ref = registry_ref.strip()
+        parts = urllib.parse.urlsplit(ref)
+        if parts.scheme != "https" or not parts.netloc or parts.query or parts.fragment:
+            raise _registry_unavailable("the model registry reference is not an https endpoint")
+        path = parts.path.rstrip("/") + "/lineage/" + urllib.parse.quote(run_id, safe="")
+        return urllib.parse.urlunsplit(("https", parts.netloc, path, urllib.parse.urlencode({"model_version": model_version}), ""))
+
+    def signed_headers(self, url: str) -> dict[str, str]:
+        from botocore.auth import SigV4Auth
+        from botocore.awsrequest import AWSRequest
+
+        req = AWSRequest(method="GET", url=url, headers={"Accept": "application/json"})
+        SigV4Auth(self._credentials().get_frozen_credentials(), "execute-api", self.region).add_auth(req)
+        return dict(req.headers.items())
+
+    def __call__(self, registry_ref: str, run_id: str, model_version: str) -> RegistryLookup:
+        url = self.lineage_url(registry_ref, run_id, model_version)
+        try:
+            status, body = self.transport(url, self.signed_headers(url), self.timeout)
+        except PlatformError:
+            raise
+        except Exception:  # noqa: BLE001 - any transport failure is a dependency outage
+            log.warning("model registry lineage lookup failed to connect (run_id=%s)", run_id)
+            raise _registry_unavailable("the model registry could not be reached") from None
+        doc = body if isinstance(body, dict) else {}
+        if status == 200 and doc.get("matches") is True and doc.get("run_id") == run_id and doc.get("model_version") == model_version:
+            return RegistryLookup(True, run_known=True, model_version_known=True)
+        if status == 404 and doc.get("code") == "NOT_FOUND":
+            record_type = (doc.get("details") or {}).get("record_type")
+            if record_type == "model_version":
+                return RegistryLookup(True, run_known=False, model_version_known=False)
+            if record_type == "run_lineage":
+                return RegistryLookup(True, run_known=False, model_version_known=True)
+        log.warning("model registry lineage lookup answered status=%s code=%s (run_id=%s)", status, doc.get("code"), run_id)
+        raise _registry_unavailable("the model registry lookup failed", upstream_status=int(status))
+
+
+def _registry_unavailable(message: str, **details: Any) -> PlatformError:
+    return PlatformError("DEPENDENCY_UNAVAILABLE", message, retryable=True, dependency="financemodel-registry", **details)
+
+
 def resolve_registry(svc: Services) -> ModelRegistry:
-    """``svc.extras["model_registry"]`` if injected, else the SSM-backed reference."""
+    """``svc.extras["model_registry"]`` if injected, else the SSM-backed reference.
+
+    ``svc.extras["model_registry_lookup"]`` replaces the lookup client; ``registry_transport``
+    replaces only the HTTP transport of the default :class:`FinanceModelLineageClient` (tests).
+    """
     reg = svc.extras.get("model_registry")
     if reg is not None:
         return reg
     ssm = svc.extras.get("ssm")
     if ssm is None:
         raise PlatformError("DEPENDENCY_UNAVAILABLE", "the model registry reference is not configured", retryable=True, dependency="financemodel-registry")
-    return SsmModelRegistry(ssm, svc.env, svc.extras.get("model_registry_lookup"))
+    lookup = svc.extras.get("model_registry_lookup")
+    if lookup is None:
+        lookup = FinanceModelLineageClient(ssm.meta.region_name, credentials=svc.extras.get("credentials"), transport=svc.extras.get("registry_transport"))
+    return SsmModelRegistry(ssm, svc.env, lookup)
 
 
 # ===================================================================== helpers

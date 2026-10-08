@@ -192,6 +192,16 @@ class ApiStack(PlatformStack):
                 ],
             )
         )
+        # Staged-output acceptance (STG-03) verifies run lineage through FinanceModel's registry
+        # route (registry-ref = <job-endpoint>/v1/registry), SigV4-signed with this role. FinanceModel's
+        # API resource policy admits this role; this is the matching identity grant, read route only.
+        self.role.add_to_principal_policy(
+            iam.PolicyStatement(
+                sid="FinanceModelRegistryLineage",
+                actions=["execute-api:Invoke"],
+                resources=[self.format_arn(service="execute-api", resource="*", resource_name="*/GET/v1/registry/lineage/*")],
+            )
+        )
 
         # ------------------------------------------------------------ function
         fn_name = resource_name(env, "plan-api")

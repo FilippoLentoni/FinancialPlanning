@@ -202,6 +202,16 @@ def test_plan_api_role_may_write_its_own_log_group(ops_assembly: Path) -> None:
     assert logs[0]["Resource"] == {"Fn::GetAtt": [group, "Arn"]}
 
 
+def test_plan_api_role_may_call_only_the_finance_model_lineage_route(ops_assembly: Path) -> None:
+    """STG-03 regression: acceptance calls FinanceModel's registry lineage route with this role."""
+    tpl = json.loads(next(ops_assembly.glob("assembly-Beta/*Api*.template.json")).read_text())
+    statements = [s for r in tpl["Resources"].values() if r["Type"] == "AWS::IAM::Policy" for s in r["Properties"]["PolicyDocument"]["Statement"]]
+    invoke = [s for s in statements if "execute-api:Invoke" in ([s["Action"]] if isinstance(s["Action"], str) else s["Action"])]
+    assert [s.get("Sid") for s in invoke] == ["FinanceModelRegistryLineage"]
+    assert invoke[0]["Effect"] == "Allow"
+    assert json.dumps(invoke[0]["Resource"]).endswith(':*/*/GET/v1/registry/lineage/*"]]}')
+
+
 # ------------------------------------------------------------------ post-deploy API probe
 class _Transport:
     def __init__(self, code: int, body: dict[str, Any]) -> None:

@@ -128,12 +128,15 @@ POST /v1/plans/{plan_id}/staged-outputs/{run_id}/accept
 
 No response names a bucket or an object key. Staged files appear only under their manifest-relative names.
 
-## Interface still owed by FinanceModel
+## Registry lookup (FinanceModel lineage route)
 
-The registry lookup itself (does `run_id`/`model_version` exist?) goes through FinanceModel's job API, according to design P7. FinanceModel has not published that interface yet. Until it does:
+FinanceModel publishes `/finplan/<env>/financemodel/model/registry-ref` with the value `<job-endpoint>/v1/registry` and serves the lineage check on its job API (FinanceModel REG-03). The platform:
 
-- the platform resolves `/finplan/<env>/financemodel/model/registry-ref`;
-- if the parameter is absent, there is no release, and the call fails with `DEPENDENCY_UNAVAILABLE`;
-- if the parameter exists but no lookup client is wired, the call also fails with `DEPENDENCY_UNAVAILABLE`, so the platform never guesses.
+- resolves the parameter; if it is absent, there is no FinanceModel release and the call fails with `DEPENDENCY_UNAVAILABLE` (retryable, nothing recorded);
+- calls `GET <registry-ref>/lineage/{run_id}?model_version=<model_version>`, SigV4-signed (`execute-api`) with the plan-api role (`FinanceModelLineageClient`). FinanceModel's API resource policy admits that role; the plan-api role carries the matching identity grant `FinanceModelRegistryLineage` on `*/GET/v1/registry/lineage/*`;
+- maps the answer: `200` with `matches: true` means both are known; `404 NOT_FOUND` with `details.record_type` `model_version` rejects the `model_version`, and `run_lineage` rejects the `run_id`;
+- treats anything else (403, 5xx, an unknown route, a network failure, a non-https reference) as `DEPENDENCY_UNAVAILABLE` (retryable, nothing recorded) and logs the status code, never the endpoint.
 
-Tests inject a registry double.
+Earlier releases (before 2026-10-08) resolved the parameter but had no lookup client wired, so every acceptance in a deployed environment failed with `DEPENDENCY_UNAVAILABLE` ("the model registry lookup is not available in this release").
+
+Tests inject a registry double, or the default client with a fake HTTP transport (`Services.extras["registry_transport"]`).
