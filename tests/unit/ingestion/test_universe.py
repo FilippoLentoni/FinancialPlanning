@@ -115,10 +115,12 @@ def test_promotion_gate_refuses_gamma_phase_2_without_beta_evidence() -> None:
     g["phase"], g["ingest"]["provider"] = 2, "yfinance"
     cfgs = {**cfgs, "gamma": EnvConfig(g)}
     problems = phase2_promotion_problems(cfgs, {})
-    assert len(problems) == 1 and problems[0].test_id == "UNI-06" and "missing beta evidence" in problems[0].message
+    gamma = [x for x in problems if x.pointer == "/gamma/phase"]
+    assert len(gamma) == 1 and gamma[0].test_id == "UNI-06" and "missing beta evidence" in gamma[0].message
     assert phase2_promotion_problems(cfgs, {"beta": _evidence(provider="fixture")})
     assert phase2_promotion_problems(cfgs, {"beta": _evidence(status="committed")})
-    assert phase2_promotion_problems(cfgs, {"beta": _evidence()}) == []
+    # prod declares phase 2 too, so the gate also needs gamma's evidence
+    assert phase2_promotion_problems(cfgs, {"beta": _evidence(), "gamma": _evidence()}) == []
 
 
 def test_promotion_gate_prod_needs_gamma_evidence_and_repository_config_passes() -> None:

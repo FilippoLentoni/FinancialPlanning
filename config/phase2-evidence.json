@@ -7,5 +7,13 @@
     "provider": "yfinance",
     "status": "approved",
     "trigger": "scheduled"
+  },
+  "gamma": {
+    "approval_rule_version": "approval-v2-universe",
+    "dataset_id": "finance/equity-etf-daily/research-universe",
+    "input_snapshot_id": "snap_01M4EEDEY3H0Q27B3E1JW71JB3",
+    "provider": "yfinance",
+    "status": "approved",
+    "trigger": "scheduled"
   }
 }
