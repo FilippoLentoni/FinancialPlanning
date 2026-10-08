@@ -80,6 +80,7 @@ result.
 | `GET /v1/snapshots/{input_snapshot_id}` | snapshot metadata (`download=true` adds grants) | path | platform `snapshot-response` (`snapshot` is `input-snapshot`) | n/a | n/a |
 | `GET /v1/snapshots/{input_snapshot_id}/observations` | bounded observation read (`instrument_id`, `start_date`, `end_date`, `page_size`, `next_token`) | platform `snapshot-observations-request` | `api/read-snapshot-observations-response` | n/a | n/a |
 | `POST /v1/ingestions` | on-demand ingestion (delegated) | `tools/refresh-market-data-request` | `tools/refresh-market-data-response` | required | n/a |
+| `GET /v1/daily-trigger/outcomes/{session_date}` | daily recommendation trigger outcome records of one session (delegated; `docs/daily-trigger.md`) | none | platform `daily-trigger-outcomes-response` | none | none |
 | `POST /v1/plans/{plan_id}/staged-outputs/{run_id}/accept` | staged-output acceptance (delegated) | platform `accept-staged-output-request` | platform `accept-staged-output-response` (`api/get-staged-output-response` plus the version's head and validation result) | required | plan head revision |
 | `GET /v1/staged-outputs/{run_id}` | acceptance outcome (delegated) | path | `api/get-staged-output-response` | n/a | n/a |
 | `POST /v1/plan-versions/{plan_version_id}/exports` | Excel export (delegated) | platform `export-plan-version-request` | platform `export-plan-version-response` | required | n/a |

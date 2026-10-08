@@ -38,10 +38,10 @@ def local_bundles(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[
 
 # ------------------------------------------------------------------ bundle builder
 def test_every_function_has_a_bundle_spec_matching_the_stacks() -> None:
-    assert set(lambda_bundle.FUNCTIONS) == {"plan-api", "ingestion", "sweeper"}
+    assert set(lambda_bundle.FUNCTIONS) == {"plan-api", "ingestion", "sweeper", "daily-trigger"}
     for name in ("plan-api", "ingestion"):
         assert "providers" in lambda_bundle.FUNCTIONS[name].extras
-    for stack, function, handler in (("api", "plan-api", "handlers.api.handler"), ("ingestion", "ingestion", "handlers.ingest.handler"), ("metadata", "sweeper", "handlers.sweep.handler")):
+    for stack, function, handler in (("api", "plan-api", "handlers.api.handler"), ("ingestion", "ingestion", "handlers.ingest.handler"), ("metadata", "sweeper", "handlers.sweep.handler"), ("daily_trigger", "daily-trigger", "handlers.daily_trigger.handler")):
         src = (ROOT / "infra" / "stacks" / f"{stack}.py").read_text(encoding="utf-8")
         assert f'lambda_code("{function}")' in src and handler in src
         assert lambda_bundle.FUNCTIONS[function].handler.endswith(handler)
@@ -238,7 +238,8 @@ def test_foreign_binaries_detects_non_arm64_extension_modules(local_bundles: tup
 def test_bundle_is_reproducible_and_carries_no_build_host_path(local_bundles: tuple[Path, dict[str, Any]], tmp_path: Path) -> None:
     out, _ = local_bundles
     assert not list(out.glob("*/*.dist-info/direct_url.json")) and not list(out.glob("*/*.dist-info/uv_cache.json"))
-    again = lambda_bundle.build_all(ROOT, tmp_path / "again", functions={"sweeper": lambda_bundle.FUNCTIONS["sweeper"]}, python_platform=None)
+    # every function without extras shares the sweeper's bundle (the daily-trigger step function too)
+    again = lambda_bundle.build_all(ROOT, tmp_path / "again", functions={k: v for k, v in lambda_bundle.FUNCTIONS.items() if not v.extras}, python_platform=None)
     first = sorted((p.relative_to(out / "sweeper").as_posix(), p.read_bytes()) for p in (out / "sweeper").rglob("*") if p.is_file())
     second = sorted((p.relative_to(tmp_path / "again" / "sweeper").as_posix(), p.read_bytes()) for p in (tmp_path / "again" / "sweeper").rglob("*") if p.is_file())
     assert first == second and again["sweeper"]["files"] == len(first) - 1  # the manifest counts every file but itself

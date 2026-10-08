@@ -1,0 +1,7 @@
+{
+  "environment": "beta",
+  "action": "get",
+  "strategy": null,
+  "changed": false,
+  "synthetic": true
+}

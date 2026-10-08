@@ -54,7 +54,7 @@ def test_deploy_order_and_scoped_roles_per_environment_PIPE_01(tooling_template:
     for env, suite in ENV_SUITES.items():
         actions = _stage(tooling_template, env.capitalize())["Actions"]
         deploys = [a for a in actions if a["ActionTypeId"]["Category"] == "Deploy"]
-        assert [a["Name"] for a in sorted(deploys, key=lambda a: a["RunOrder"])] == ["DeployStorage", "DeployMetadata", "DeployApi", "DeployIngestion"]
+        assert [a["Name"] for a in sorted(deploys, key=lambda a: a["RunOrder"])] == ["DeployStorage", "DeployMetadata", "DeployApi", "DeployIngestion", "DeployDailyTrigger"]
         for a in deploys:
             assert a["Configuration"]["StackName"].startswith(f"finplan-{env}-financialplanning-")
             role = roles[a["RoleArn"]["Fn::GetAtt"][0]]

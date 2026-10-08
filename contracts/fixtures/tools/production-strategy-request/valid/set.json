@@ -1,0 +1,7 @@
+{
+  "action": "set",
+  "strategy_id": "buy_and_hold",
+  "idempotency_key": "client-key-0101",
+  "contract_version": "1.1.0",
+  "synthetic": true
+}

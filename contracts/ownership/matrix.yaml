@@ -153,6 +153,23 @@ resources:
     logical_roles: [daily-ingest-schedule]
     decisions: [D1, OQ-6]
 
+  - id: daily-recommendation-trigger
+    resource: >-
+      Post-ingestion daily recommendation trigger (1.1.0): the Step Functions state machine started by the
+      scheduled ingestion's success event, its execution role, its step Lambda and log groups, the EventBridge
+      rule, and the research-plan reference parameter. It reads the FinanceModel production-strategy key,
+      submits at most one daily_recommendation job per session and accepts the staged output as an
+      unpublished plan version; it is denied the publish route
+    owner: financialplanning
+    consumers: []
+    reference:
+      - /finplan/<env>/financialplanning/config/research-plan-ref
+      - reads /finplan/<env>/financemodel/config/production-strategy and calls the FinanceModel job API
+    scope: environment
+    resource_types: [AWS::StepFunctions::StateMachine, AWS::IAM::Role, AWS::IAM::Policy, AWS::Lambda::Function, AWS::Logs::LogGroup, AWS::Events::Rule, AWS::SSM::Parameter]
+    logical_roles: [daily-trigger, daily-trigger-role, daily-trigger-step, daily-trigger-rule, research-plan-ref]
+    decisions: [D1, D4]
+
   - id: contract-package
     resource: Contract package (schemas, fixtures, validators, conformance suite, release-manifest schema, SSM convention)
     owner: financialplanning
@@ -301,6 +318,25 @@ resources:
     resource_types: [AWS::SageMaker::ModelPackageGroup, AWS::S3::Bucket, AWS::S3::BucketPolicy]
     logical_roles: [model-registry, model-artifact-bucket]
     decisions: [D1, D2, D16]
+
+  - id: production-strategy-config
+    resource: >-
+      Production strategy selection (1.1.0, decisions 20 and 22): the per-environment SSM parameter holding the
+      production-strategy document. Written only at runtime by FinanceModel's strategy-selection operation
+      (single writer), never declared in IaC; read by the FinancialPlanning daily trigger role. Absent means
+      the daily job is a no-op
+    owner: financemodel
+    iac_declared: false
+    consumers: [financialplanning-daily-trigger, financelambdastool-production-strategy]
+    reference: /finplan/<env>/financemodel/config/production-strategy
+    writer: financemodel:strategy-selection
+    readers: [financialplanning:daily-trigger]
+    scope: environment
+    # written at runtime only: no CloudFormation type may declare it (an empty list keeps the
+    # iac-not-declared check from matching every AWS::SSM::Parameter)
+    resource_types: []
+    logical_roles: []
+    decisions: [D1, D4]
 
   - id: job-control-plane
     resource: >-

@@ -46,7 +46,7 @@ from constructs import Construct
 from finplan_platform.core.config import BUCKET_ROLES, EnvConfig
 from finplan_platform.core.repository import TABLES, table_name
 from finplan_platform.core.upgrade import current_version
-from finplan_platform.handlers.api import CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, route_allowed
+from finplan_platform.handlers.api import CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
 
 from .common import PlatformStack, StageContext, lambda_code, platform_role, resource_name, role_arn_pattern, ssm_name, tag_role
 
@@ -94,6 +94,18 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
         cond = {"ArnLike": {"aws:PrincipalArn": pattern}}
         statements.append({"Sid": f"Allow{_sid(cls)}Routes", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": resources, "Condition": cond})
         statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": resources, "Condition": cond})
+    # daily-recommendation-trigger (DLY-06): the platform automation roles never publish
+    (publish,) = {route_resource(r) for r in ROUTES if r.operation == "publish_plan_version"}
+    statements.append(
+        {
+            "Sid": "DenyAutomationPublish",
+            "Effect": "Deny",
+            "Principal": everyone,
+            "Action": INVOKE,
+            "Resource": publish,
+            "Condition": {"ArnLike": {"aws:PrincipalArn": [arn_for(p) for p in automation_role_patterns(env)]}},
+        }
+    )
     statements.append(
         {
             "Sid": "DenyPrincipalsOutsideThisEnvironment",

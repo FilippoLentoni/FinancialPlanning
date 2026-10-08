@@ -40,7 +40,7 @@ from infra.stacks.common import StageContext  # noqa: E402
 from infra.stacks.metadata import MetadataStack  # noqa: E402
 from infra.stacks.storage import StorageStack  # noqa: E402
 
-ENV_MODULES = ("infra.stacks.api", "infra.stacks.ingestion")
+ENV_MODULES = ("infra.stacks.api", "infra.stacks.ingestion", "infra.stacks.daily_trigger")
 APP_MODULES = ("infra.stacks.tooling", "infra.stacks.pipeline")
 
 

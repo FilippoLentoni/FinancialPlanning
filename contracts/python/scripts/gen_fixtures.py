@@ -1027,6 +1027,73 @@ def build() -> None:
     I("portfolio", "wrong-prefix", mut(pf, portfolio_id=PL), code="INVALID_IDENTIFIER", covers=["ID-01"])
 
 
+# ------------------------------------------------------------------ 1.1.0 additions
+CV_110 = "1.1.0"
+SNAP_U = ident("snap", 31)
+RUN_U = ident("run", 31)
+UNIVERSE_DATASET = "finance/equity-etf-daily/research-universe"
+UNIVERSE = [("VOO", "etf"), ("GOOGL", "equity"), ("NFLX", "equity"), ("AAPL", "equity"), ("NVDA", "equity")]
+DISCLOSURES = [
+    {"kind": "hindsight_selection", "text": "Synthetic disclosure: the instruments were selected with hindsight."},
+    {"kind": "survivorship", "text": "Synthetic disclosure: failed or delisted companies are absent."},
+]
+
+
+def build_1_1_0() -> None:
+    """Contracts 1.1.0 (research universe, daily recommendation, production strategy). Existing
+    fixtures are untouched so the 1.0.0 fixtures keep their bytes and checksums (CON-02)."""
+    usnap = mut(
+        SNAPSHOT,
+        input_snapshot_id=SNAP_U,
+        dataset={"dataset_id": UNIVERSE_DATASET, "dataset_version": "fixture-1"},
+        coverage={"start": "2010-10-01", "end": "2026-01-09"},
+        approval_rule_version="approval-v2-universe",
+        bias_disclosures=DISCLOSURES,
+    )
+    V("input-snapshot", "approved-universe-with-disclosures", usnap, covers=["CON-01"])
+    V("input-snapshot", "committed-universe-partial-response", mut(usnap, status="committed", approval_rule_version=DROP, quality_flags=["partial_response"], quality_details={"partial_response": ["NFLX"]}), covers=["CON-01"])
+    I("input-snapshot", "disclosure-without-text", mut(usnap, bias_disclosures=[{"kind": "survivorship"}]), covers=["CON-01"])
+    I("input-snapshot", "disclosure-kind-not-vocabulary", mut(usnap, bias_disclosures=[{"kind": "Hindsight", "text": "x"}]), covers=["CON-01"])
+
+    V("instrument", "equity-kind", {"instrument_id": "GOOGL", "asset_class": "equity", "kind": "equity", "currency": "USD", "exchange_mic": "XNAS", "synthetic": True}, covers=["CON-01"])
+    V("instrument", "modeled-cash", {"instrument_id": "USD_CASH", "asset_class": "cash", "kind": "cash", "return_assumption": "zero_nominal", "currency": "USD", "synthetic": True}, covers=["CON-01"])
+    I("instrument", "kind-not-vocabulary", {"instrument_id": "VOO", "asset_class": "etf", "kind": "ETF", "currency": "USD", "synthetic": True}, covers=["CON-01"])
+
+    instruments = [{"instrument_id": i, "asset_class": k, "kind": k, "currency": "USD", "synthetic": True} for i, k in UNIVERSE]
+    instruments.append({"instrument_id": "USD_CASH", "asset_class": "cash", "kind": "cash", "return_assumption": "zero_nominal", "currency": "USD", "synthetic": True})
+    uobs = [{"instrument_id": i, "session_date": "2026-01-09", "kind": "completed_daily", "session_status": "regular", "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000, "adj_close": 100.5, "dividend": 0.0, "split_ratio": 1.0, "synthetic": True} for i, _ in UNIVERSE]
+    universe = {"instruments": [{"instrument_id": i["instrument_id"], "kind": i["kind"], **({"return_assumption": "zero_nominal"} if i["kind"] == "cash" else {})} for i in instruments], "history_start": "2010-10-01", "return_basis": "adj_close"}
+    upay = {"dataset_id": UNIVERSE_DATASET, "calendar": "XNYS", "instruments": instruments, "observations": uobs, "universe": universe, "bias_disclosures": DISCLOSURES, "synthetic": True}
+    V("snapshot-payload", "equity-etf-daily-universe", upay, covers=["CON-01"])
+    I("snapshot-payload", "universe-without-return-basis", mut(upay, universe=mut(universe, return_basis=DROP)), covers=["CON-01"])
+    I("snapshot-payload", "universe-instrument-without-kind", mut(upay, universe=mut(universe, instruments=[{"instrument_id": "VOO"}])), covers=["CON-01"])
+
+    ustaged = mut(STAGED, run_id=RUN_U, input_snapshot_id=SNAP_U, contract_version=CV_110, bias_disclosures=DISCLOSURES)
+    V("staged-output-manifest", "daily-recommendation-with-disclosures", ustaged, covers=["CON-01"])
+    I("staged-output-manifest", "disclosures-not-a-list", mut(ustaged, bias_disclosures={"hindsight_selection": "x"}), covers=["CON-01"])
+
+    dsub = {**FINANCE, "job_type": "daily_recommendation", "purpose": "production_candidate", "dry_run": False, "input_snapshot_id": SNAP_U, "plan_id": PL, "configuration": CONFIG, "compute_class": "cpu", "max_runtime_seconds": 1800, "idempotency_key": "daily-beta-2026-01-09", "contract_version": CV_110, "synthetic": True}
+    V("job-submission", "daily-recommendation", dsub, covers=["CON-01"])
+    I("job-submission", "daily-recommendation-plan-id-wrong-prefix", mut(dsub, plan_id=PV_A), code="INVALID_IDENTIFIER", covers=["CON-01"])
+
+    strat = {"strategy_id": "buy_and_hold", "environment": "beta", "selected_at": ts(9, 15, 0), "selected_by": "synthetic-operator", "contract_version": CV_110, "synthetic": True}
+    V("production-strategy", "buy-and-hold", strat, covers=["CON-01"])
+    I("production-strategy", "missing-strategy-id", mut(strat, strategy_id=DROP), covers=["CON-01"])
+    I("production-strategy", "strategy-id-with-path", mut(strat, strategy_id="../buy_and_hold"), covers=["CON-01", "CS-08"])
+    I("production-strategy", "environment-shared", mut(strat, environment="shared"), covers=["CON-01"])
+
+    T = "tools/"
+    V(T + "production-strategy-request", "get", {"action": "get", "synthetic": True}, covers=["CON-01"])
+    V(T + "production-strategy-request", "set", {"action": "set", "strategy_id": "buy_and_hold", "idempotency_key": "client-key-0101", "contract_version": CV_110, "synthetic": True}, covers=["CON-01"])
+    V(T + "production-strategy-request", "clear", {"action": "clear", "idempotency_key": "client-key-0102", "synthetic": True}, covers=["CON-01"])
+    I(T + "production-strategy-request", "set-without-strategy", {"action": "set", "idempotency_key": "client-key-0103", "synthetic": True}, covers=["CON-01"])
+    I(T + "production-strategy-request", "clear-with-strategy", {"action": "clear", "strategy_id": "buy_and_hold", "idempotency_key": "client-key-0104", "synthetic": True}, covers=["CON-01"])
+    I(T + "production-strategy-request", "storage-location-field", {"action": "get", "location": "s3://example-bucket/strategy.json", "synthetic": True}, covers=["CS-08"])
+    V(T + "production-strategy-response", "set", {"environment": "beta", "action": "set", "strategy": strat, "changed": True, "synthetic": True}, covers=["CON-01"])
+    V(T + "production-strategy-response", "none-set", {"environment": "beta", "action": "get", "strategy": None, "changed": False, "synthetic": True}, covers=["CON-01"])
+    I(T + "production-strategy-response", "missing-strategy", {"environment": "beta", "action": "get", "changed": False, "synthetic": True}, covers=["CON-01"])
+
+
 # ------------------------------------------------------------------- output
 README_HEAD = """# Contract fixtures
 
@@ -1091,6 +1158,7 @@ def main() -> None:
     args = ap.parse_args()
     ROOT = args.root.resolve()
     build()
+    build_1_1_0()
     write(ROOT)
     print(f"{len(FILES)} fixtures, {len(SYNTHETIC_EXCEPTIONS)} synthetic exceptions")
 

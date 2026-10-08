@@ -1,0 +1,37 @@
+{
+  "domain": "finance",
+  "domain_schema_version": "1.0",
+  "job_type": "daily_recommendation",
+  "purpose": "production_candidate",
+  "dry_run": false,
+  "input_snapshot_id": "snap_01KDVDP88REHGPBXFX6CHX92KS",
+  "plan_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM",
+  "configuration": {
+    "domain": "finance",
+    "domain_schema_version": "1.0",
+    "payload": {
+      "strategy": "mean_variance",
+      "objective": "portfolio_optimization",
+      "universe": [
+        "SPY",
+        "CASH"
+      ],
+      "risk_aversion": 2.0,
+      "lookback_days": 252,
+      "rebalance_frequency": "monthly",
+      "constraints": {
+        "long_only": true,
+        "max_weight": 1.0
+      },
+      "fees": {
+        "transaction_cost_bps": 5
+      }
+    },
+    "synthetic": true
+  },
+  "compute_class": "cpu",
+  "max_runtime_seconds": 1800,
+  "idempotency_key": "daily-beta-2026-01-09",
+  "contract_version": "1.1.0",
+  "synthetic": true
+}

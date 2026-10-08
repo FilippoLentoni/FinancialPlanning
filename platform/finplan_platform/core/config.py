@@ -55,7 +55,16 @@ __all__ = [
     "load_all",
     "load_shared_config",
     "schedule_expression",
+    "UNIVERSE_DATASET_KIND",
+    "REQUIRED_DISCLOSURES",
+    "UniverseSpec",
+    "phase2_promotion_problems",
 ]
+
+UNIVERSE_DATASET_KIND = "equity-etf-daily"
+#: Every universe snapshot carries both disclosures (research-universe-dataset; UNI-01, UNI-04).
+REQUIRED_DISCLOSURES = ("hindsight_selection", "survivorship")
+_UNIVERSE_KINDS = ("etf", "equity", "cash")
 
 ENVIRONMENTS = ("beta", "gamma", "prod")
 SCHEDULE_TIMES = ("09:00", "09:30")
@@ -134,6 +143,67 @@ ENV_CONFIG_SCHEMA: dict[str, Any] = {
                         "rejected_records_max_ratio": {"type": "number", "minimum": 0, "maximum": 1},
                     },
                 },
+                # research-universe dataset (change add-research-universe-and-daily-loop; UNI-01)
+                "universe": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["kind", "subject", "instruments", "history_start", "currency", "adjustment_basis", "return_basis", "approval", "bias_disclosures"],
+                    "properties": {
+                        "$comment": {"type": "string"},
+                        "kind": {"const": "equity-etf-daily"},
+                        "subject": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+                        "instruments": {
+                            "type": "array",
+                            "minItems": 2,
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": ["instrument_id", "kind"],
+                                "properties": {
+                                    "instrument_id": {"type": "string", "pattern": "^[A-Z][A-Z0-9._]{0,15}$"},
+                                    "kind": {"enum": list(_UNIVERSE_KINDS)},
+                                    "return_assumption": {"enum": ["zero_nominal"]},
+                                    "exchange_mic": {"type": "string", "pattern": "^[A-Z0-9]{4}$"},
+                                },
+                            },
+                        },
+                        "history_start": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"},
+                        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+                        "adjustment_basis": {"const": "unadjusted"},
+                        "return_basis": {"const": "adj_close"},
+                        "approval": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["rule_version", "rejected_records_max_ratio"],
+                            "properties": {
+                                "rule_version": {"const": "approval-v2-universe"},
+                                "rejected_records_max_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+                            },
+                        },
+                        "bias_disclosures": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "required": ["kind", "text"],
+                                "properties": {"kind": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"}, "text": {"type": "string", "minLength": 20, "maxLength": 1000}},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        # post-ingestion daily recommendation trigger (daily-recommendation-trigger)
+        "daily_trigger": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["poll_interval_seconds", "max_polls", "max_runtime_seconds", "compute_class"],
+            "properties": {
+                "$comment": {"type": "string"},
+                "poll_interval_seconds": {"type": "integer", "minimum": 30, "maximum": 900},
+                "max_polls": {"type": "integer", "minimum": 1, "maximum": 20},
+                "max_runtime_seconds": {"type": "integer", "minimum": 60, "maximum": 2700},
+                "compute_class": {"const": "cpu"},
             },
         },
         "retention": {
@@ -259,6 +329,13 @@ def validate_config(doc: Any, *, env: str | None = None) -> list[ConfigProblem]:
             problems.append(ConfigProblem("/ingest/dataset/granularity", f"only daily completed observations are allowed in phases 1 and 2, got {ds.get('granularity')!r}", "ING-13"))
         if ds.get("kind") != "etf-daily":
             problems.append(ConfigProblem("/ingest/dataset/kind", f"the only enabled dataset is etf-daily, got {ds.get('kind')!r}", "ING-13"))
+    uni = ingest.get("universe") if isinstance(ingest.get("universe"), dict) else None
+    if uni is not None:
+        problems += _universe_problems(uni)
+    dt = doc.get("daily_trigger") if isinstance(doc.get("daily_trigger"), dict) else None
+    if dt is not None and isinstance(dt.get("poll_interval_seconds"), int) and isinstance(dt.get("max_polls"), int):
+        if dt["poll_interval_seconds"] * dt["max_polls"] > 45 * 60:
+            problems.append(ConfigProblem("/daily_trigger", "the trigger waits at most 45 minutes for a terminal job state (poll_interval_seconds * max_polls <= 2700)", "DLY-04"))
     ps = ingest.get("provider_settings") if isinstance(ingest.get("provider_settings"), dict) else {}
     if ps and isinstance(ps.get("backoff_initial_seconds"), (int, float)) and isinstance(ps.get("backoff_max_seconds"), (int, float)):
         if ps["backoff_max_seconds"] < ps["backoff_initial_seconds"]:
@@ -293,6 +370,72 @@ def validate_config(doc: Any, *, env: str | None = None) -> list[ConfigProblem]:
             if isinstance(pat, str) and not pat.startswith(f"finplan-{environment}-"):
                 problems.append(ConfigProblem(f"/consumer_principals/{name}/role_name_pattern", f"must name a {environment} principal (finplan-{environment}-...)"))
     return problems
+
+
+def _universe_problems(uni: Mapping[str, Any]) -> list[ConfigProblem]:
+    """UNI-01: instrument kinds, the modeled cash instrument and both disclosures (a missing kind or
+    disclosure fails the build)."""
+    out: list[ConfigProblem] = []
+    insts = [i for i in uni.get("instruments") or [] if isinstance(i, dict)]
+    ids = [i.get("instrument_id") for i in insts]
+    if len(ids) != len(set(ids)):
+        out.append(ConfigProblem("/ingest/universe/instruments", "instrument_id values must be unique", "UNI-01"))
+    for n, i in enumerate(insts):
+        if "kind" not in i:
+            continue  # reported by the schema
+        if i["kind"] == "cash" and i.get("return_assumption") != "zero_nominal":
+            out.append(ConfigProblem(f"/ingest/universe/instruments/{n}", "a cash instrument is modeled and needs return_assumption zero_nominal", "UNI-01"))
+        if i["kind"] != "cash" and "return_assumption" in i:
+            out.append(ConfigProblem(f"/ingest/universe/instruments/{n}", "only the cash instrument has a return_assumption", "UNI-01"))
+    if not any(i.get("kind") != "cash" for i in insts):
+        out.append(ConfigProblem("/ingest/universe/instruments", "the universe needs at least one non-cash instrument", "UNI-01"))
+    if sum(1 for i in insts if i.get("kind") == "cash") > 1:
+        out.append(ConfigProblem("/ingest/universe/instruments", "at most one modeled cash instrument", "UNI-01"))
+    kinds = [d.get("kind") for d in uni.get("bias_disclosures") or [] if isinstance(d, dict)]
+    for required in REQUIRED_DISCLOSURES:
+        if required not in kinds:
+            out.append(ConfigProblem("/ingest/universe/bias_disclosures", f"missing the {required!r} disclosure", "UNI-01"))
+    if len(kinds) != len(set(kinds)):
+        out.append(ConfigProblem("/ingest/universe/bias_disclosures", "each disclosure kind appears once", "UNI-01"))
+    hs = uni.get("history_start")
+    if isinstance(hs, str):
+        from datetime import date as _date
+
+        try:
+            _date.fromisoformat(hs)
+        except ValueError:
+            out.append(ConfigProblem("/ingest/universe/history_start", "must be a calendar date", "UNI-01"))
+    return out
+
+
+@dataclass(frozen=True)
+class UniverseSpec:
+    """The configured ``equity-etf-daily`` research universe (research-universe-dataset)."""
+
+    dataset_id: str
+    instruments: tuple[Mapping[str, Any], ...]
+    history_start: str
+    currency: str
+    adjustment_basis: str
+    return_basis: str
+    approval: Mapping[str, Any]
+    bias_disclosures: tuple[Mapping[str, str], ...]
+
+    @property
+    def tickers(self) -> tuple[str, ...]:
+        """Instruments with observations (every kind except the modeled cash)."""
+        return tuple(str(i["instrument_id"]) for i in self.instruments if i["kind"] != "cash")
+
+    def universe_block(self) -> dict[str, Any]:
+        """The snapshot payload's contract ``universe`` block (finance/v1/snapshot-payload.json, 1.1.0)."""
+        return {
+            "instruments": [{k: i[k] for k in ("instrument_id", "kind", "return_assumption") if k in i} for i in self.instruments],
+            "history_start": self.history_start,
+            "return_basis": self.return_basis,
+        }
+
+    def disclosures(self) -> list[dict[str, str]]:
+        return [{"kind": str(d["kind"]), "text": str(d["text"])} for d in self.bias_disclosures]
 
 
 @dataclass(frozen=True)
@@ -333,6 +476,33 @@ class EnvConfig:
     def dataset_id(self) -> str:
         """``finance/etf-daily/<instrument>`` (design P6)."""
         return f"finance/{self.dataset['kind']}/{self.dataset['instrument']}"
+
+    @property
+    def universe(self) -> UniverseSpec | None:
+        """The research universe (``ingest.universe``) or ``None`` when not configured."""
+        u = self.data["ingest"].get("universe")
+        if not u:
+            return None
+        return UniverseSpec(
+            dataset_id=f"finance/{u['kind']}/{u['subject']}",
+            instruments=tuple(u["instruments"]),
+            history_start=str(u["history_start"]),
+            currency=str(u["currency"]),
+            adjustment_basis=str(u["adjustment_basis"]),
+            return_basis=str(u["return_basis"]),
+            approval=u["approval"],
+            bias_disclosures=tuple(u["bias_disclosures"]),
+        )
+
+    @property
+    def dataset_ids(self) -> tuple[str, ...]:
+        """Every dataset served by this environment (``etf-daily`` first, then the universe)."""
+        u = self.universe
+        return (self.dataset_id,) + ((u.dataset_id,) if u else ())
+
+    @property
+    def daily_trigger(self) -> Mapping[str, Any] | None:
+        return self.data.get("daily_trigger")
 
     @property
     def retention(self) -> Mapping[str, Any]:
@@ -405,6 +575,46 @@ def load_shared_config(directory: str | Path | None = None) -> dict[str, Any]:
     if not isinstance(ceiling, (int, float)) or ceiling <= 0:
         raise ConfigError([ConfigProblem("/cost_ceiling_usd_default", "must be a positive number", "COST-01")], "shared.json")
     return doc
+
+
+#: Promotion order of phase 2 (beta first, then gamma, then prod after the manual approval).
+_PREDECESSOR = {"gamma": "beta", "prod": "gamma"}
+
+
+def phase2_promotion_problems(configs: Mapping[str, EnvConfig], evidence: Mapping[str, Any]) -> list[ConfigProblem]:
+    """UNI-06 promotion gate: an environment may declare phase 2 only when its predecessor has an
+    approved scheduled universe snapshot with ``yfinance`` lineage.
+
+    ``evidence`` is ``config/phase2-evidence.json``: per environment, the snapshot record (or the
+    fields) read through that environment's deployed API by the deployed UNI-05 test (no account
+    data: a snapshot ID, the rule version, the provider and the trigger).
+    """
+    out: list[ConfigProblem] = []
+    for env, pred in _PREDECESSOR.items():
+        cfg = configs.get(env)
+        if cfg is None or cfg.phase != 2:
+            continue
+        ev = evidence.get(pred) if isinstance(evidence, Mapping) else None
+        ok = (
+            isinstance(ev, Mapping)
+            and ev.get("status") == "approved"
+            and ev.get("approval_rule_version") == "approval-v2-universe"
+            and ev.get("provider") == "yfinance"
+            and ev.get("trigger") == "scheduled"
+            and isinstance(ev.get("input_snapshot_id"), str)
+            and str(ev.get("dataset_id", "")).startswith(f"finance/{UNIVERSE_DATASET_KIND}/")
+        )
+        if not ok:
+            out.append(ConfigProblem(f"/{env}/phase", f"{env} declares phase 2 but {pred} has no approved scheduled universe snapshot with yfinance lineage (missing {pred} evidence)", "UNI-06"))
+    return out
+
+
+def load_phase2_evidence(directory: str | Path | None = None) -> dict[str, Any]:
+    path = Path(directory or config_dir()) / "phase2-evidence.json"
+    if not path.is_file():
+        return {}
+    doc = _read(path)
+    return {k: v for k, v in doc.items() if k in ENVIRONMENTS} if isinstance(doc, dict) else {}
 
 
 _TIME_RE = re.compile(r"^(?P<h>[0-9]{2}):(?P<m>[0-9]{2})$")

@@ -1,0 +1,3 @@
+{
+  "$comment": "UNI-06 promotion evidence: per environment, the latest approved scheduled universe snapshot read through that environment's deployed API by the deployed UNI-05 test (snapshot ID, rule version, provider, trigger; no account data). gamma may declare phase 2 only with beta evidence, prod only with gamma evidence."
+}

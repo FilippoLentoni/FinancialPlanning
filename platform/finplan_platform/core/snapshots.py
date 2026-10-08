@@ -89,12 +89,37 @@ def _rule_v1(doc: Mapping[str, Any], *, rejected_max_ratio: float) -> list[str]:
     return blocking
 
 
-APPROVAL_RULES: dict[str, Callable[..., list[str]]] = {"approval-v1": _rule_v1}
+def _rule_v2_universe(doc: Mapping[str, Any], *, rejected_max_ratio: float) -> list[str]:
+    """``approval-v2-universe`` (research-universe-dataset, all-or-nothing; UNI-03): every non-cash
+    instrument has the session's completed bar and full coverage from the history start (no
+    ``missing_sessions``/``partial_response``), and no blocking flag holds."""
+    flags = set(doc.get("quality_flags") or [])
+    blocking = sorted(flags & {"stale_source", "empty_response", "partial_response", "missing_sessions"})
+    if "rejected_records" in flags:
+        rr = (doc.get("quality_details") or {}).get("rejected_records") or {}
+        total = int(rr.get("total_records") or 0)
+        ratio = (int(rr.get("count") or 0) / total) if total else 1.0
+        if ratio > rejected_max_ratio:
+            blocking.append("rejected_records")
+    summary = doc.get("observation_summary") or {}
+    expected = int(summary.get("instruments_expected") or 0)
+    if expected == 0 or int(summary.get("instruments_complete") or 0) < expected:
+        blocking.append("incomplete_universe")
+    if not doc.get("bias_disclosures"):
+        blocking.append("missing_bias_disclosures")
+    return blocking
+
+
+APPROVAL_RULES: dict[str, Callable[..., list[str]]] = {"approval-v1": _rule_v1, "approval-v2-universe": _rule_v2_universe}
 
 
 def evaluate_approval(doc: Mapping[str, Any], cfg: EnvConfig) -> tuple[bool, list[str], str]:
-    """(approved?, blocking reasons, rule version) for a catalog record under the configured rule."""
+    """(approved?, blocking reasons, rule version) for a catalog record under the rule configured for its
+    dataset (``ingest.approval`` for ``etf-daily``; ``ingest.universe.approval`` for the universe)."""
     approval = cfg.ingest["approval"]
+    universe = cfg.universe
+    if universe is not None and (doc.get("dataset") or {}).get("dataset_id") == universe.dataset_id:
+        approval = universe.approval
     version = str(approval["rule_version"])
     rule = APPROVAL_RULES[version]
     blocking = rule(doc, rejected_max_ratio=float(approval["rejected_records_max_ratio"]))

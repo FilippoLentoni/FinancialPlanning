@@ -24,7 +24,7 @@ pytestmark = pytest.mark.synth
 
 ENVS = ("beta", "gamma", "prod")
 WORST = {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "execute-api:*", "Resource": "*"}]}
-IDS = {"plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM", "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM", "publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM", "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM", "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM", "import_id": "imp_01KDVDNAZ83BAMMYCEGWF33DPM", "execution_id": "exe_01KDVDNAZ83BAMMYCEGWF33DPM", "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM"}
+IDS = {"plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM", "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM", "publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM", "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM", "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM", "import_id": "imp_01KDVDNAZ83BAMMYCEGWF33DPM", "execution_id": "exe_01KDVDNAZ83BAMMYCEGWF33DPM", "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM", "session_date": "2026-01-09"}
 
 
 def roles(env: str) -> dict[str, str]:

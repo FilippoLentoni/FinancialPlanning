@@ -168,6 +168,49 @@
     "json_pointer": {
       "type": "string",
       "pattern": "^(/([^/~]|~[01])*)*$"
+    },
+    "bias_disclosures": {
+      "type": "array",
+      "description": "Optional (added in 1.1.0): bias disclosures that every derived artifact must carry unchanged (for example a hand-selected research dataset). Each entry names a disclosure kind and its configured text.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "x-finplan-open-enum": true,
+            "x-finplan-known-values": [
+              "hindsight_selection",
+              "survivorship"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "uniqueItems": true
+    },
+    "job_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "daily_recommendation"
+      ],
+      "description": "Added in 1.1.0: registered job kinds (open enum; job_type stays a vocabulary value). daily_recommendation is the platform-triggered production_candidate job that runs the configured production strategy on an approved snapshot for one plan."
+    },
+    "strategy_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "description": "Added in 1.1.0: a model strategy identifier from the FinanceModel registry (for example 'buy_and_hold')."
     }
   }
 }

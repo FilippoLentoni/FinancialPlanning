@@ -15,7 +15,7 @@
       "jitter": true
     },
     "settle_delay_minutes": 60,
-    "function_timeout_seconds": 120,
+    "function_timeout_seconds": 300,
     "dataset": {
       "kind": "etf-daily",
       "instrument": "SPY",
@@ -26,6 +26,56 @@
     "approval": {
       "rule_version": "approval-v1",
       "rejected_records_max_ratio": 0.0
+    },
+    "universe": {
+      "$comment": "Research universe (decision 17; change add-research-universe-and-daily-loop). Real data only through the yfinance provider in a phase 2 environment; tickers are configuration, never hard-coded.",
+      "kind": "equity-etf-daily",
+      "subject": "research-universe",
+      "instruments": [
+        {
+          "instrument_id": "VOO",
+          "kind": "etf"
+        },
+        {
+          "instrument_id": "GOOGL",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "NFLX",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "AAPL",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "NVDA",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "USD_CASH",
+          "kind": "cash",
+          "return_assumption": "zero_nominal"
+        }
+      ],
+      "history_start": "2010-10-01",
+      "currency": "USD",
+      "adjustment_basis": "unadjusted",
+      "return_basis": "adj_close",
+      "approval": {
+        "rule_version": "approval-v2-universe",
+        "rejected_records_max_ratio": 0.0
+      },
+      "bias_disclosures": [
+        {
+          "kind": "hindsight_selection",
+          "text": "Hindsight selection: these instruments were chosen in 2026 knowing they performed well, so backtests on this universe overstate what a forward-looking selection would have achieved."
+        },
+        {
+          "kind": "survivorship",
+          "text": "Survivorship: the universe contains only companies that exist and are listed today; failed, acquired or delisted companies are absent, which biases historical returns upward."
+        }
+      ]
     }
   },
   "retention": {
@@ -55,6 +105,13 @@
   "validation": {
     "ruleset_version": "plan-rules-v1",
     "weight_sum_tolerance": 1e-09
+  },
+  "daily_trigger": {
+    "$comment": "Post-ingestion daily recommendation trigger: poll every 5 minutes, at most 9 polls (45 minutes).",
+    "poll_interval_seconds": 300,
+    "max_polls": 9,
+    "max_runtime_seconds": 1800,
+    "compute_class": "cpu"
   },
   "consumer_principals": {
     "financemodel_job": {

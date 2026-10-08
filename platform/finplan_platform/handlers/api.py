@@ -102,6 +102,15 @@ __all__ = [
 TOOL_CLASSES = ("reader", "submitter", "plan-writer")
 FINANCEMODEL_CLASSES = ("financemodel-job", "financemodel-job-api")
 FULL_ACCESS_CLASSES = ("platform", "website", "operator")
+#: Platform automation roles (the daily recommendation trigger and the daily ingestion schedule):
+#: snapshot and plan reads, staged-output acceptance and the trigger outcome read only. They are
+#: never granted the publish route (daily-recommendation-trigger, DLY-06).
+AUTOMATION_CLASS = "automation"
+AUTOMATION_ROLE_SUFFIXES = ("daily-trigger", "daily-ingest-schedule")
+
+
+def automation_role_patterns(env: str) -> tuple[str, ...]:
+    return tuple(f"finplan-{env}-financialplanning-{s}*" for s in AUTOMATION_ROLE_SUFFIXES)
 ROLE_CLASSES = FULL_ACCESS_CLASSES + TOOL_CLASSES + FINANCEMODEL_CLASSES
 #: role class -> ``consumer_principals`` key in ``config/<env>.json``
 CONSUMER_CONFIG_KEYS: dict[str, str] = {
@@ -201,7 +210,7 @@ ROUTES: tuple[Route, ...] = (
     Route("POST", "/v1/portfolios", "create_portfolio", _PLANS, lambda m, c, s, r: m.create_portfolio(c, s, r.body), status=201, response_schema=CREATE_PORTFOLIO_RESPONSE),
     Route("GET", "/v1/portfolios/{portfolio_id}", "get_portfolio", _PLANS, lambda m, c, s, r: m.get_portfolio(c, s, r.path["portfolio_id"]), _READERS, response_schema="portfolio"),
     Route("POST", "/v1/portfolios/{portfolio_id}/plans", "create_plan", _PLANS, lambda m, c, s, r: m.create_plan(c, s, r.path["portfolio_id"], r.body), status=201, response_schema=CREATE_PLAN_RESPONSE),
-    Route("GET", "/v1/plans/{plan_id}", "get_plan", _PLANS, lambda m, c, s, r: m.get_plan(c, s, r.path["plan_id"]), _READERS, response_schema="tools/get-plan-response"),
+    Route("GET", "/v1/plans/{plan_id}", "get_plan", _PLANS, lambda m, c, s, r: m.get_plan(c, s, r.path["plan_id"]), _READERS + (AUTOMATION_CLASS,), response_schema="tools/get-plan-response"),
     Route(
         "GET",
         "/v1/plans/{plan_id}/versions",
@@ -234,7 +243,7 @@ ROUTES: tuple[Route, ...] = (
         "get_snapshot",
         _SNAPSHOTS,
         lambda m, c, s, r: m.get_snapshot(c, s, r.path["input_snapshot_id"], download=bool(r.query.get("download"))),
-        _READERS + FINANCEMODEL_CLASSES,
+        _READERS + FINANCEMODEL_CLASSES + (AUTOMATION_CLASS,),
         response_schema=SNAPSHOT_RESPONSE,
         query={"download": "bool"},
     ),
@@ -250,7 +259,8 @@ ROUTES: tuple[Route, ...] = (
     ),
     # ---- routes delegated to modules owned by other agents (lazily imported) ----
     Route("POST", "/v1/ingestions", "run_ingestion", "", _delegate("run_ingestion"), ("submitter",), owner="ingestion", response_schema=REFRESH_MARKET_DATA_RESPONSE),
-    Route("POST", "/v1/plans/{plan_id}/staged-outputs/{run_id}/accept", "accept_staged_output", "", _delegate("accept_staged_output"), owner="staging", response_schema=_lazy_schema("finplan_platform.core.staging:ACCEPT_STAGED_OUTPUT_RESPONSE")),
+    Route("POST", "/v1/plans/{plan_id}/staged-outputs/{run_id}/accept", "accept_staged_output", "", _delegate("accept_staged_output"), (AUTOMATION_CLASS,), owner="staging", response_schema=_lazy_schema("finplan_platform.core.staging:ACCEPT_STAGED_OUTPUT_RESPONSE")),
+    Route("GET", "/v1/daily-trigger/outcomes/{session_date}", "get_daily_trigger_outcomes", "", _delegate("get_daily_trigger_outcomes"), _READERS + (AUTOMATION_CLASS,), owner="daily_trigger", response_schema=_lazy_schema("finplan_platform.core.daily_trigger:OUTCOMES_RESPONSE")),
     Route("GET", "/v1/staged-outputs/{run_id}", "get_staged_output", "", _delegate("get_staged_output"), _READERS + ("financemodel-job-api",), owner="staging", response_schema=GET_STAGED_OUTPUT_RESPONSE),
     Route("POST", "/v1/plan-versions/{plan_version_id}/exports", "export_plan_version", "", _delegate("export_plan_version"), owner="excel", response_schema=_lazy_schema("finplan_platform.excel.service:EXPORT_RESPONSE")),
     Route("POST", "/v1/plans/{plan_id}/imports", "issue_import_grant", "", _delegate("issue_import_grant"), owner="excel", response_schema=_lazy_schema("finplan_platform.excel.service:IMPORT_GRANT_RESPONSE")),
@@ -262,6 +272,7 @@ ROUTES: tuple[Route, ...] = (
 DELEGATES: dict[str, tuple[str, ...]] = {
     "run_ingestion": ("finplan_platform.core.ingestion:run_ingestion",),
     "accept_staged_output": ("finplan_platform.core.staging:accept_staged_output",),
+    "get_daily_trigger_outcomes": ("finplan_platform.core.daily_trigger:get_outcomes",),
     "get_staged_output": (
         "finplan_platform.core.staging:get_staged_output",
         "finplan_platform.core.staging:read_staged_output",
@@ -390,6 +401,8 @@ def resolve_role_class(principal_arn: str, cfg: Any) -> str | None:
     for cls in ("website", "operator"):
         if fnmatch.fnmatchcase(name, patterns[cls]):
             return cls
+    if any(fnmatch.fnmatchcase(name, pat) for pat in automation_role_patterns(cfg.env)):
+        return AUTOMATION_CLASS
     if name.startswith(f"finplan-{cfg.env}-financialplanning-"):
         return "platform"
     for cls in TOOL_CLASSES + FINANCEMODEL_CLASSES:

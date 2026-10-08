@@ -19,7 +19,7 @@ from ..core.errors import PlatformError
 from .base import ProviderAdapter
 from .fixture import FixtureProvider
 
-__all__ = ["KNOWN_PROVIDERS", "provider_for_config"]
+__all__ = ["KNOWN_PROVIDERS", "provider_for_config", "provider_for_instrument"]
 
 KNOWN_PROVIDERS = ("fixture", "yfinance")
 
@@ -44,6 +44,39 @@ def provider_for_config(
         return YFinanceProvider(
             dataset_id=cfg.dataset_id,
             ticker=str(cfg.dataset["instrument"]),
+            settings=cfg.ingest["provider_settings"],
+            clock=clock,
+            sleep=sleep,
+            library=library,
+            function_timeout_seconds=int(cfg.ingest["function_timeout_seconds"]),
+        )
+    raise PlatformError.precondition(f"unknown provider {name!r}", reason="unknown_provider", provider=name)
+
+
+def provider_for_instrument(
+    cfg: EnvConfig,
+    dataset_id: str,
+    instrument_id: str,
+    *,
+    clock: Clock | None = None,
+    library: Any = None,
+    sleep: Callable[[float], None] = time.sleep,
+    calendar: SessionCalendar | None = None,
+) -> ProviderAdapter:
+    """One adapter per universe instrument (research-universe-dataset): the same phase gate as
+    :func:`provider_for_config`; ``yfinance`` only in a phase 2 configuration."""
+    clock = clock or SystemClock()
+    name = cfg.provider
+    if name == "fixture":
+        return FixtureProvider(dataset_id=dataset_id, instrument_id=instrument_id, calendar=calendar or fixture_calendar(), clock=clock)
+    if name == "yfinance":
+        if cfg.phase != 2:
+            raise PlatformError.precondition("the yfinance provider is enabled only by a phase 2 configuration", reason="phase_gate", phase=cfg.phase, provider=name)
+        from .yfinance_provider import YFinanceProvider
+
+        return YFinanceProvider(
+            dataset_id=dataset_id,
+            ticker=instrument_id,
             settings=cfg.ingest["provider_settings"],
             clock=clock,
             sleep=sleep,

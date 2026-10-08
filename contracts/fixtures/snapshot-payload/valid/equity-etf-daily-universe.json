@@ -1,0 +1,168 @@
+{
+  "dataset_id": "finance/equity-etf-daily/research-universe",
+  "calendar": "XNYS",
+  "instruments": [
+    {
+      "instrument_id": "VOO",
+      "asset_class": "etf",
+      "kind": "etf",
+      "currency": "USD",
+      "synthetic": true
+    },
+    {
+      "instrument_id": "GOOGL",
+      "asset_class": "equity",
+      "kind": "equity",
+      "currency": "USD",
+      "synthetic": true
+    },
+    {
+      "instrument_id": "NFLX",
+      "asset_class": "equity",
+      "kind": "equity",
+      "currency": "USD",
+      "synthetic": true
+    },
+    {
+      "instrument_id": "AAPL",
+      "asset_class": "equity",
+      "kind": "equity",
+      "currency": "USD",
+      "synthetic": true
+    },
+    {
+      "instrument_id": "NVDA",
+      "asset_class": "equity",
+      "kind": "equity",
+      "currency": "USD",
+      "synthetic": true
+    },
+    {
+      "instrument_id": "USD_CASH",
+      "asset_class": "cash",
+      "kind": "cash",
+      "return_assumption": "zero_nominal",
+      "currency": "USD",
+      "synthetic": true
+    }
+  ],
+  "observations": [
+    {
+      "instrument_id": "VOO",
+      "session_date": "2026-01-09",
+      "kind": "completed_daily",
+      "session_status": "regular",
+      "open": 100.0,
+      "high": 101.0,
+      "low": 99.0,
+      "close": 100.5,
+      "volume": 1000,
+      "adj_close": 100.5,
+      "dividend": 0.0,
+      "split_ratio": 1.0,
+      "synthetic": true
+    },
+    {
+      "instrument_id": "GOOGL",
+      "session_date": "2026-01-09",
+      "kind": "completed_daily",
+      "session_status": "regular",
+      "open": 100.0,
+      "high": 101.0,
+      "low": 99.0,
+      "close": 100.5,
+      "volume": 1000,
+      "adj_close": 100.5,
+      "dividend": 0.0,
+      "split_ratio": 1.0,
+      "synthetic": true
+    },
+    {
+      "instrument_id": "NFLX",
+      "session_date": "2026-01-09",
+      "kind": "completed_daily",
+      "session_status": "regular",
+      "open": 100.0,
+      "high": 101.0,
+      "low": 99.0,
+      "close": 100.5,
+      "volume": 1000,
+      "adj_close": 100.5,
+      "dividend": 0.0,
+      "split_ratio": 1.0,
+      "synthetic": true
+    },
+    {
+      "instrument_id": "AAPL",
+      "session_date": "2026-01-09",
+      "kind": "completed_daily",
+      "session_status": "regular",
+      "open": 100.0,
+      "high": 101.0,
+      "low": 99.0,
+      "close": 100.5,
+      "volume": 1000,
+      "adj_close": 100.5,
+      "dividend": 0.0,
+      "split_ratio": 1.0,
+      "synthetic": true
+    },
+    {
+      "instrument_id": "NVDA",
+      "session_date": "2026-01-09",
+      "kind": "completed_daily",
+      "session_status": "regular",
+      "open": 100.0,
+      "high": 101.0,
+      "low": 99.0,
+      "close": 100.5,
+      "volume": 1000,
+      "adj_close": 100.5,
+      "dividend": 0.0,
+      "split_ratio": 1.0,
+      "synthetic": true
+    }
+  ],
+  "universe": {
+    "instruments": [
+      {
+        "instrument_id": "VOO",
+        "kind": "etf"
+      },
+      {
+        "instrument_id": "GOOGL",
+        "kind": "equity"
+      },
+      {
+        "instrument_id": "NFLX",
+        "kind": "equity"
+      },
+      {
+        "instrument_id": "AAPL",
+        "kind": "equity"
+      },
+      {
+        "instrument_id": "NVDA",
+        "kind": "equity"
+      },
+      {
+        "instrument_id": "USD_CASH",
+        "kind": "cash",
+        "return_assumption": "zero_nominal"
+      }
+    ],
+    "history_start": "2010-10-01",
+    "return_basis": "adj_close"
+  },
+  "bias_disclosures": [
+    {
+      "kind": "hindsight_selection",
+      "text": "Synthetic disclosure: the instruments were selected with hindsight."
+    },
+    {
+      "kind": "survivorship",
+      "text": "Synthetic disclosure: failed or delisted companies are absent."
+    }
+  ],
+  "synthetic": true
+}

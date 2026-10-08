@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[3]
 # ------------------------------------------------------------------ ING-15
 def test_xnys_calendar_version_names_exchange_library_version_and_coverage(xnys: SessionCalendar) -> None:
     pins = check_ingest_pins.pinned_versions(ROOT / "pyproject.toml")
-    assert xnys.version == f"xnys-exchange_calendars-{pins['exchange-calendars']}-20240101-20271231"
+    assert xnys.version == f"xnys-exchange_calendars-{pins['exchange-calendars']}-20100101-20271231"
     assert xnys.exchange == "XNYS" and xnys.timezone == "America/New_York"
     assert xnys.source["library"] == "exchange_calendars" and xnys.source["library_version"] == pins["exchange-calendars"]
     assert xnys.source["license"] == "Apache-2.0"
@@ -85,7 +85,7 @@ def test_calendar_with_a_gap_is_rejected() -> None:
 # ------------------------------------------------------------------ ING-03 coverage
 def test_out_of_coverage_is_precondition_failed_naming_the_coverage(xnys: SessionCalendar) -> None:
     with pytest.raises(PlatformError) as ei:
-        xnys.sessions_between(date(2023, 12, 1), date(2024, 1, 5))
+        xnys.sessions_between(date(2009, 12, 1), date(2010, 1, 5))
     assert ei.value.code == "PRECONDITION_FAILED"
-    assert ei.value.details["calendar_coverage"] == {"start": "2024-01-01", "end": "2027-12-31"}
+    assert ei.value.details["calendar_coverage"] == {"start": "2010-01-01", "end": "2027-12-31"}
     assert ei.value.details["calendar_version"] == xnys.version

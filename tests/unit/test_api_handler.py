@@ -84,6 +84,9 @@ def test_route_grant_table_matches_the_design() -> None:
     assert by_class["financemodel-job-api"] == by_class["financemodel-job"] | {("GET", "/v1/staged-outputs/{run_id}")}
     for cls in FULL_ACCESS_CLASSES:
         assert all(route_allowed(r, cls) for r in ROUTES)
+    # daily-recommendation-trigger (DLY-06): the automation class reads, accepts and never publishes
+    automation = {(r.method, r.path) for r in ROUTES if route_allowed(r, "automation")}
+    assert automation == {("GET", "/v1/plans/{plan_id}"), ("GET", "/v1/snapshots/{input_snapshot_id}"), ("POST", "/v1/plans/{plan_id}/staged-outputs/{run_id}/accept"), ("GET", "/v1/daily-trigger/outcomes/{session_date}")}
     tool_forbidden = {("POST", p) for p in ("/v1/publications/{publication_id}/executions", "/v1/plan-versions/{plan_version_id}/exports", "/v1/plans/{plan_id}/imports", "/v1/plans/{plan_id}/imports/{import_id}/commit", "/v1/plans/{plan_id}/staged-outputs/{run_id}/accept")}
     for cls in ("reader", "submitter", "plan-writer"):
         assert not (by_class[cls] & tool_forbidden)

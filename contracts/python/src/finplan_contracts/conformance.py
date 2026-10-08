@@ -68,6 +68,7 @@ REQUIRED_SCHEMAS: dict[str, str] = {
     "release-manifest": "release manifest",
     "domain-envelope": "domain envelope",
     "staged-output-manifest": "staged-output manifest",
+    "production-strategy": "production-strategy document (1.1.0)",
     "excel-plan-template": "Excel plan template",
     "import-report": "import report",
     "tool-catalog": "tool catalog",
@@ -92,6 +93,8 @@ PUBLISHED_TOOLS: tuple[str, ...] = (
     "create_override_version",
     "validate_plan_version",
     "publish_plan_version",
+    # 1.1.0: the FinanceLambdasTool production-strategy tool: get, set, clear
+    "production_strategy",
 )
 
 RESERVED_FIXTURE_DIRS = {"vectors"}

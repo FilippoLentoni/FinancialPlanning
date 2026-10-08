@@ -168,7 +168,7 @@ def test_empty_then_data_is_retried(fake_yf: Any, clock: FrozenClock) -> None:
 
 # ------------------------------------------------------------------ ING-10 phase gate at run time
 def test_registry_builds_fixture_in_phase_1_and_yfinance_only_in_phase_2(clock: FrozenClock, fake_yf: Any) -> None:
-    assert provider_for_config(config_with(), clock=clock).describe().provider_id == "fixture"
+    assert provider_for_config(config_with(**{"phase": 1, "ingest.provider": "fixture"}), clock=clock).describe().provider_id == "fixture"
     p2 = provider_for_config(config_with(**{"phase": 2, "ingest.provider": "yfinance"}), clock=clock, library=fake_yf())
     assert p2.describe().provider_id == "yfinance"
     # a configuration that slipped past the build gate still cannot reach the real provider
@@ -177,6 +177,7 @@ def test_registry_builds_fixture_in_phase_1_and_yfinance_only_in_phase_2(clock: 
     from finplan_platform.core.config import EnvConfig, load_config
 
     doc = json.loads(json.dumps(dict(load_config("beta").data)))
+    doc["phase"] = 1
     doc["ingest"]["provider"] = "yfinance"
     with pytest.raises(Exception) as ei:
         provider_for_config(EnvConfig(doc), clock=clock)

@@ -151,6 +151,7 @@ def test_config_gate_rejects_an_invalid_schedule_and_a_phase_1_real_provider(tmp
     assert res.ok, res.problems
     beta = json.loads((root / "config" / "beta.json").read_text())
     beta["ingest"]["schedule_time"] = "10:00"
+    beta["phase"] = 1  # beta declares phase 2 since add-research-universe-and-daily-loop
     beta["ingest"]["provider"] = "yfinance"
     (root / "config" / "beta.json").write_text(json.dumps(beta))
     (res,) = build_gates.run_gates(build_gates.GateContext(root=root), only=["config"])

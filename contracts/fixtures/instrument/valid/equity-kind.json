@@ -1,0 +1,8 @@
+{
+  "instrument_id": "GOOGL",
+  "asset_class": "equity",
+  "kind": "equity",
+  "currency": "USD",
+  "exchange_mic": "XNAS",
+  "synthetic": true
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/production-strategy.json",
+  "title": "Production strategy",
+  "description": "Added in 1.1.0: the FinanceModel-owned production-strategy document held at /finplan/<env>/financemodel/config/production-strategy. FinanceModel's strategy-selection operation is the single writer; the FinancialPlanning daily trigger role reads it. An absent key, an empty value or a document without strategy_id means no production strategy: the daily trigger records skipped_no_strategy and submits nothing.",
+  "type": "object",
+  "properties": {
+    "strategy_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/strategy_id"
+    },
+    "environment": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/environment"
+    },
+    "selected_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "selected_by": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._@+-]{0,127}$",
+      "description": "Caller principal name that selected the strategy (never a credential)."
+    },
+    "model_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/model_version"
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "strategy_id",
+    "environment",
+    "selected_at",
+    "selected_by"
+  ],
+  "additionalProperties": false
+}

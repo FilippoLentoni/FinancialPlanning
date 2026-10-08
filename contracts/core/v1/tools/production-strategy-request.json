@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/production-strategy-request.json",
+  "title": "production_strategy request",
+  "description": "Added in 1.1.0: request schema for the FinanceLambdasTool 'production_strategy' tool. 'get' reads the environment's production strategy; 'set' selects a registered strategy and 'clear' removes it, both through the FinanceModel selection operation (state-changing, plan-writer role class). Never storage locations.",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "get",
+        "set",
+        "clear"
+      ]
+    },
+    "strategy_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/strategy_id"
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "set"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "strategy_id",
+          "idempotency_key"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "clear"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "required": [
+          "idempotency_key"
+        ],
+        "not": {
+          "required": [
+            "strategy_id"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "const": "get"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "strategy_id"
+          ]
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

@@ -38,7 +38,7 @@ if str(ROOT) not in sys.path:
 from scripts.check_ingest_pins import pinned_versions
 
 CALENDAR_DIR = ROOT / "platform" / "finplan_platform" / "data" / "calendars"
-XNYS_DEFAULT_COVERAGE = (date(2024, 1, 1), date(2027, 12, 31))
+XNYS_DEFAULT_COVERAGE = (date(2010, 1, 1), date(2027, 12, 31))  # 2010: research-universe history from 2010-10-01
 FIXTURE_DEFAULT_COVERAGE = (date(2025, 1, 1), date(2027, 12, 31))
 FIXTURE_VERSION_STEM = "fixture-synthetic-v1"
 LIBRARY = "exchange_calendars"

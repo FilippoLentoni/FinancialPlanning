@@ -103,6 +103,9 @@
     },
     "synthetic": {
       "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    },
+    "bias_disclosures": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/bias_disclosures"
     }
   },
   "required": [

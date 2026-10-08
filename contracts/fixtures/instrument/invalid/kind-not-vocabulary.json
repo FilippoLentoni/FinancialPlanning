@@ -1,0 +1,7 @@
+{
+  "instrument_id": "VOO",
+  "asset_class": "etf",
+  "kind": "ETF",
+  "currency": "USD",
+  "synthetic": true
+}

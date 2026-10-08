@@ -1228,6 +1228,18 @@ cases:
   code: VALIDATION_FAILED
   covers:
   - CS-08
+- fixture: input-snapshot/invalid/disclosure-kind-not-vocabulary.json
+  schema: input-snapshot
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: input-snapshot/invalid/disclosure-without-text.json
+  schema: input-snapshot
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
 - fixture: input-snapshot/invalid/lineage-missing-retrieved-at.json
   schema: input-snapshot
   expect: invalid
@@ -1288,6 +1300,11 @@ cases:
   expect: valid
   covers:
   - ID-05
+- fixture: input-snapshot/valid/approved-universe-with-disclosures.json
+  schema: input-snapshot
+  expect: valid
+  covers:
+  - CON-01
 - fixture: input-snapshot/valid/calendar-version-quality-details-observation-summary.json
   schema: input-snapshot
   expect: valid
@@ -1300,6 +1317,11 @@ cases:
   covers:
   - ID-05
   - CS-11
+- fixture: input-snapshot/valid/committed-universe-partial-response.json
+  schema: input-snapshot
+  expect: valid
+  covers:
+  - CON-01
 - fixture: input-snapshot/valid/empty-response-no-new-observations.json
   schema: input-snapshot
   expect: valid
@@ -1323,6 +1345,12 @@ cases:
   expect: valid
   covers:
   - CS-11
+- fixture: instrument/invalid/kind-not-vocabulary.json
+  schema: instrument
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
 - fixture: instrument/invalid/lowercase-id.json
   schema: instrument
   expect: invalid
@@ -1336,11 +1364,21 @@ cases:
   expect: valid
   covers:
   - DOM-03
+- fixture: instrument/valid/equity-kind.json
+  schema: instrument
+  expect: valid
+  covers:
+  - CON-01
 - fixture: instrument/valid/etf.json
   schema: instrument
   expect: valid
   covers:
   - DOM-03
+- fixture: instrument/valid/modeled-cash.json
+  schema: instrument
+  expect: valid
+  covers:
+  - CON-01
 - fixture: job-result/invalid/failed-without-error.json
   schema: job-result
   expect: invalid
@@ -1518,6 +1556,12 @@ cases:
   expect: valid
   covers:
   - CS-07
+- fixture: job-submission/invalid/daily-recommendation-plan-id-wrong-prefix.json
+  schema: job-submission
+  expect: invalid
+  code: INVALID_IDENTIFIER
+  covers:
+  - CON-01
 - fixture: job-submission/invalid/finance-payload-invalid.json
   schema: job-submission
   expect: invalid
@@ -1560,6 +1604,11 @@ cases:
   code: VALIDATION_FAILED
   covers:
   - CS-11
+- fixture: job-submission/valid/daily-recommendation.json
+  schema: job-submission
+  expect: valid
+  covers:
+  - CON-01
 - fixture: job-submission/valid/dry-run.json
   schema: job-submission
   expect: valid
@@ -1772,6 +1821,30 @@ cases:
 - fixture: portfolio/valid/synthetic-portfolio.json
   schema: portfolio
   expect: valid
+- fixture: production-strategy/invalid/environment-shared.json
+  schema: production-strategy
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: production-strategy/invalid/missing-strategy-id.json
+  schema: production-strategy
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: production-strategy/invalid/strategy-id-with-path.json
+  schema: production-strategy
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+  - CS-08
+- fixture: production-strategy/valid/buy-and-hold.json
+  schema: production-strategy
+  expect: valid
+  covers:
+  - CON-01
 - fixture: publication/invalid/missing-checksum.json
   schema: publication
   expect: invalid
@@ -1894,11 +1967,34 @@ cases:
   code: VALIDATION_FAILED
   covers:
   - DOM-03
+- fixture: snapshot-payload/invalid/universe-instrument-without-kind.json
+  schema: snapshot-payload
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: snapshot-payload/invalid/universe-without-return-basis.json
+  schema: snapshot-payload
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: snapshot-payload/valid/equity-etf-daily-universe.json
+  schema: snapshot-payload
+  expect: valid
+  covers:
+  - CON-01
 - fixture: snapshot-payload/valid/etf-daily.json
   schema: snapshot-payload
   expect: valid
   covers:
   - DOM-03
+- fixture: staged-output-manifest/invalid/disclosures-not-a-list.json
+  schema: staged-output-manifest
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
 - fixture: staged-output-manifest/invalid/failed-with-solution-status.json
   schema: staged-output-manifest
   expect: invalid
@@ -1931,6 +2027,11 @@ cases:
   code: VALIDATION_FAILED
   covers:
   - CS-07
+- fixture: staged-output-manifest/valid/daily-recommendation-with-disclosures.json
+  schema: staged-output-manifest
+  expect: valid
+  covers:
+  - CON-01
 - fixture: staged-output-manifest/valid/failed-partial-output.json
   schema: staged-output-manifest
   expect: valid
@@ -2171,6 +2272,55 @@ cases:
 - fixture: tools/list-plan-versions-response/valid/page-with-token.json
   schema: tools/list-plan-versions-response
   expect: valid
+- fixture: tools/production-strategy-request/invalid/clear-with-strategy.json
+  schema: tools/production-strategy-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: tools/production-strategy-request/invalid/set-without-strategy.json
+  schema: tools/production-strategy-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: tools/production-strategy-request/invalid/storage-location-field.json
+  schema: tools/production-strategy-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CS-08
+- fixture: tools/production-strategy-request/valid/clear.json
+  schema: tools/production-strategy-request
+  expect: valid
+  covers:
+  - CON-01
+- fixture: tools/production-strategy-request/valid/get.json
+  schema: tools/production-strategy-request
+  expect: valid
+  covers:
+  - CON-01
+- fixture: tools/production-strategy-request/valid/set.json
+  schema: tools/production-strategy-request
+  expect: valid
+  covers:
+  - CON-01
+- fixture: tools/production-strategy-response/invalid/missing-strategy.json
+  schema: tools/production-strategy-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  covers:
+  - CON-01
+- fixture: tools/production-strategy-response/valid/none-set.json
+  schema: tools/production-strategy-response
+  expect: valid
+  covers:
+  - CON-01
+- fixture: tools/production-strategy-response/valid/set.json
+  schema: tools/production-strategy-response
+  expect: valid
+  covers:
+  - CON-01
 - fixture: tools/publish-plan-version-request/invalid/execute-flag.json
   schema: tools/publish-plan-version-request
   expect: invalid

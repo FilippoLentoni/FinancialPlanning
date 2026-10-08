@@ -1,0 +1,5 @@
+{
+  "action": "clear",
+  "idempotency_key": "client-key-0102",
+  "synthetic": true
+}

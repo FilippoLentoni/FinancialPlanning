@@ -123,7 +123,15 @@ def _call_main(fn: Callable[[list[str]], int], argv: list[str]) -> tuple[int, st
 def gate_contracts_pin(ctx: GateContext) -> list[str]:
     from scripts.check_contracts_pin import check
 
-    return [f"contracts pin: {p}" for p in check(ctx.root, rebuild=ctx.rebuild_contracts)]
+    problems = [f"contracts pin: {p}" for p in check(ctx.root, rebuild=ctx.rebuild_contracts)]
+    # CON-02: the in-repo contracts against the previous published release (no 0.x exemption)
+    baseline = ctx.root / "contracts" / "python" / "tests" / "data" / "releases" / "finplan-contracts-schemas-1.0.0.tar.gz"
+    if (ctx.root / "contracts" / "VERSION").is_file() and baseline.is_file():
+        from finplan_contracts import compat
+
+        report = compat.compare_roots(baseline, ctx.root / "contracts", allow_zero_major_breaking=False)
+        problems += [f"contracts compat: {p}" for p in report.problems]
+    return problems
 
 
 def gate_config(ctx: GateContext) -> list[str]:
@@ -132,8 +140,12 @@ def gate_config(ctx: GateContext) -> list[str]:
     problems: list[str] = []
     cfg_dir = ctx.root / "config"
     try:
-        load_all(cfg_dir)
+        configs = load_all(cfg_dir)
         load_shared_config(cfg_dir)
+        # UNI-06: phase 2 only after the predecessor's approved scheduled universe snapshot (yfinance lineage)
+        from finplan_platform.core.config import load_phase2_evidence, phase2_promotion_problems
+
+        problems += [f"config: {p}" for p in phase2_promotion_problems(configs, load_phase2_evidence(cfg_dir))]
     except ConfigError as exc:
         problems += [f"config: {p}" for p in exc.problems]
     except (OSError, ValueError) as exc:

@@ -95,7 +95,8 @@ def test_tool_catalog_lists_every_published_tool_and_ids_resolve():
     from finplan_contracts.conformance import PUBLISHED_TOOLS
 
     cat = fixture("tool-catalog/valid/gamma-catalog.json")
-    assert {t["name"] for t in cat["tools"]} == set(PUBLISHED_TOOLS)
+    # the catalog fixture is a 1.0.0 fixture (kept byte-identical, CON-02); production_strategy is added in 1.1.0
+    assert {t["name"] for t in cat["tools"]} == set(PUBLISHED_TOOLS) - {"production_strategy"}
     assert validate(cat, "tool-catalog").valid
     bad = copy.deepcopy(cat)
     bad["tools"][0]["input_schema_id"] = bad["tools"][0]["input_schema_id"].replace("-request", "-v9-request")

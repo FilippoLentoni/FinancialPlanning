@@ -1,0 +1,6 @@
+{
+  "action": "clear",
+  "strategy_id": "buy_and_hold",
+  "idempotency_key": "client-key-0104",
+  "synthetic": true
+}

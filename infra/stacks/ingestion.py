@@ -134,6 +134,9 @@ class IngestionStack(PlatformStack):
             max_event_age=Duration.hours(1),
             # function errors after the async retries land in the same DLQ as scheduler delivery failures
             on_failure=destinations.SqsDestination(self.dlq),
+            # success results go to the default event bus; the daily trigger's rule starts on a
+            # scheduled research-universe ingestion (daily-recommendation-trigger, T1)
+            on_success=destinations.EventBridgeDestination(),
             description="Market-data ingestion (scheduled trigger); same operation as POST /v1/ingestions",
         )
         if image_dir:
@@ -188,6 +191,27 @@ class IngestionStack(PlatformStack):
         )
         # AWS::Scheduler::Schedule takes no Tags: declare the ownership logical role in Metadata
         self.schedule.add_metadata("logical-role", "daily-ingest-schedule")
+        # research universe (equity-etf-daily): the same function, schedule time and retry policy
+        self.universe_schedule: scheduler.CfnSchedule | None = None
+        if cfg.universe is not None:
+            self.universe_schedule = scheduler.CfnSchedule(
+                self,
+                "DailyUniverseIngestSchedule",
+                name=resource_name(env, "daily-ingest-universe"),
+                description=f"Daily {cfg.universe.dataset_id} ingestion at {cfg.schedule_time} America/New_York on weekdays",
+                schedule_expression=schedule_expression(cfg.schedule_time),
+                schedule_expression_timezone=SCHEDULE_TIMEZONE,
+                flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"),
+                state="ENABLED",
+                target=scheduler.CfnSchedule.TargetProperty(
+                    arn=self.function.function_arn,
+                    role_arn=self.schedule_role.role_arn,
+                    input=json.dumps(scheduler_input(cfg.universe.dataset_id), sort_keys=True),
+                    retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_event_age_in_seconds=3600, maximum_retry_attempts=3),
+                    dead_letter_config=scheduler.CfnSchedule.DeadLetterConfigProperty(arn=self.dlq.queue_arn),
+                ),
+            )
+            self.universe_schedule.add_metadata("logical-role", "daily-ingest-schedule")
 
         self.dlq_alarm = cloudwatch.Alarm(
             self,

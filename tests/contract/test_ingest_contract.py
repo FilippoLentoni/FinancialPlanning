@@ -61,6 +61,7 @@ def test_yfinance_lineage_fields_on_result_and_read(make_deps: Any, octx: Any, c
 def test_contract_snapshot_fixtures_are_readable_by_the_approval_rule(fixture: str) -> None:
     doc = json.loads((load_store().fixtures_dir("input-snapshot") / "valid" / fixture).read_text())
     approved, _blocking, version = evaluate_approval(doc, load_config("beta"))
-    assert version == "approval-v1"
+    # contracts 1.1.0: research-universe snapshots are judged by the universe rule
+    assert version == ("approval-v2-universe" if doc["dataset"]["dataset_id"].startswith("finance/equity-etf-daily/") else "approval-v1")
     if {"empty_response", "stale_source"} & set(doc["quality_flags"]):
         assert not approved

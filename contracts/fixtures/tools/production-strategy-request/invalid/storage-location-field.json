@@ -1,0 +1,5 @@
+{
+  "action": "get",
+  "location": "s3://example-bucket/strategy.json",
+  "synthetic": true
+}

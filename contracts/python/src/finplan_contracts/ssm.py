@@ -68,6 +68,9 @@ __all__ = [
     "cost_allocation_tags",
     "JEV_SECRET_NAME",
     "BUDGET_STATE_PARAMETER",
+    "PRODUCTION_STRATEGY_WRITER",
+    "PRODUCTION_STRATEGY_READER",
+    "production_strategy_parameter",
     "main",
 ]
 
@@ -86,6 +89,19 @@ WRITER_KINDS: tuple[str, ...] = ("pipeline", "bootstrap", "contract-publish", "r
 BUDGET_STATE_WRITER = "budget-state-writer"
 BUDGET_STATE_PARAMETER = "/finplan/shared/financialplanning/config/budget-state"
 JEV_SECRET_NAME = "finplan/shared/financemodel/jev-api-key"
+#: 1.1.0: the per-environment production-strategy key. Its single writer is the FinanceModel
+#: strategy-selection runtime principal (the job API's selection operation); its reader is the
+#: FinancialPlanning daily recommendation trigger role.
+PRODUCTION_STRATEGY_WRITER = "strategy-selection"
+PRODUCTION_STRATEGY_READER = "financialplanning:daily-trigger"
+_PRODUCTION_STRATEGY_RE = re.compile(r"^/finplan/(beta|gamma|prod)/financemodel/config/production-strategy\Z")
+
+
+def production_strategy_parameter(environment: str) -> str:
+    """The production-strategy key of ``environment`` (1.1.0)."""
+    if environment not in ENVIRONMENTS:
+        raise SsmNameError(f"unknown environment {environment!r}")
+    return f"/{ROOT}/{environment}/financemodel/config/production-strategy"
 
 #: Cost-allocation tag keys registered in the contract package (D10).
 COST_ALLOCATION_TAG_KEYS: tuple[str, ...] = ("project", "owner-repo", "environment", "logical-role", "run-id")
@@ -173,9 +189,10 @@ class RegisteredKey:
     category: str
     name: str
     writers: tuple[str, ...]
-    value: str  # value shape: text | json | json-manifest | budget-allocation | secret-name | role-names | release-id | number | parameter-ref | provider | model-id
+    value: str  # value shape: text | json | json-manifest | budget-allocation | secret-name | role-names | release-id | number | parameter-ref | provider | model-id | production-strategy
     description: str
     decisions: tuple[str, ...] = ()
+    readers: tuple[str, ...] = ()  # 1.1.0: named cross-repo readers ("<repo>:<role>"), when the key lists them
 
     def pattern(self) -> re.Pattern[str]:
         env = "(beta|gamma|prod)" if self.environment == "<env>" else re.escape(self.environment)
@@ -232,6 +249,13 @@ REGISTERED_KEYS: tuple[RegisteredKey, ...] = (
     RegisteredKey("job-role-ref", "<env>", "financemodel", "job", "job-role-ref", _P, "text", "Per-environment job-execution role reference (read approved snapshots, write the run staging area)", ("D1", "D4", "D13")),
     RegisteredKey("job-api-role-ref", "<env>", "financemodel", "job", "job-api-role-ref", _P, "text", "Per-environment job API handler role reference (may read GET /v1/staged-outputs/*)", ("D1", "D4", "D13")),
     RegisteredKey("model-registry-ref", "<env>", "financemodel", "model", "registry-ref", _P, "text", "Model registry reference", ("D1",)),
+    # 1.1.0: FinanceModel production strategy (decisions 20, 22). Written only at runtime by FinanceModel's
+    # strategy-selection operation; read by the FinancialPlanning daily trigger. Absent or empty = no strategy.
+    RegisteredKey(
+        "production-strategy", "<env>", "financemodel", "config", "production-strategy", ("runtime",), "production-strategy",
+        "Production strategy document (core/v1/production-strategy.json); absent means the daily job is a no-op",
+        ("D1", "D4"), (PRODUCTION_STRATEGY_READER,),
+    ),
 )
 # The tool role-class references (/lambda/role-<class>-arn) share the <tool>-arn shape and are covered by tool-lambda-ref.
 
@@ -316,10 +340,13 @@ def check_write(path: str, writer: Writer) -> Decision:
     if retired:
         reasons.append(f"retired key, new writes are rejected: {retired.reason}")
     if writer.kind == "runtime":
-        if not (path == BUDGET_STATE_PARAMETER and writer.repo == "financialplanning" and writer.principal == BUDGET_STATE_WRITER):
+        budget_writer = path == BUDGET_STATE_PARAMETER and writer.repo == "financialplanning" and writer.principal == BUDGET_STATE_WRITER
+        strategy_writer = bool(_PRODUCTION_STRATEGY_RE.match(path)) and writer.repo == "financemodel" and writer.principal == PRODUCTION_STRATEGY_WRITER
+        if not (budget_writer or strategy_writer):
             reasons.append(
-                f"runtime principals do not write SSM parameters; the only runtime writer is the financialplanning "
-                f"{BUDGET_STATE_WRITER}, and only {BUDGET_STATE_PARAMETER}"
+                f"runtime principals do not write SSM parameters; the only runtime writers are the financialplanning "
+                f"{BUDGET_STATE_WRITER} ({BUDGET_STATE_PARAMETER}) and the financemodel {PRODUCTION_STRATEGY_WRITER} "
+                "(/finplan/<env>/financemodel/config/production-strategy)"
             )
     elif p.is_shared:
         if writer.kind == "pipeline":
@@ -411,6 +438,15 @@ def validate_value(path: str, value: str, *, cost_ceiling_usd: float | None = No
             problems += [i.message for i in res.issues]
         elif reg.value == "json":
             json.loads(value)
+        elif reg.value == "production-strategy":
+            if value.strip():
+                from .validate import validate
+
+                doc = json.loads(value)
+                res = validate(doc, "production-strategy")
+                problems += [i.message for i in res.issues]
+                if isinstance(doc, dict) and doc.get("environment") not in (None, p.environment):
+                    problems.append("production-strategy environment does not match the parameter path")
         elif reg.value == "number":
             n = float(value)
             if not n > 0:

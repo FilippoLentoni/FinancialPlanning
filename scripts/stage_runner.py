@@ -168,6 +168,14 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CodeBuild 
         execution_id=args.pipeline_execution_id,
     )
     print(f"published {args.env} manifest for {manifest['release_id']} (previous {manifest['previous_release_id']})")
+    # daily-recommendation-trigger T3: the per-environment hypothetical research plan (idempotent)
+    from scripts.research_plan import ensure_research_plan
+
+    try:
+        rp = ensure_research_plan(args.env, _deployed_transport(args.env), session.client("ssm"))
+        print(f"research plan {rp['plan_id']} ({'created' if rp['created'] else 'unchanged'})")
+    except Exception as exc:  # noqa: BLE001 - not fatal: without the plan the trigger cannot submit, which only matters once a strategy is set
+        print(f"WARNING: research plan step failed ({type(exc).__name__}: {exc}); the daily trigger cannot submit until it succeeds", file=sys.stderr)
     return 0
 
 

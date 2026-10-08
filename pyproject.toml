@@ -7,10 +7,10 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     # Contract package, pinned by exact version AND by the SHA-256 digest of the exact wheel
     # (contracts-pin.json, verified by scripts/check_contracts_pin.py and by uv.lock).
-    # 1.0.0 is the first stable release (beta, gamma and prod). The wheel is built from
+    # 1.1.0: backward-compatible minor of the first stable release 1.0.0 (beta, gamma and prod). The wheel is built from
     # contracts/python and vendored; the build stage publishes it to CodeArtifact once the
     # contract registry exists (the vendored file stays the build input).
-    "finplan-contracts==1.0.0",
+    "finplan-contracts==1.1.0",
     "boto3>=1.40",
     "defusedxml>=0.7.1",
     "openpyxl>=3.1.5",
@@ -37,7 +37,7 @@ dev = [
 default-groups = ["dev"]
 
 [tool.uv.sources]
-finplan-contracts = { path = "vendor/finplan-contracts/finplan_contracts-1.0.0-py3-none-any.whl" }
+finplan-contracts = { path = "vendor/finplan-contracts/finplan_contracts-1.1.0-py3-none-any.whl" }
 finplan-platform = { workspace = true }
 
 [build-system]

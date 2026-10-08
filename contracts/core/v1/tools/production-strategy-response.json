@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/production-strategy-response.json",
+  "title": "production_strategy response",
+  "description": "Added in 1.1.0: response schema for the 'production_strategy' tool. strategy is null when no production strategy is set (the daily job is then a no-op).",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "type": "object",
+  "properties": {
+    "environment": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/environment"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "get",
+        "set",
+        "clear"
+      ]
+    },
+    "strategy": {
+      "oneOf": [
+        {
+          "$ref": "https://contracts.finplan.invalid/core/v1/production-strategy.json"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    }
+  },
+  "required": [
+    "environment",
+    "action",
+    "strategy",
+    "changed"
+  ],
+  "additionalProperties": false
+}

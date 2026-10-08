@@ -735,6 +735,30 @@ Consumers: re-pin `finplan-contracts==1.0.0` by version and SHA-256 (see
 FinancialPlanning tooling bootstrap re-run), the wheel built reproducibly by the platform is
 vendored byte for byte; afterwards the same bytes resolve from CodeArtifact.
 
+## Contracts 1.1.0: research universe and daily recommendation (backward-compatible minor)
+
+Change `add-research-universe-and-daily-loop` (user decisions 16-22 of 2026-10-08). Every addition is
+optional, an open-enum value, a new `$defs` entry or a new schema; the compatibility gate against
+1.0.0 (`finplan-conformance compat --old contracts/python/tests/data/releases/finplan-contracts-schemas-1.0.0.tar.gz`)
+passes as a **minor** without the 0.x exemption, and every 1.0.0 fixture is byte-identical (CON-02).
+
+- Dataset `finance/equity-etf-daily/<subject>` and `instrument.kind` (`etf`, `equity`, `cash`; open
+  enum) with `return_assumption` (`zero_nominal`) for the modeled cash instrument.
+- Snapshot payload `universe` block (instruments with kinds, `history_start`, `return_basis`
+  `adj_close`) and `bias_disclosures` (`hindsight_selection`, `survivorship`; open enum) on input
+  snapshots, snapshot payloads and staged-output manifests.
+- Job kind `daily_recommendation` (`common.json#/$defs/job_type`, open enum) and the optional
+  `plan_id` of a job submission.
+- The FinanceModel-owned key `/finplan/<env>/financemodel/config/production-strategy` holding
+  `core/v1/production-strategy.json`: single writer FinanceModel's runtime `strategy-selection`
+  principal, reader the FinancialPlanning daily trigger (`ssm.REGISTERED_KEYS`, matrix row
+  `production-strategy-config`, not declared in IaC). Absent or empty means no strategy.
+- The FinanceLambdasTool tool `production_strategy` (`core/v1/tools/production-strategy-{request,response}.json`;
+  `get`, `set`, `clear`).
+- Matrix row `daily-recommendation-trigger` (FinancialPlanning): state machine, step function, start rule.
+
+Consumers move to 1.1.0 only after FinancialPlanning serves it in that environment (consumer promotion gate).
+
 ## Open-questions register
 
 This register is copied from the design. Specs hold regardless of the answers. Items marked

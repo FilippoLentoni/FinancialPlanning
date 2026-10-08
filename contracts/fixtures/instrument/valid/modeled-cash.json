@@ -1,0 +1,8 @@
+{
+  "instrument_id": "USD_CASH",
+  "asset_class": "cash",
+  "kind": "cash",
+  "return_assumption": "zero_nominal",
+  "currency": "USD",
+  "synthetic": true
+}

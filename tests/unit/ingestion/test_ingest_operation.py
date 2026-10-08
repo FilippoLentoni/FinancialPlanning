@@ -215,12 +215,16 @@ def test_revised_close_keeps_both_values_and_flags_source_revised(make_deps: Any
     m = mock_provider()
     deps = make_deps(provider=m)
     run_ingestion(octx(), on_demand("2026-01-09", "2026-01-09", "r1"), deps=deps)
-    m.overrides = {"2026-01-09": {"close": 123.0, "high": 200.0}}
+    (first,) = _curated(deps, "finance/etf-daily/SPY/SPY/2026-01-09/completed_daily/")
+    old_close = json.loads(deps.store.get("curated", first)[0])["observation"]["close"]
+    # relative to the mock bar (its level depends on the calendar coverage start)
+    new_close = round(old_close + 1.0, 4)
+    m.overrides = {"2026-01-09": {"close": new_close, "high": round(old_close * 2, 4)}}
     res = run_ingestion(octx(), on_demand("2026-01-09", "2026-01-09", "r2"), deps=deps)
     keys = _curated(deps, "finance/etf-daily/SPY/SPY/2026-01-09/completed_daily/")
     assert len(keys) == 2
     closes = sorted(json.loads(deps.store.get("curated", k)[0])["observation"]["close"] for k in keys)
-    assert 123.0 in closes and len(set(closes)) == 2
+    assert new_close in closes and len(set(closes)) == 2
     snap = res["snapshot"]
     assert "source_revised" in snap["quality_flags"]
     assert snap["quality_details"]["source_revised"] == [{"instrument_id": "SPY", "session_date": "2026-01-09"}]

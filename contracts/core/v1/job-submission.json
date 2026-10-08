@@ -59,6 +59,10 @@
     },
     "synthetic": {
       "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    },
+    "plan_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_id",
+      "description": "Optional (added in 1.1.0): the plan a production_candidate run stages its output against (required by job_type daily_recommendation)."
     }
   },
   "required": [

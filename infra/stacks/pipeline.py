@@ -188,6 +188,8 @@ def deploy_execution_statements(env: str, store_bucket_arn: str) -> list[iam.Pol
         iam.PolicyStatement(sid="EnvQueues", actions=["sqs:*"], resources=[_arn("sqs", f"{prefix}*")]),
         iam.PolicyStatement(sid="EnvAlarms", actions=["cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:DescribeAlarms", "cloudwatch:TagResource", "cloudwatch:UntagResource", "cloudwatch:ListTagsForResource"], resources=[_arn("cloudwatch", f"alarm:{prefix}*")]),
         iam.PolicyStatement(sid="EnvRules", actions=["events:*"], resources=[_arn("events", f"rule/{prefix}*")]),
+        # daily recommendation trigger (Step Functions Standard, add-research-universe-and-daily-loop)
+        iam.PolicyStatement(sid="EnvStateMachines", actions=["states:*"], resources=[_arn("states", f"stateMachine:{prefix}*"), _arn("states", f"execution:{prefix}*:*")]),
         iam.PolicyStatement(sid="EnvLogGroups", actions=["logs:*"], resources=[_arn("logs", f"log-group:/aws/lambda/{prefix}*"), _arn("logs", f"log-group:/aws/lambda/{prefix}*:*"), _arn("logs", f"log-group:{prefix}*"), _arn("logs", f"log-group:{prefix}*:*")]),
         iam.PolicyStatement(sid="LogGroupsDescribe", actions=["logs:DescribeLogGroups"], resources=["*"]),
     ]
@@ -201,11 +203,14 @@ def stage_role_statements(env: str, store_bucket_arn: str) -> list[iam.PolicySta
     own = f"/finplan/{env}/{REPO}"
     param = lambda p: _arn("ssm", f"parameter{p}")  # noqa: E731
     return [
-        iam.PolicyStatement(sid="WriteReleaseKeys", actions=["ssm:PutParameter", "ssm:AddTagsToResource"], resources=[param(f"{own}/release/*"), param(f"{own}/config/budget-enforced-role-names"), param(f"{own}/config/smoke-portfolio-id"), param(f"{own}/config/integration-snapshot-id")]),
+        iam.PolicyStatement(sid="WriteReleaseKeys", actions=["ssm:PutParameter", "ssm:AddTagsToResource"], resources=[param(f"{own}/release/*"), param(f"{own}/config/budget-enforced-role-names"), param(f"{own}/config/smoke-portfolio-id"), param(f"{own}/config/integration-snapshot-id"), param(f"{own}/config/research-plan-ref")]),
         iam.PolicyStatement(sid="ReadEnvAndShared", actions=list(contract_iam.SSM_READ_ACTIONS), resources=[param(f"/finplan/{env}"), param(f"/finplan/{env}/*"), param("/finplan/shared"), param("/finplan/shared/*")]),
         iam.PolicyStatement(sid="ReleaseLedger", actions=["s3:PutObject", "s3:GetObject"], resources=[f"{store_bucket_arn}/{RELEASES_PREFIX}*"]),
         iam.PolicyStatement(sid="ApprovalRecord", actions=["codepipeline:ListActionExecutions", "codepipeline:GetPipelineExecution"], resources=[_arn("codepipeline", PIPELINE_NAME)]),
         iam.PolicyStatement(sid="CallEnvApi", actions=["execute-api:Invoke"], resources=[_arn("execute-api", "*/*/*/v1/*")]),
+        # deployed daily-loop tests (DLY-07, UNI-05, DLY-08): run the scheduled ingestion and the trigger on demand
+        iam.PolicyStatement(sid="RunIngestionForTests", actions=["lambda:InvokeFunction"], resources=[_arn("lambda", f"function:finplan-{env}-{REPO}-ingestion-handler")]),
+        iam.PolicyStatement(sid="RunDailyTriggerForTests", actions=["states:StartExecution", "states:DescribeExecution", "states:ListExecutions"], resources=[_arn("states", f"stateMachine:finplan-{env}-{REPO}-daily-trigger"), _arn("states", f"execution:finplan-{env}-{REPO}-daily-trigger:*")]),
     ]
 
 

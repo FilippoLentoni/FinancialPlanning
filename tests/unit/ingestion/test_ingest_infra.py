@@ -49,7 +49,12 @@ def _of(t: dict[str, Any], typ: str) -> list[dict[str, Any]]:
 # ------------------------------------------------------------------ ING-02
 @pytest.mark.parametrize("env", ["beta", "gamma", "prod"])
 def test_schedule_weekdays_new_york_from_configuration(templates: dict[str, Any], env: str) -> None:
-    (sched,) = _of(templates[env], "AWS::Scheduler::Schedule")
+    scheds = _of(templates[env], "AWS::Scheduler::Schedule")
+    (sched,) = [s for s in scheds if json.loads(s["Properties"]["Target"]["Input"])["dataset_id"] == "finance/etf-daily/SPY"]
+    # the research universe has its own schedule at the same time (add-research-universe-and-daily-loop)
+    (uni,) = [s for s in scheds if s is not sched]
+    assert json.loads(uni["Properties"]["Target"]["Input"]) == scheduler_input("finance/equity-etf-daily/research-universe")
+    assert uni["Properties"]["ScheduleExpression"] == sched["Properties"]["ScheduleExpression"]
     p = sched["Properties"]
     assert p["ScheduleExpression"] == "cron(0 9 ? * MON-FRI *)"
     assert p["ScheduleExpressionTimezone"] == "America/New_York"
@@ -60,9 +65,11 @@ def test_schedule_weekdays_new_york_from_configuration(templates: dict[str, Any]
 
 def test_configured_0930_fires_at_0930_new_york() -> None:
     t = _synth(config_with(**{"ingest.schedule_time": "09:30"}))
-    (sched,) = _of(t, "AWS::Scheduler::Schedule")
-    assert sched["Properties"]["ScheduleExpression"] == "cron(30 9 ? * MON-FRI *)"
-    assert sched["Properties"]["ScheduleExpressionTimezone"] == "America/New_York"
+    scheds = _of(t, "AWS::Scheduler::Schedule")
+    assert len(scheds) == 2
+    for sched in scheds:
+        assert sched["Properties"]["ScheduleExpression"] == "cron(30 9 ? * MON-FRI *)"
+        assert sched["Properties"]["ScheduleExpressionTimezone"] == "America/New_York"
     (param,) = [p for p in _of(t, "AWS::SSM::Parameter") if p["Properties"]["Name"].endswith("/config/ingest-schedule")]
     assert param["Properties"]["Value"] == "09:30"
 

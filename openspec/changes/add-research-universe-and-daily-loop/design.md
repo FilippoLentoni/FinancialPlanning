@@ -2,88 +2,61 @@
 
 ## Context
 
-See proposal.md (Why). The platform already has:
-- the ingestion operation with a `yfinance` adapter and XNYS calendar (phase 2 is gated by configuration, task 6.18 of `add-platform-foundation`);
-- the snapshot approval status;
-- staged-output acceptance as an explicit platform-side call (design P7);
-- IAM-authenticated plan routes.
+See proposal.md (Why). The following already exist in `add-platform-foundation` and are reused unchanged:
+- the scheduled ingestion, the `yfinance` adapter and the XNYS calendar;
+- snapshot approval;
+- the plan lifecycle and publish routes;
+- staged-output acceptance as an explicit platform-side call (P7).
 
-Contracts 1.0.0 is published. Beta, gamma and prod share one account in us-east-2. Models and the agent run only in the deployed stack (decision 16), so verification is done against deployed environments, not the dev box. The budget is USD 50 in total: `platform_infra` 8 and `cpu_research` 7.
+Contracts 1.0.0 is published. All environments share one account in us-east-2. Models run only in the deployed stack (decision 16), so verification uses deployed environments.
 
 ## Goals / Non-Goals
 
-**Goals:**
-- Add a real multi-instrument dataset without disturbing `etf-daily` consumers.
-- Run a scheduled loop with no SageMaker cost until the user picks a strategy.
-- Make "nothing publishes without the user" a platform-enforced rule, not an agent convention.
+**Goals:** add the universe dataset, and add a zero-cost-by-default trigger that leaves every recommendation unpublished.
 
 **Non-Goals:**
-- Choosing or validating strategies; the FinanceModel registry does that.
-- Running benchmarks; they are on demand in FinanceModel.
-- Website UI for approval.
-- Bias-corrected universes, such as point-in-time constituent membership.
+- A new approval or review state (approval is the existing publish).
+- Experiments or benchmarks (existing, on demand).
+- Strategy validation (FinanceModel).
+- Bias correction.
 
 ## Decisions
 
-### U1. One new dataset identity, full-history snapshots
-`equity-etf-daily` is a new identity next to `etf-daily`; SPY stays in `etf-daily`. Each scheduled run fetches the full daily history per ticker since 2010-10-01: five `yfinance` requests at the configured 2 s spacing, about 4,000 rows each. It then writes a full-history snapshot payload of about 1–2 MB.
-- **Alternative:** incremental append. It was rejected because Yahoo rewrites historical `adj_close` after each dividend or split, so an append-only series silently mixes adjustment bases.
-- Full re-fetch plus `source_revised` diffing keeps every snapshot internally consistent at negligible S3 cost.
-- The start date 2010-10-01 is the first full month after VOO's inception.
+### U1. Full-history snapshots per run
+Each run fetches the full history since 2010-10-01 for each of the five tickers: five requests at the 2 s spacing, about 4,000 rows each, a payload of about 1–2 MB. Incremental append was rejected because Yahoo rewrites historical `adj_close` after each dividend or split, which would mix adjustment bases. 2010-10-01 is the first full month after VOO's inception.
 
-### U2. Cash is modeled, not ingested
-`USD_CASH` (kind `cash`) appears only in the snapshot's `universe` block with `return_assumption: zero_nominal`. A T-bill yield series is a later dataset change. Reports state the assumption (FinanceModel change).
+### U2. Cash is modeled
+`USD_CASH` appears only in the `universe` block with `return_assumption: zero_nominal`. A T-bill series would be a later dataset.
 
-### U3. Universe approval is all-or-nothing
-Under `approval-v2-universe`, a snapshot with any instrument incomplete stays `committed`. FinanceModel therefore never optimizes over a silently shrunken universe. The rule version is recorded per snapshot. `etf-daily` keeps `approval-v1`.
+### U3. Disclosures are data
+`bias_disclosures` is a contract field on the snapshot with fixed configured texts, checked at build time. FinanceModel copies it into staged manifests and reports, so flagging is mechanical.
 
-### U4. Bias disclosures live in data, not prose
-`bias_disclosures` is a contract field on the snapshot with fixed texts. Acceptance copies it into plan-version lineage, so every downstream report, tool response and agent answer can carry it mechanically. The texts are configured per dataset and checked at build time.
+### T1. Step Functions Standard trigger
+The scheduled ingestion's success event starts:
 
-### L1. Step Functions Standard for the daily loop
-The scheduled ingestion's success event starts a Standard state machine:
+`CheckSnapshot → ReadStrategy → CheckBudget → SubmitJob → Poll (5 min, ≤ 9) → Accept → WriteOutcome`
 
-`ReadSnapshot → CheckApproved → ReadStrategy (SSM) → CheckBudgetState → SubmitJob → Wait/Poll (5 min, ≤ 9 polls) → Accept → WriteOutcome`.
+- It costs about 30 transitions per day (well under USD 0.01 per month) and has auditable history.
+- Chained Lambdas and a FinanceModel push callback were rejected as harder to audit or as needing new write grants.
+- The execution name and the idempotency key are both `daily-<env>-<session_date>`. A test start may add a `run_tag` suffix to both.
 
-- Standard workflows are pay-per-transition (about 30 transitions per day, well under USD 0.01 per month) and give visible execution history.
-- **Alternatives:** chained Lambdas with EventBridge retries (harder to audit), or a FinanceModel push callback (needs a new FinanceModel → platform write grant). Both were rejected.
-- The execution name is `daily-<env>-<session_date>`, which together with the FinanceModel idempotency key makes duplicates harmless.
-- A test or operator start may add a `run_tag` suffix to both the execution name and the idempotency key.
+### T2. Strategy presence is the only switch
+The platform checks only that the key holds a `strategy_id`. FinanceModel validates it against the registry at selection and at submit time.
 
-### L2. Strategy presence is the only switch
-The platform reads only whether `/finplan/<env>/financemodel/config/production-strategy` holds a `strategy_id`. Validation against the strategy registry happens in FinanceModel at selection time and again at job start. Absent, empty or unparseable means `skipped_no_strategy`, the zero-cost default required by decision 22.
-
-### L3. Research plan
-A post-deploy step idempotently creates one hypothetical paper portfolio and plan per environment (`synthetic: true`, meaning no real holdings) for the universe. It publishes the plan reference at `/finplan/<env>/financialplanning/config/research-plan-ref`. Real-holdings portfolios stay out of scope.
-
-### R1. Review state beside status
-`status` (`pending_validation`/`validated`/`invalid`) is a closed 1.0.0 enum, and changing it would be breaking. `review_state` (`pending_approval`, `approved`, `rejected`, `superseded`) is a new optional field. It is a contract-declared lifecycle status field, so changing it is allowed with an append-only event.
-- Approval is carried on the existing publish route, so tools keep one publish path. Rejection uses the new `POST /v1/plan-versions/{id}/review`.
-- Both require the contract on-behalf-of caller block. The platform trusts it only from the FinanceLambdasTool `plan-writer` role, which receives it from the Gateway, and from the operator and website roles.
-
-### R2. Supersession in the acceptance transaction
-Acceptance of a new pending version and the `superseded` transitions of older pending versions commit in one DynamoDB transaction, together with the head move. At most one pending recommendation per plan therefore exists at any time.
-
-### C1. Contracts 1.1.0 scope
-All cross-repo schemas needed by the four companion changes ship in one minor, so consumers pin once. The compatibility gate runs without `--allow-zero-major-breaking`.
+### T3. Research plan
+A post-deploy step idempotently creates one hypothetical paper portfolio and plan per environment (`synthetic: true`, meaning no real holdings), referenced at `/finplan/<env>/financialplanning/config/research-plan-ref`.
 
 ## Risks / Trade-offs
 
-- [Yahoo throttling or an outage at 09:00 ET] → backoff, then all-or-nothing approval. The loop skips with `skipped_snapshot`, and an on-demand re-ingestion (budget-checked) can be run later that day.
-- [Hindsight and survivorship bias inflate backtest results] → mandatory disclosures in data, reports and agent answers. Bias correction is out of scope and is stated.
-- [A test run in beta or gamma costs real SageMaker money] → one `buy_and_hold` job per suite run (about USD 0.02–0.12), behind the same budget pre-check. Prod smoke never submits jobs.
-- [The approval block is spoofed by a misconfigured role] → only three principals may carry it; policy-simulation tests cover this, and the scheduler and loop roles have an explicit deny.
-- [A pending recommendation moves the plan head] → publication, not head, is authoritative. The head move is unchanged 1.0.0 behavior, and the pending list exposes `current_publication_id`.
+- [A Yahoo outage at 09:00 ET] → backoff, then no approval. The trigger records `skipped_snapshot`, and an on-demand re-ingestion is possible.
+- [Hindsight-selected tickers inflate results] → mandatory disclosures carried into every derived artifact.
+- [Deployed tests spend money] → at most one `buy_and_hold` daily job per beta or gamma suite (about USD 0.12). Prod smoke never submits.
+- [The head moves to an unpublished version] → unchanged 1.0.0 semantics: the publication is authoritative.
 
 ## Migration Plan
 
-1. Build and publish contracts 1.1.0 (registry), then pin it in the platform.
-2. Deploy the platform release with phase 1 config in all environments. The new dataset is fixture-backed, and the loop is deployed but the strategy key is unset everywhere, so it is a no-op.
-3. Set beta `phase: 2` and deploy, then verify scheduled universe snapshots in beta (task group 6).
-4. Promote phase 2 to gamma, then to prod after the manual approval stage.
+1. Publish contracts 1.1.0 and pin it.
+2. Deploy everywhere with phase 1 config and no strategy key, so the trigger is a no-op.
+3. Enable phase 2 in beta, verify, then gamma, then prod after approval.
 
-Rollback: redeploy the previous release, or set `phase: 1`. Records written under 1.1.0 remain readable, because 1.0.0 readers ignore the new fields.
-
-## Open Questions
-
-- Should the T-bill cash yield replace `zero_nominal`? This would be a later dataset addition with no spec change here.
+Rollback: redeploy the previous release or set `phase: 1`. Deleting the strategy key stops jobs immediately.

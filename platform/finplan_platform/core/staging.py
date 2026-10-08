@@ -543,8 +543,14 @@ def accept_staged_output(ctx: OperationContext, svc: Services, plan_id: str, run
                 doc = _outcome_doc(ctx, manifest, plan_id=plan_id, run_id=run_id, outcome="rejected", manifest_checksum=manifest_checksum, rejection_kind="run_outcome", error=err.to_envelope(ctx.correlation_id, current_version()))
                 return _decision_mutation(ctx, doc)
             contents = _check_files(svc, run_id, manifest["files"])
-            if svc.repo.get("snapshot_catalog", manifest["input_snapshot_id"]) is None:
+            snapshot = svc.repo.get("snapshot_catalog", manifest["input_snapshot_id"])
+            if snapshot is None:
                 raise _Rejected("input_snapshot_id is not in this environment's snapshot catalog", pointer="/input_snapshot_id", field="input_snapshot_id")
+            # contracts 1.1.0 (research-universe-dataset): outputs derived from a snapshot with bias
+            # disclosures carry the same disclosures, so every derived artifact flags them
+            disclosures = snapshot.doc.get("bias_disclosures")
+            if disclosures and manifest.get("bias_disclosures") != disclosures:
+                raise _Rejected("the staged output must carry the input snapshot's bias_disclosures unchanged", pointer="/bias_disclosures", field="bias_disclosures")
             parent_id = manifest.get("parent_plan_version_id")
             if parent_id:
                 parent = svc.repo.get("plan_version", parent_id)

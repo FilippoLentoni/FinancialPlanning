@@ -33,6 +33,26 @@
     },
     "synthetic": {
       "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    },
+    "kind": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "etf",
+        "equity",
+        "cash"
+      ],
+      "description": "Optional (added in 1.1.0): instrument kind in a research universe. A 'cash' instrument is modeled (no observations) with a return_assumption."
+    },
+    "return_assumption": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "x-finplan-open-enum": true,
+      "x-finplan-known-values": [
+        "zero_nominal"
+      ],
+      "description": "Optional (added in 1.1.0): modeled return of an instrument without observations (cash)."
     }
   },
   "required": [

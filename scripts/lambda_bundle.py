@@ -97,6 +97,7 @@ FUNCTIONS: dict[str, BundleSpec] = {
     "plan-api": BundleSpec("finplan_platform.handlers.api.handler", ("providers",), ("yfinance", "exchange_calendars")),
     "ingestion": BundleSpec("finplan_platform.handlers.ingest.handler", ("providers",), ("yfinance", "exchange_calendars", "pandas", "numpy")),
     "sweeper": BundleSpec("finplan_platform.handlers.sweep.handler"),
+    "daily-trigger": BundleSpec("finplan_platform.handlers.daily_trigger.handler"),
 }
 
 

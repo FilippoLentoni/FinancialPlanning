@@ -116,6 +116,8 @@ class IngestionDeps:
     calendar: SessionCalendar
     budget_gate: BudgetGate | None = None
     contract_version: str = field(default_factory=lambda: load_store().version)
+    #: research universe: instrument -> provider adapter (default: the configured provider per ticker)
+    universe_providers: Any = None
 
     def __post_init__(self) -> None:
         rule = self.config.ingest["approval"]["rule_version"]
@@ -530,6 +532,11 @@ def ingest(ctx: OperationContext, request: Any, *, deps: IngestionDeps | None = 
         deps = deps_from_services(svc, ctx) if svc is not None else default_deps()
     if ctx.env != deps.config.env:
         raise PlatformError.precondition("the operation context names another environment", reason="environment_mismatch")
+    from .ingestion_universe import ingest_universe, is_universe_request
+
+    if is_universe_request(deps.config, request):
+        response, replayed = ingest_universe(ctx, request, deps)
+        return IngestionOutcome(response, replayed)
     plan = _plan_scheduled(ctx, request, deps) if ctx.trigger == "scheduled" else _plan_on_demand(ctx, request, deps)
     outcome = deps.repo.run_idempotent(ctx, operation=OPERATION, idempotency_key=plan.idempotency_key, request_body=plan.request_body, execute=lambda: _execute(ctx, plan, deps))
     response = dict(outcome.response)
