@@ -89,7 +89,7 @@ class StubPlanApi:
         return 200, {"snapshot": {"input_snapshot_id": sid, "status": self.snapshot_status, "coverage": {"start": "2010-10-01", "end": "2026-01-09"}, "bias_disclosures": DISCLOSURES}}
 
     def get_plan(self, plan_id: str) -> tuple[int, dict[str, Any]]:
-        return 200, {"plan": {"plan_id": plan_id, "revision": 3 + len(self.versions)}}
+        return 200, {"plan": {"plan_id": plan_id, "head": {"current_version_id": None, "revision": 3 + len(self.versions)}}}  # contract shape
 
     def accept(self, plan_id: str, run_id: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
         self.accepts.append(body)
@@ -239,3 +239,11 @@ def test_outcome_enum_matches_docs() -> None:
     text = (Path(__file__).resolve().parents[2] / "docs" / "daily-trigger.md").read_text()
     for o in OUTCOMES:
         assert f"`{o}`" in text, o
+
+
+def test_fake_plan_api_matches_the_contract_get_plan_response():
+    """Regression: the fake returned plan.revision, the real API plan.head.revision, so DLY-05 passed
+    offline while the first beta daily loop failed at Accept."""
+    fake = StubPlanApi()
+    status, doc = fake.get_plan("pl_01KDVDNAZ83BAMMYCEGWF33DPM")
+    assert status == 200 and "revision" in doc["plan"]["head"]

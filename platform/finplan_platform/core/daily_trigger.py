@@ -244,7 +244,9 @@ def accept(state: dict[str, Any], deps: TriggerDeps) -> dict[str, Any]:
     status, plan = deps.plan_api.get_plan(state["plan_id"])
     if status != 200:
         raise RuntimeError(f"plan read failed with HTTP {status}")
-    revision = int(plan["plan"]["revision"])
+    # The plan API returns the head revision under plan.head (contract get-plan-response); the
+    # first beta daily-loop run failed with KeyError when this read plan.revision.
+    revision = int(plan["plan"]["head"]["revision"])
     body = {"plan_id": state["plan_id"], "run_id": state["run_id"], "expected_revision": revision, "idempotency_key": f"accept-{state['run_id']}"}
     status, resp = deps.plan_api.accept(state["plan_id"], state["run_id"], body)
     if status >= 400:
