@@ -72,7 +72,7 @@ def test_endpoint_resolves_from_ssm_and_reads_are_contract_envelopes_PIPE_04(dep
 def test_synthetic_lifecycle_end_to_end(deployed: dict[str, Any]) -> None:  # pragma: no cover - needs a deployment
     now = datetime.now(UTC)
     run_key = run_key_from(ENV, os.environ.get("FINPLAN_RELEASE_ID"), (os.environ.get("CODEBUILD_BUILD_ID") or "manual").rsplit(":", 1)[-1][:8], now.strftime("%Y%m%d%H%M%S"))
-    result = run_lifecycle(deployed["transport"], run_key=run_key, dataset_id=deployed["cfg"].dataset_id, today=now.date(), parallel=_parallel)
+    result = run_lifecycle(deployed["transport"], run_key=run_key, dataset_id=deployed["cfg"].dataset_id, today=now.date(), parallel=_parallel, phase=int(getattr(deployed["cfg"], "phase", 1)))
     assert result.execution_id.startswith("exe_") and result.checksum.startswith("sha256:")
     # Publish the approved synthetic snapshot this run used, so consumer repos' deployed suites
     # (FinanceModel) have a fresh, approved input without operator action.

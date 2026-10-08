@@ -143,6 +143,7 @@ def run_lifecycle(
     today: date,
     parallel: Parallel = sequential,
     log: Callable[[str], None] = print,
+    phase: int = 1,
 ) -> LifecycleResult:
     """One end-to-end lifecycle run on fresh synthetic records (see module docstring)."""
     r = LifecycleResult()
@@ -168,7 +169,10 @@ def run_lifecycle(
     _check(bool(sid), f"ingestion returned no snapshot for {start}..{end} (quality flags {ing.get('quality_flags')})")
     snap = _expect(t.call("GET", f"/v1/snapshots/{sid}"), (200,), "read snapshot")
     snap_doc = snap.get("snapshot", snap)
-    _check(snap_doc.get("synthetic") is True, "phase 1 integration requires a synthetic (fixture) snapshot")
+    if phase == 1:
+        _check(snap_doc.get("synthetic") is True, "phase 1 integration requires a synthetic (fixture) snapshot")
+    else:  # phase 2: the environment loads real provider data; the plan records stay synthetic
+        _check(bool(snap_doc.get("input_snapshot_id")), "phase 2 integration needs a committed snapshot")
     _check(snap_doc.get("input_snapshot_id") == sid, "snapshot read returns another snapshot")
     r.input_snapshot_id = sid
     step(f"snapshot {sid} ({snap_doc.get('status')})")
