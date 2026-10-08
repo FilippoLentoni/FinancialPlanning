@@ -229,7 +229,7 @@ def test_dly08_real_daily_job_is_unpublished_until_the_user_publishes(dep: dict[
         code, plan, _ = t.call("GET", f"/v1/plans/{plan_id}")
         assert plan["plan"].get("current_publication_id") != rec["plan_version_id"]
         # 4. the user's approval path: the operator publishes through the existing route
-        code, pub, _ = t.call("POST", f"/v1/plans/{plan_id}/publications", {"plan_version_id": rec["plan_version_id"], "expected_publication_revision": plan["plan"].get("publication_revision", 0), "idempotency_key": f"it-publish-{run_tag}"})
+        code, pub, _ = t.call("POST", f"/v1/plans/{plan_id}/publications", {"plan_version_id": rec["plan_version_id"], "expected_revision": plan["plan"].get("publication_revision", 0), "idempotency_key": f"it-publish-{run_tag}"})
         assert code in (200, 201), (code, pub.get("code"), pub.get("message"))
         assert pub["plan_version_id"] == rec["plan_version_id"]
     finally:
