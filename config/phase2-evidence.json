@@ -1,3 +1,11 @@
 {
-  "$comment": "UNI-06 promotion evidence: per environment, the latest approved scheduled universe snapshot read through that environment's deployed API by the deployed UNI-05 test (snapshot ID, rule version, provider, trigger; no account data). gamma may declare phase 2 only with beta evidence, prod only with gamma evidence."
+  "$comment": "UNI-06 promotion evidence: per environment, the latest approved scheduled universe snapshot read through that environment's deployed API by the deployed UNI-05 test (snapshot ID, rule version, provider, trigger; no account data). gamma may declare phase 2 only with beta evidence, prod only with gamma evidence. beta: the 09:00 ET scheduled ingestion of 2026-10-08 (session 2026-10-07), yfinance 1.7.0, 5/5 instruments complete (4,028 sessions each), coverage 2010-10-01..2026-10-07; UNI-05 passed in the beta stage of the same day's pipeline run. gamma: paste the PHASE2-EVIDENCE line that gamma's UNI-05 prints once gamma runs phase 2 (decision 26), then prod may declare phase 2.",
+  "beta": {
+    "approval_rule_version": "approval-v2-universe",
+    "dataset_id": "finance/equity-etf-daily/research-universe",
+    "input_snapshot_id": "snap_01M4DKRX5EYP18VESM7P5GWAB9",
+    "provider": "yfinance",
+    "status": "approved",
+    "trigger": "scheduled"
+  }
 }

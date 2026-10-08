@@ -13,7 +13,7 @@ How the platform turns provider data into immutable input snapshots (OpenSpec ch
 | Provider (OQ-5) | The `yfinance` Python library, behind the platform's provider-adapter interface | **RESOLVED 2026-10-07** |
 | Calendar source (PQ-5) | The `exchange_calendars` library, exchange **XNYS**, exact pinned version, generated into a versioned artifact at build time | **RESOLVED 2026-10-07** |
 | Phase 1 | Deterministic synthetic **fixture** provider only (plus the programmable mock in tests). A phase 1 configuration naming another provider fails the build (ING-10) | In force |
-| Phase 2 | An environment's configuration sets `phase: 2` and `ingest.provider: yfinance`; beta first, then gamma and prod through the pipeline (task 6.18) | Not yet enabled |
+| Phase 2 | An environment's configuration sets `phase: 2` and `ingest.provider: yfinance`; beta first, then gamma and prod through the pipeline (task 6.18). Decision 26 (data parity): every environment ends on the same real-data configuration, each ingesting independently into its own storage; the UNI-06 gate (`config/phase2-evidence.json`) orders the promotion | Beta enabled and verified (2026-10-08); gamma enabled with beta evidence; prod follows with gamma evidence |
 | Asynchronous ingestion (PQ-6) | On-demand ingestion is synchronous; retries are bounded by the function timeout. Whether real-provider ingestion needs a `202` plus status form is decided from measured beta latency in phase 2 | **Open** |
 
 ### Recorded `yfinance` caveats (user decision record, 2026-10-07)

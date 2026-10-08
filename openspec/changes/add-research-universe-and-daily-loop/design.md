@@ -46,17 +46,25 @@ The platform checks only that the key holds a `strategy_id`. FinanceModel valida
 ### T3. Research plan
 A post-deploy step idempotently creates one hypothetical paper portfolio and plan per environment (`synthetic: true`, meaning no real holdings), referenced at `/finplan/<env>/financialplanning/config/research-plan-ref`.
 
+### P1. Data parity across stages (user decision 26, 2026-10-08)
+Beta, gamma and prod run phase 2 with the same real-data configuration: the `yfinance` research universe (VOO, GOOGL, NFLX, AAPL, NVDA plus cash from 2010-10-01), the same schedule and the same approval rule. Only names, retention, limits and consumer principals differ per environment.
+- Each environment ingests independently into its own snapshot store and catalog. There are no cross-environment reads; the gamma isolation denials (ENV-03) are unchanged.
+- The UNI-06 gate still orders the rollout (beta, then gamma, then prod). Parity is the end state, not a simultaneous switch: prod declares phase 2 only with gamma's own evidence, because a beta snapshot proves nothing about gamma's deployment.
+- Deployed tests are phase-aware. Snapshots in phase 2 are real; portfolios, plans, versions, publications and executions created by tests stay `synthetic: true`. Synthetic market-data fixtures remain only in offline unit and CI tests.
+- The prod smoke never calls the provider. In phase 2 it reuses the latest scheduled universe snapshot (found through the trigger-outcome record) instead of an on-demand ingestion.
+
 ## Risks / Trade-offs
 
 - [A Yahoo outage at 09:00 ET] → backoff, then no approval. The trigger records `skipped_snapshot`, and an on-demand re-ingestion is possible.
 - [Hindsight-selected tickers inflate results] → mandatory disclosures carried into every derived artifact.
 - [Deployed tests spend money] → at most one `buy_and_hold` daily job per beta or gamma suite (about USD 0.12). Prod smoke never submits.
+- [Three environments call Yahoo daily (decision 26)] → five requests at 2 s spacing per environment per day, plus test ingestions in the beta and gamma stages; rate limits are handled by backoff, and a failed ingestion leaves the environment on its previous approved snapshot.
 - [The head moves to an unpublished version] → unchanged 1.0.0 semantics: the publication is authoritative.
 
 ## Migration Plan
 
 1. Publish contracts 1.1.0 and pin it.
 2. Deploy everywhere with phase 1 config and no strategy key, so the trigger is a no-op.
-3. Enable phase 2 in beta, verify, then gamma, then prod after approval.
+3. Enable phase 2 in beta, verify, then gamma, then prod after approval. Decision 26 makes this the end state for every environment (P1); each step needs the predecessor's evidence in `config/phase2-evidence.json`.
 
 Rollback: redeploy the previous release or set `phase: 1`. Deleting the strategy key stops jobs immediately.

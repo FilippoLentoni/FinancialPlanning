@@ -1,5 +1,6 @@
 """Deployed tests of change add-research-universe-and-daily-loop (tasks 4.1-4.4): DLY-07 (beta and gamma),
-UNI-05 (beta, phase 2) and DLY-08 (beta, one real ``buy_and_hold`` job).
+UNI-05 (every phase 2 environment: beta and gamma, decision 26) and DLY-08 (beta, and gamma in phase 2;
+at most one real ``buy_and_hold`` job per suite).
 
 They run IN THE PIPELINE only (beta ``integration-beta`` and gamma ``gamma`` suites, started by
 ``scripts/stage_runner.py`` with the stage role) and are skipped everywhere else; the stage fails when
@@ -13,7 +14,8 @@ the deployed ingestion function.
 * **UNI-05** (phase 2 environments): a synchronous scheduled ingestion of both datasets; the universe
   snapshot has ``yfinance`` lineage, 5 tickers from 2010-10-01, ``approved`` under
   ``approval-v2-universe`` and both disclosures; the SPY ``etf-daily`` snapshot is still produced.
-  The test prints the promotion evidence for ``config/phase2-evidence.json`` (UNI-06).
+  The test prints the promotion evidence line ``PHASE2-EVIDENCE {...}`` for ``config/phase2-evidence.json``
+  (UNI-06) with output capture disabled, so it appears in the stage's CodeBuild log.
 * **DLY-08**: needs FinanceModel's strategy selection (contracts 1.1.0 consumer); it runs when
   FinanceModel's release manifest in this environment declares contract 1.1.0 or later, and otherwise
   skips with that reason (the other tests still execute).
@@ -140,8 +142,8 @@ def test_dly07_no_strategy_means_nothing_runs(dep: dict[str, Any]) -> None:  # p
     assert _version_ids(t, plan_id) == before
 
 
-# ------------------------------------------------------------------ UNI-05 (beta, phase 2)
-def test_uni05_universe_snapshot_from_yfinance(dep: dict[str, Any]) -> None:  # pragma: no cover - needs a deployment
+# ------------------------------------------------------------------ UNI-05 (phase 2: beta, gamma)
+def test_uni05_universe_snapshot_from_yfinance(dep: dict[str, Any], capsys: pytest.CaptureFixture[str]) -> None:  # pragma: no cover - needs a deployment
     cfg, t = dep["cfg"], dep["t"]
     if cfg.phase != 2:
         pytest.skip(f"{ENV} is phase 1: the universe is served by the fixture provider (UNI-05 runs once the environment declares phase 2)")
@@ -168,10 +170,11 @@ def test_uni05_universe_snapshot_from_yfinance(dep: dict[str, Any]) -> None:  # 
     code, obs, _ = t.call("GET", f"/v1/snapshots/{sid}/observations?page_size=1&start_date=2010-10-01&end_date=2010-10-01")
     assert code == 200 and {i["instrument_id"] for i in obs["instruments"]} == UNIVERSE_TICKERS
     evidence = {"input_snapshot_id": sid, "dataset_id": cfg.universe.dataset_id, "status": snap["status"], "approval_rule_version": snap["approval_rule_version"], "provider": "yfinance", "trigger": u.get("trigger")}
-    print("PHASE2-EVIDENCE " + json.dumps({ENV: evidence}, sort_keys=True))
+    with capsys.disabled():  # visible in the stage log (pytest -q captures passing tests' output)
+        print("\nPHASE2-EVIDENCE " + json.dumps({ENV: evidence}, sort_keys=True), flush=True)
 
 
-# ------------------------------------------------------------------ DLY-08 (beta, real job)
+# ------------------------------------------------------------------ DLY-08 (beta; gamma in phase 2; real job)
 def _financemodel_contract(ssm: Any, env: str) -> str:
     from finplan_contracts import ssm as contract_ssm
 

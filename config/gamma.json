@@ -2,11 +2,11 @@
   "$comment": "FinancialPlanning platform configuration for gamma. Settings, placeholders and SSM parameter NAMES only; never account IDs, ARNs, bucket, role or endpoint values. Retention values are the proposed P2 defaults (PQ-3 open).",
   "environment": "gamma",
   "region": "us-east-2",
-  "phase": 1,
+  "phase": 2,
   "ingest": {
     "schedule_time": "09:00",
     "timezone": "America/New_York",
-    "provider": "fixture",
+    "provider": "yfinance",
     "provider_settings": {
       "min_request_interval_seconds": 2.0,
       "max_attempts": 4,

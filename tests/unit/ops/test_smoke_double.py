@@ -26,8 +26,11 @@ from finplan_platform.providers.fixture import FixtureProvider
 from scripts import stage_runner
 from tests.smoke.smoke_suite import (
     SMOKE_CONTENT,
+    UNIVERSE_SMOKE_CONTENT,
     MemoryState,
     SmokeError,
+    UniversePending,
+    check_universe,
     content_checksum,
     run_smoke,
 )
@@ -126,6 +129,108 @@ def test_smoke_reports_api_errors_with_their_code() -> None:
     t = FakeTransport({("POST", "/v1/portfolios"): (403, {"code": "FORBIDDEN", "message": "denied"})})
     with pytest.raises(SmokeError, match="FORBIDDEN"):
         run_smoke(t, MemoryState(), run_key="r", dataset_id="finance/etf-daily/SPY", today=date(2026, 1, 12), log=lambda _m: None)
+
+
+# ------------------------------------------------------------------ phase 2 (decision 26)
+UNIVERSE_SID = "snap_01M4DKRX5EYP18VESM7P5GWAB9"
+
+
+def _universe_snapshot(**over: Any) -> dict[str, Any]:
+    snap = {
+        "input_snapshot_id": UNIVERSE_SID,
+        "status": "approved",
+        "approval_rule_version": "approval-v2-universe",
+        "lineage": {"provider": "yfinance", "library_version": "1.7.0"},
+        "coverage": {"start": "2010-10-01", "end": "2026-10-07"},
+        "observation_summary": {"instruments_expected": 5, "instruments_complete": 5},
+        "bias_disclosures": [{"kind": "hindsight_selection", "text": "h"}, {"kind": "survivorship", "text": "s"}],
+    }
+    snap.update(over)
+    return snap
+
+
+class Phase2Transport:
+    """Scripted plan API for the phase 2 smoke path; records every call."""
+
+    def __init__(self, snapshot: dict[str, Any], outcome: str = "skipped_no_strategy", outcome_day: str = "2026-10-07") -> None:
+        self.calls: list[tuple[str, str, Any]] = []
+        self.snapshot, self.outcome, self.outcome_day = snapshot, outcome, outcome_day
+        self.content: Any = None
+
+    def call(self, method: str, path: str, body: Any = None) -> tuple[int, dict[str, Any], dict[str, str]]:
+        self.calls.append((method, path, body))
+        if path.startswith("/v1/daily-trigger/outcomes/"):
+            day = path.rsplit("/", 1)[-1]
+            recs = [{"outcome": self.outcome, "session_date": day, "input_snapshot_id": UNIVERSE_SID, "published": False, "recorded_at": f"{day}T13:00:22Z"}] if day == self.outcome_day else []
+            return 200, {"session_date": day, "outcomes": recs}, {}
+        if path == f"/v1/snapshots/{UNIVERSE_SID}":
+            return 200, {"snapshot": self.snapshot}, {}
+        if (method, path) == ("GET", "/v1/portfolios/pf_S"):
+            return 200, {"portfolio": {"portfolio_id": "pf_S", "synthetic": True, "revision": 1}}, {}
+        if (method, path) == ("POST", "/v1/portfolios/pf_S/plans"):
+            return 201, {"plan_id": "pl_S"}, {}
+        if (method, path) == ("GET", "/v1/plans/pl_S"):
+            return 200, {"plan": {"head": {"revision": 0}, "publication_revision": 0}}, {}
+        if (method, path) == ("POST", "/v1/plans/pl_S/versions"):
+            self.content = body["content"]
+            return 201, {"plan_version_id": "pv_S", "checksum": content_checksum(body["content"])}, {}
+        checksum = content_checksum(self.content)
+        if path.startswith("/v1/plan-versions/pv_S") and method == "GET":
+            return 200, {"plan_version": {"checksum": checksum}, "content_ref": {"checksum": checksum}, "download_grant": {"url": "https://example.invalid/pv_S"}}, {}
+        if path == "/v1/plan-versions/pv_S/validate":
+            return 200, {"status": "validated"}, {}
+        if path == "/v1/plans/pl_S/publications":
+            return 201, {"publication_id": "pub_S", "plan_version_checksum": checksum}, {}
+        if path == "/v1/publications/pub_S":
+            return 200, {"publication_id": "pub_S"}, {}
+        if path == "/v1/publications/pub_S/executions":
+            return 201, {"execution_id": "exe_S", "mode": "paper", "publication_id": "pub_S"}, {}
+        if path == "/v1/executions/exe_S":
+            return 200, {"execution_id": "exe_S"}, {}
+        raise AssertionError((method, path))
+
+    def download(self, url: str) -> bytes:
+        from finplan_contracts.canonical import canonicalize
+
+        return canonicalize(self.content)
+
+
+def test_phase2_smoke_reuses_the_scheduled_universe_snapshot_without_ingestion() -> None:
+    t = Phase2Transport(_universe_snapshot())
+    result = run_smoke(t, MemoryState("pf_S"), run_key="r", dataset_id="finance/etf-daily/SPY", today=date(2026, 10, 8), log=lambda _m: None, phase=2)
+    assert result.input_snapshot_id == UNIVERSE_SID and result.execution_id == "exe_S"
+    assert result.checksum == content_checksum(UNIVERSE_SMOKE_CONTENT)
+    assert not any(p == "/v1/ingestions" for _, p, _ in t.calls), "phase 2 smoke must never start an ingestion (no real-provider call)"
+    version_body = next(b for m, p, b in t.calls if (m, p) == ("POST", "/v1/plans/pl_S/versions"))
+    assert version_body["input_snapshot_id"] == UNIVERSE_SID
+
+
+def test_phase2_universe_check_passes_on_an_approved_real_snapshot() -> None:
+    found = check_universe(Phase2Transport(_universe_snapshot()), date(2026, 10, 8), log=lambda _m: None)
+    assert found == {"input_snapshot_id": UNIVERSE_SID, "session_date": "2026-10-07", "outcome": "skipped_no_strategy"}
+    assert check_universe(Phase2Transport(_universe_snapshot(), outcome="pending_approval"), date(2026, 10, 8), log=lambda _m: None)["outcome"] == "pending_approval"
+
+
+@pytest.mark.parametrize(
+    ("snapshot", "outcome", "needle"),
+    [
+        (_universe_snapshot(status="committed"), "skipped_no_strategy", "expected approved"),
+        (_universe_snapshot(lineage={"provider": "fixture"}), "skipped_no_strategy", "not yfinance"),
+        (_universe_snapshot(bias_disclosures=[]), "skipped_no_strategy", "disclosures"),
+        (_universe_snapshot(observation_summary={"instruments_expected": 5, "instruments_complete": 4}), "skipped_no_strategy", "4/5"),
+        (_universe_snapshot(), "skipped_snapshot", "trigger outcome"),
+    ],
+)
+def test_phase2_universe_check_fails_on_defects(snapshot: dict[str, Any], outcome: str, needle: str) -> None:
+    with pytest.raises(SmokeError, match=needle):
+        check_universe(Phase2Transport(snapshot, outcome=outcome), date(2026, 10, 8), log=lambda _m: None)
+
+
+def test_phase2_universe_check_is_pending_while_the_latest_snapshot_is_a_fixture_one() -> None:
+    with pytest.raises(UniversePending):
+        check_universe(Phase2Transport(_universe_snapshot(synthetic=True)), date(2026, 10, 8), log=lambda _m: None)
+    with pytest.raises(SmokeError, match="no scheduled universe snapshot"):
+        check_universe(Phase2Transport(_universe_snapshot(), outcome_day="2026-09-01"), date(2026, 10, 8), log=lambda _m: None)
 
 
 # ------------------------------------------------------------------ deployed transport (no network)

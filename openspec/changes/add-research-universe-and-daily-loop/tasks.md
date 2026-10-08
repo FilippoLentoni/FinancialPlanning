@@ -24,12 +24,14 @@ Test IDs are defined in the mapping table at the end. CI suites never call `yfin
 ## 4. Deployed verification
 
 - [ ] 4.1 **DLY-07 (beta and gamma, deployed, phase 1):** start the state machine with the strategy key absent, then read the outcome record through the deployed API. Verify `skipped_no_strategy`, no request in the FinanceModel job API log, and an unchanged version list.
-- [ ] 4.2 **UNI-05 (beta, deployed):** set beta `phase: 2` and deploy. After the next 09:00 ET scheduled run, read the latest universe snapshot through the deployed API. Verify:
+- [x] 4.2 **UNI-05 (beta, deployed):** set beta `phase: 2` and deploy. After the next 09:00 ET scheduled run, read the latest universe snapshot through the deployed API. Verify:
   - `yfinance` lineage;
   - 5 tickers from 2010-10-01;
   - `approved` under `approval-v2-universe`;
   - both disclosures;
   - the SPY `etf-daily` snapshot is still produced.
+
+  Done 2026-10-08: UNI-05 passed in the beta stage of pipeline run f7a0dc46, and the 09:00 ET scheduled run of 2026-10-08 (session 2026-10-07) produced `snap_01M4DKRX5EYP18VESM7P5GWAB9`: `approved` under `approval-v2-universe`, `yfinance` 1.7.0, 5/5 instruments complete (4,028 sessions each), coverage 2010-10-01..2026-10-07, both disclosures, trigger outcome `skipped_no_strategy`. Recorded as beta evidence in `config/phase2-evidence.json`.
 - [ ] 4.3 **DLY-08 (beta, deployed, real job):**
   1. Select `buy_and_hold` through the FinanceModel selection operation.
   2. Start the trigger with `run_tag=it-<build>`.
@@ -37,7 +39,12 @@ Test IDs are defined in the mapping table at the end. CI suites never call `yfin
   4. Publish it through the existing publish route as the operator (user approval path) and verify the publication.
   5. Clear the key, restart the trigger, and verify `skipped_no_strategy`.
 - [ ] 4.4 Promote phase 2 to gamma (UNI-06: the gate refuses without beta evidence, unit-tested), then repeat UNI-05 and DLY-08 in gamma.
+  - [x] 4.4.1 Decision 26 (data parity): `config/gamma.json` declares `phase: 2` with `provider: yfinance`; every data setting (dataset, universe, history start, approval rules, schedule, daily trigger, validation, metadata) equals beta's, checked by `test_data_parity_with_beta_decision_26`. Beta evidence recorded in `config/phase2-evidence.json` in the UNI-05 format.
+  - [x] 4.4.2 Deployed suites are phase-aware: the lifecycle suite accepts a real snapshot in phase 2 (plan records stay synthetic), UNI-05 and DLY-08 run in gamma once it declares phase 2, and UNI-05 prints its `PHASE2-EVIDENCE` line uncaptured so it appears in the stage log. Gamma isolation (ENV-03) is unchanged.
+  - [ ] 4.4.3 Deploy; verify UNI-05 (and DLY-07, DLY-08 when a benchmark exists) in the gamma stage, and copy gamma's `PHASE2-EVIDENCE` line into `config/phase2-evidence.json`.
 - [ ] 4.5 After manual approval, enable prod phase 2. Run the **prod smoke (deployed, non-mutating)**: the latest scheduled universe snapshot is approved with disclosures, and the latest trigger outcome is `skipped_no_strategy` or `pending_approval`. No job is submitted.
+  - [x] 4.5.1 The prod smoke is phase-aware: in phase 2 it starts no ingestion (no real-provider call in smoke) and runs the synthetic-plan lifecycle on the latest scheduled universe snapshot; `test_prod_phase2_universe_snapshot_and_trigger_outcome` performs the read-only check above and skips with a reason only while the latest scheduled snapshot is still a phase 1 fixture one (phase 2 enabled after that day's 09:00 ET run). Unit-tested against a scripted API.
+  - [ ] 4.5.2 With gamma evidence recorded (4.4.3), set `config/prod.json` to `phase: 2` and `provider: yfinance` (config only: prod's data settings already equal beta's), deploy through the manual approval, and verify the prod smoke after the next 09:00 ET run.
 
 ## Requirement-to-test mapping
 

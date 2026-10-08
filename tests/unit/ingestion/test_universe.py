@@ -77,11 +77,29 @@ def test_missing_kind_or_disclosure_fails_the_build(mutate: Any, needle: str) ->
     assert problems and any(needle in str(p) for p in problems), problems
 
 
-def test_beta_enables_yfinance_and_gamma_prod_stay_phase_1() -> None:
+def test_beta_and_gamma_run_yfinance_phase_2_decision_26() -> None:
     cfgs = load_all()
-    assert (cfgs["beta"].phase, cfgs["beta"].provider) == (2, "yfinance")
-    for env in ("gamma", "prod"):
-        assert (cfgs[env].phase, cfgs[env].provider) == (1, "fixture")
+    for env in ("beta", "gamma"):
+        assert (cfgs[env].phase, cfgs[env].provider) == (2, "yfinance")
+    # prod follows once gamma's UNI-05 evidence is recorded (UNI-06); until then it is phase 1
+    assert (cfgs["prod"].phase, cfgs["prod"].provider) in ((1, "fixture"), (2, "yfinance"))
+
+
+# Data settings that must match across stages (decision 26). Names, retention, limits and
+# consumer principals stay environment-specific; the provider follows the phase.
+_PARITY_KEYS = ("validation", "daily_trigger", "metadata")
+
+
+def _data_view(env: str) -> dict[str, Any]:
+    doc = _doc(env)
+    ingest = copy.deepcopy(doc["ingest"])
+    ingest.pop("provider")
+    return {"ingest": ingest, **{k: doc[k] for k in _PARITY_KEYS}}
+
+
+@pytest.mark.parametrize("env", ["gamma", "prod"])
+def test_data_parity_with_beta_decision_26(env: str) -> None:
+    assert _data_view(env) == _data_view("beta")
 
 
 # ------------------------------------------------------------------ UNI-06
@@ -109,6 +127,7 @@ def test_promotion_gate_prod_needs_gamma_evidence_and_repository_config_passes()
     p["phase"], p["ingest"]["provider"] = 2, "yfinance"
     problems = phase2_promotion_problems({**cfgs, "prod": EnvConfig(p)}, {"beta": _evidence()})
     assert problems and "gamma" in problems[0].message
+    assert phase2_promotion_problems({**cfgs, "prod": EnvConfig(p)}, {"beta": _evidence(), "gamma": _evidence()}) == []
     from finplan_platform.core.config import load_phase2_evidence
 
     assert phase2_promotion_problems(cfgs, load_phase2_evidence()) == []
