@@ -98,7 +98,7 @@ class MetadataStack(PlatformStack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
             handler="finplan_platform.handlers.sweep.handler",
-            code=lambda_code(),
+            code=lambda_code("sweeper"),
             role=role,
             timeout=Duration.minutes(5),
             memory_size=256,

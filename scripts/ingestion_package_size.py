@@ -8,8 +8,12 @@ limit (250 MB unzipped, function code plus layers). Distributions the Lambda Pyt
 already provides (``boto3``, ``botocore``, ``s3transfer``, ``jmespath``, ``urllib3``,
 ``python-dateutil``, ``six``) are excluded, as the build bundle excludes them.
 
+This is the early (pre-synth) estimate. The authoritative size is measured on the real arm64
+bundle by ``scripts/lambda_bundle.py`` and the ``lambda-bundle`` post gate; that bundle also
+carries the pinned ``boto3``/``botocore`` (about 25 MB more than this estimate).
+
 Prints a JSON report with ``mode`` ``zip`` or ``image``. The build stage builds a zip bundle
-(``FINPLAN_LAMBDA_BUNDLE``) when ``mode`` is ``zip``, otherwise a container image from
+(``scripts/lambda_bundle.py``) when ``mode`` is ``zip``, otherwise a container image from
 ``infra/docker/ingestion/Dockerfile`` (``FINPLAN_INGESTION_IMAGE_DIR``). The size is measured
 on the build host's wheels; the arm64 Lambda wheels differ slightly, so a margin is kept
 (``--margin``, default 10%). ``--require-zip`` exits 1 when the zip form does not fit.

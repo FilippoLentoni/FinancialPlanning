@@ -221,7 +221,10 @@ def _install() -> dict[str, Any]:
 def build_spec() -> dict[str, Any]:
     return {
         "version": "0.2",
-        "env": {"shell": "bash", "variables": {"SOURCE_DATE_EPOCH": "315532800", "UV_LINK_MODE": "copy", "CDK_DISABLE_VERSION_CHECK": "1"}},
+        # FINPLAN_RELEASE_BUILD=1: any synth in this project is a release synth, which refuses a
+        # function without a dependency bundle (build_stage.py builds the arm64 bundles from uv.lock
+        # natively on this ARM image before it synthesizes; docs/pipeline.md "Source-only Lambda bundle").
+        "env": {"shell": "bash", "variables": {"SOURCE_DATE_EPOCH": "315532800", "UV_LINK_MODE": "copy", "CDK_DISABLE_VERSION_CHECK": "1", "FINPLAN_RELEASE_BUILD": "1"}},
         "phases": {
             "install": _install(),
             "build": {

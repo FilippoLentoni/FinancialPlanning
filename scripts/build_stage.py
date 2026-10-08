@@ -5,7 +5,12 @@ Normal build (``--rollback-to`` empty or ``none``):
 
 1. pre-synth gates (:mod:`scripts.build_gates`): contracts pin, configuration, leak scan,
    copied-id, contract conformance, unit and contract tests;
-2. ``cdk synth`` once (:func:`scripts.synth.synth`, deployment synthesizer);
+2. the Lambda bundles (:mod:`scripts.lambda_bundle`: one per function, the locked dependency
+   closure for python3.12/arm64 plus the platform package and config), then ``cdk synth`` once
+   (:func:`scripts.synth.synth`, deployment synthesizer) in **release mode**
+   (``FINPLAN_RELEASE_BUILD=1``, ``FINPLAN_LAMBDA_BUNDLE_DIR``): a function without a complete
+   bundle fails the synth, so a source-only package is never built into a release (see
+   docs/pipeline.md "Source-only Lambda bundle");
 3. post-synth gates: ownership, boundaries, live-permission scan, pipeline structure, cost;
 4. package BuildOutput: the cloud assembly, ``release-info.json`` (new ``release_id``, artifact
    digest, pinned contract version and digest, served majors) and the files the post-deploy
@@ -48,7 +53,7 @@ from scripts.release import (  # noqa: E402
     store_build_output,
 )
 
-__all__ = ["PACKAGE_PATHS", "BuildFailed", "main", "run_build", "run_rollback"]
+__all__ = ["PACKAGE_PATHS", "BuildFailed", "main", "release_environment", "run_build", "run_rollback"]
 
 #: Copied into BuildOutput for the post-deploy actions (they never read the source checkout).
 PACKAGE_PATHS = ("pyproject.toml", "uv.lock", "README.md", "contracts-pin.json", "vendor", "platform", "config", "scripts", "tests", "infra")
@@ -79,6 +84,31 @@ def _default_synth(out: Path) -> Path:
     return synth(out)
 
 
+def _default_bundles(root: Path, out: Path) -> dict[str, dict[str, Any]]:
+    from scripts.lambda_bundle import build_all
+
+    return build_all(root, out)
+
+
+@contextlib.contextmanager
+def release_environment(bundles: Path) -> Any:
+    """``FINPLAN_RELEASE_BUILD=1`` and ``FINPLAN_LAMBDA_BUNDLE_DIR`` for the duration of the synth."""
+    from infra.stacks.common import BUNDLE_DIR_ENV, RELEASE_ENV
+
+    saved = {k: os.environ.get(k) for k in (BUNDLE_DIR_ENV, RELEASE_ENV, "FINPLAN_LAMBDA_BUNDLE")}
+    os.environ[BUNDLE_DIR_ENV] = str(bundles)
+    os.environ[RELEASE_ENV] = "1"
+    os.environ.pop("FINPLAN_LAMBDA_BUNDLE", None)
+    try:
+        yield
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 def run_build(
     root: Path,
     out: Path,
@@ -91,6 +121,7 @@ def run_build(
     run_unit: bool = True,
     rebuild_contracts: bool = True,
     synth_fn: Callable[[Path], Path] = _default_synth,
+    bundle_fn: Callable[[Path, Path], dict[str, dict[str, Any]]] = _default_bundles,
     gates: tuple[str, ...] = ("pre", "post"),
     only: tuple[str, ...] | None = None,
     now: datetime | None = None,
@@ -102,13 +133,29 @@ def run_build(
         raise BuildFailed(f"{out} already exists; the build output is produced once per build")
     region = region or _region(root)
     work = root / ".build" / "stage"
+    bundles = root / ".build" / "lambda-bundles"
     shutil.rmtree(work, ignore_errors=True)
+    shutil.rmtree(bundles, ignore_errors=True)
     work.mkdir(parents=True)
     try:
         ctx = build_gates.GateContext(root=root, rebuild_contracts=rebuild_contracts, run_unit=run_unit)
         if "pre" in gates and not _gates_ok(ctx, "pre", only, log):
             raise BuildFailed("pre-synth gates failed; no artifact produced")
-        assembly = synth_fn(work / "cdk.out")
+        from infra.stacks.common import SourceOnlyCodeError
+        from scripts.lambda_bundle import BundleError
+
+        try:
+            manifests = bundle_fn(root, bundles)
+        except BundleError as exc:
+            raise BuildFailed(f"Lambda bundle build failed; no artifact produced: {exc}") from exc
+        for name, m in sorted(manifests.items()):  # functions sharing extras share one bundle
+            log(f"lambda bundle {name}: {m['unzipped_bytes'] / 2**20:.1f} MiB unzipped, {m['files']} files, {m['python_platform']}")
+        (work / "lambda-bundles.json").write_text(json.dumps(manifests, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        try:
+            with release_environment(bundles):
+                assembly = synth_fn(work / "cdk.out")
+        except SourceOnlyCodeError as exc:
+            raise BuildFailed(f"release synth refused source-only Lambda code; no artifact produced: {exc}") from exc
         ctx.assembly = assembly
         if "post" in gates and not _gates_ok(ctx, "post", only, log):
             raise BuildFailed("post-synth gates failed; no artifact produced")
@@ -144,6 +191,7 @@ def run_build(
         return info
     finally:
         shutil.rmtree(work, ignore_errors=True)
+        shutil.rmtree(bundles, ignore_errors=True)
         with contextlib.suppress(OSError):
             work.parent.rmdir()  # .build/ when empty
 

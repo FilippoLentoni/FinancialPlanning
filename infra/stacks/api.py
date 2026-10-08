@@ -191,6 +191,12 @@ class ApiStack(PlatformStack):
             removal_policy=RemovalPolicy.RETAIN if env == "prod" else RemovalPolicy.DESTROY,
         )
         tag_role(self.log_group, "plan-api-handler")
+        # The explicit role gets no AWSLambdaBasicExecutionRole and CDK grants nothing for an
+        # explicit ``log_group``: without this the function could not create a log stream and its
+        # log group stayed empty (docs/pipeline.md "Source-only Lambda bundle", logging finding).
+        self.role.add_to_principal_policy(
+            iam.PolicyStatement(sid="OwnLogStreams", actions=["logs:CreateLogStream", "logs:PutLogEvents"], resources=[self.log_group.log_group_arn])
+        )
         self.function = lambda_.Function(
             self,
             "PlanApiFunction",
@@ -198,7 +204,7 @@ class ApiStack(PlatformStack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             architecture=lambda_.Architecture.ARM_64,
             handler="finplan_platform.handlers.api.handler",
-            code=lambda_code(),
+            code=lambda_code("plan-api"),
             role=self.role,
             memory_size=256,
             timeout=Duration.seconds(29),

@@ -26,8 +26,9 @@ permission boundary applied by :class:`PlatformStack`):
   time) and ``/finplan/<env>/financialplanning/api/ingestion-endpoint`` (the plan API's
   ``v1/ingestions`` URL, published when the API stack is present in the stage).
 
-Packaging (task 6.17): the function code is :func:`infra.stacks.common.lambda_code` (the
-build-stage bundle with the pinned ``providers`` extra when ``FINPLAN_LAMBDA_BUNDLE`` is set).
+Packaging (task 6.17, 10.7): the function code is :func:`infra.stacks.common.lambda_code`
+(``ingestion``: the build-stage arm64 bundle from ``scripts/lambda_bundle.py`` with the pinned
+``providers`` extra; a release synth fails without it).
 When the pinned dependencies exceed the zip limit (``scripts/ingestion_package_size.py``),
 the build sets ``FINPLAN_INGESTION_IMAGE_DIR`` to a directory with the ``Dockerfile`` from
 ``infra/docker/ingestion/`` and the function becomes a container-image Lambda.
@@ -148,7 +149,7 @@ class IngestionStack(PlatformStack):
                 "IngestionFunction",
                 runtime=lambda_.Runtime.PYTHON_3_12,
                 handler="finplan_platform.handlers.ingest.handler",
-                code=lambda_code(),
+                code=lambda_code("ingestion"),
                 **common,
             )
         tag_role(self.function, "ingestion-handler")

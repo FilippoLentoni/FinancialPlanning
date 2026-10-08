@@ -15,10 +15,14 @@ packaging stay uniform:
   pattern.
 * :func:`role_arn_pattern`: ``arn:${Partition}:iam::${AccountId}:role/<pattern>`` built
   from tokens (no account literal ever appears in a file).
-* :func:`lambda_code`: the function code asset. ``FINPLAN_LAMBDA_BUNDLE`` points at a
-  directory produced by the build stage (platform package + pinned dependencies + config);
-  without it the source tree is used, which synthesizes offline but lacks third-party
-  dependencies (fine for synth and tests, not for a deploy; the pipeline sets the bundle).
+* :func:`lambda_code`: the function code asset. The build stage builds one bundle per function
+  (:mod:`scripts.lambda_bundle`: platform package + the locked dependency closure for arm64 +
+  config) and sets ``FINPLAN_LAMBDA_BUNDLE_DIR`` (``<dir>/<function>``; ``FINPLAN_LAMBDA_BUNDLE``
+  is still accepted as one bundle for every function). In **release mode**
+  (``FINPLAN_RELEASE_BUILD=1``, or any CodeBuild build unless ``FINPLAN_RELEASE_BUILD=0``) a missing
+  or incomplete bundle FAILS the synth: a source-only package is never deployable (it shipped
+  once and every function failed at init with ``No module named 'finplan_contracts'``, see
+  docs/pipeline.md). Outside release mode (local and offline synth, tests) the source tree is used.
 """
 
 from __future__ import annotations
@@ -50,6 +54,12 @@ __all__ = [
     "platform_principal_pattern",
     "tag_role",
     "lambda_code",
+    "release_mode",
+    "bundle_path",
+    "bundle_problems",
+    "SourceOnlyCodeError",
+    "BUNDLE_DIR_ENV",
+    "RELEASE_ENV",
     "ssm_name",
     "PLATFORM_ROLES",
 ]
@@ -125,11 +135,62 @@ def platform_role(scope: Construct, construct_id: str, *, cfg: EnvConfig, logica
     return role
 
 
-def lambda_code(bundle_env: str = "FINPLAN_LAMBDA_BUNDLE") -> lambda_.Code:
-    """Function code: the build-stage bundle when ``FINPLAN_LAMBDA_BUNDLE`` is set, else the source tree."""
-    bundle = os.environ.get(bundle_env)
-    if bundle:
-        return lambda_.Code.from_asset(bundle)
+#: Environment variables that select the Lambda code (see :func:`lambda_code`).
+BUNDLE_DIR_ENV = "FINPLAN_LAMBDA_BUNDLE_DIR"
+BUNDLE_ENV = "FINPLAN_LAMBDA_BUNDLE"
+RELEASE_ENV = "FINPLAN_RELEASE_BUILD"
+#: Marker file of a build-stage bundle (``scripts/lambda_bundle.py``).
+BUNDLE_MANIFEST = "bundle-manifest.json"
+#: Entries a deployable bundle must contain besides the platform package.
+BUNDLE_REQUIRED = ("finplan_platform", "finplan_contracts", "jsonschema", "rfc8785", "config", BUNDLE_MANIFEST)
+
+
+class SourceOnlyCodeError(RuntimeError):
+    """Release-mode synth found no complete dependency bundle for a function."""
+
+
+def release_mode(environ: Mapping[str, str] | None = None) -> bool:
+    """True when the synth produces release assets: ``FINPLAN_RELEASE_BUILD=1``, or a CodeBuild
+    build (``CODEBUILD_BUILD_ID``) unless ``FINPLAN_RELEASE_BUILD=0`` (the offline tests set it)."""
+    env = os.environ if environ is None else environ
+    flag = env.get(RELEASE_ENV, "").strip().lower()
+    if flag in ("1", "true", "yes"):
+        return True
+    if flag in ("0", "false", "no"):
+        return False
+    return bool(env.get("CODEBUILD_BUILD_ID"))
+
+
+def bundle_path(function: str, environ: Mapping[str, str] | None = None) -> Path | None:
+    env = os.environ if environ is None else environ
+    if env.get(BUNDLE_DIR_ENV):
+        return Path(env[BUNDLE_DIR_ENV]) / function
+    if env.get(BUNDLE_ENV):
+        return Path(env[BUNDLE_ENV])
+    return None
+
+
+def bundle_problems(path: Path) -> list[str]:
+    if not path.is_dir():
+        return [f"{path} does not exist"]
+    return [f"{name} missing" for name in BUNDLE_REQUIRED if not ((path / name).exists() or (path / f"{name}.py").is_file())]
+
+
+def lambda_code(function: str, *, environ: Mapping[str, str] | None = None) -> lambda_.Code:
+    """Code asset of the platform function ``function`` (``plan-api``, ``ingestion``, ``sweeper``)."""
+    path = bundle_path(function, environ)
+    release = release_mode(environ)
+    if path is not None:
+        problems = bundle_problems(path)
+        if problems and release:
+            raise SourceOnlyCodeError(f"Lambda bundle for {function} at {path} is incomplete: {'; '.join(problems)}")
+        if not problems:
+            return lambda_.Code.from_asset(str(path))
+    if release:
+        raise SourceOnlyCodeError(
+            f"release synth without a dependency bundle for the {function} function: a source-only package fails at init "
+            f"(No module named 'finplan_contracts'). Build the bundles (scripts/lambda_bundle.py) and set {BUNDLE_DIR_ENV}."
+        )
     return lambda_.Code.from_asset(
         str(REPO_ROOT / "platform"),
         exclude=["**/__pycache__", "**/*.pyc", "**/.pytest_cache"],

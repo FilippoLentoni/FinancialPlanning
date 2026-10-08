@@ -18,6 +18,12 @@ checkout, never ``cdk synth``):
     and gamma with zero executed tests because ``tests/integration`` then held only the excluded
     live-provider test; see docs/pipeline.md "False pass in beta and gamma".) The integration
     suites are ``tests/integration/test_deployed_environment.py`` (tasks 11.1-11.3).
+
+    Before the suite a cheap **API probe** (:func:`probe_api`) sends one signed diagnostic
+    ``GET /v1/plans/<synthetic id>`` through the deployed API. A 5xx (API Gateway's 502 for a
+    Lambda that crashed) or an ``INTERNAL`` envelope fails the stage at once with a message that
+    names the likely cause: the function failing at init, typically an import error from an
+    incomplete code bundle (docs/pipeline.md "Source-only Lambda bundle").
 """
 
 from __future__ import annotations
@@ -38,7 +44,16 @@ if str(ROOT) not in sys.path:
 
 from scripts.release import ReleaseInfo, approval_record, publish_release  # noqa: E402
 
-__all__ = ["SUITES", "main", "publish_action", "suite_counts", "tests_action"]
+__all__ = ["PROBE_PATH", "SUITES", "api_failure_message", "main", "probe_api", "publish_action", "suite_counts", "tests_action"]
+
+#: Diagnostic read of a plan that never exists: a healthy API answers 404 ``NOT_FOUND``.
+PROBE_PATH = "/v1/plans/pl_01KDVDNAZ83BAMMYCEGWF33DPM"
+LAMBDA_IMPORT_HINT = (
+    "the plan-api Lambda failed before handling the request (API Gateway 502 / INTERNAL). The usual cause is an "
+    "init failure such as Runtime.ImportModuleError (e.g. \"No module named 'finplan_contracts'\") from a code "
+    "package without its dependency bundle; check the function's CloudWatch log group and the build's "
+    "lambda-bundle gate (docs/pipeline.md \"Source-only Lambda bundle\")"
+)
 
 SUITES: dict[str, tuple[str, list[str], bool]] = {
     # env -> (suite name, pytest paths, must execute at least one test)
@@ -55,6 +70,38 @@ def publish_action(env: str, info: ReleaseInfo, *, ssm: Any, s3: Any | None, cod
             raise RuntimeError("the prod manifest needs the pipeline execution ID to read the approval")
         approval = approval_record(codepipeline, pipeline_name, execution_id)
     return publish_release(info, env, ssm=ssm, s3=s3, store_bucket=store, approval=approval)
+
+
+def api_failure_message(code: int, body: Mapping[str, Any] | None) -> str | None:
+    """None when the response shows a working handler; otherwise an explanation for the stage log."""
+    error = str((body or {}).get("code") or "")
+    if code >= 500 or error == "INTERNAL":
+        return f"API probe got HTTP {code} {error or '(no envelope)'}: {LAMBDA_IMPORT_HINT}"
+    return None
+
+
+def probe_api(transport: Any) -> tuple[int, dict[str, Any]]:
+    """One signed diagnostic GET; raises RuntimeError with :data:`LAMBDA_IMPORT_HINT` on 5xx/INTERNAL."""
+    code, body, _headers = transport.call("GET", PROBE_PATH)
+    problem = api_failure_message(code, body)
+    if problem:
+        raise RuntimeError(problem)
+    return code, body
+
+
+def _deployed_transport(env: str) -> Any:  # pragma: no cover - needs AWS
+    import boto3
+
+    from finplan_platform.core.config import load_config
+    from tests.smoke.transport import SigV4Transport, endpoint_parameter
+
+    cfg = load_config(env)
+    session = boto3.session.Session(region_name=cfg.region)
+    endpoint = session.client("ssm").get_parameter(Name=endpoint_parameter(env))["Parameter"]["Value"]
+    creds = session.get_credentials()
+    if creds is None:
+        raise RuntimeError("no AWS credentials in the stage project")
+    return SigV4Transport(endpoint, cfg.region, creds.get_frozen_credentials(), correlation_prefix=f"cor_probe{env}")
 
 
 def suite_counts(junit_xml: Path) -> dict[str, int]:
@@ -98,6 +145,12 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CodeBuild 
     args = ap.parse_args(argv)
     info = ReleaseInfo.load(args.release_info)
     if args.action == "tests":
+        try:
+            code, body = probe_api(_deployed_transport(args.env))
+        except RuntimeError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
+        print(f"API probe: HTTP {code} {body.get('code', '')} (handler reachable)")
         return tests_action(args.env, release_id=info.release_id)
     import boto3
 

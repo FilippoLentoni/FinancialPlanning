@@ -180,11 +180,12 @@ the coverage fail with `PRECONDITION_FAILED` rather than guessing.
 ## Packaging (task 6.17)
 
 The ingestion function is a zip Lambda built from the build-stage bundle with the pinned
-`providers` extra. `scripts/ingestion_package_size.py` measures the unzipped dependency
+`providers` extra (`scripts/lambda_bundle.py`; 178 MiB unzipped for arm64; see
+`docs/pipeline.md` "Source-only Lambda bundle"). `scripts/ingestion_package_size.py` measures the unzipped dependency
 closure against the zip limit and reports `mode` `zip` or `image`; for `image` the build sets
 `FINPLAN_INGESTION_IMAGE_DIR` and the stack switches to the container image defined in
 `infra/docker/ingestion/Dockerfile`. The plan-API function serves the on-demand route in
-process, so its bundle needs the same extra once an environment is in phase 2.
+process, so its bundle carries the same extra (it is the same bundle).
 
 ## Testing
 

@@ -47,6 +47,20 @@ in the tooling stack (`infra/stacks/pipeline.py`), and its stages run in this or
   `artifact_digest`, a SHA-256 over every file of the assembly. Beta, gamma and prod deploy the same
   `BuildOutput`, so their manifests carry the same digest. The cross-environment digest-equality
   check runs in prod smoke and depends on the bootstrap (task 11.5).
+- **Lambda bundles.** Before it synthesizes, the build stage builds one code bundle per platform
+  function with `scripts/lambda_bundle.py`. Each bundle holds the locked runtime closure from
+  `uv.lock` (`uv export --frozen --no-dev --no-emit-project`, installed with `--require-hashes
+  --only-binary :all: --python-platform aarch64-manylinux_2_28 --python-version 3.12`), including
+  the pinned vendored `finplan-contracts` wheel, plus the `finplan_platform` package (with its
+  shipped calendars) and `config/`. `ingestion` and `plan-api` get the `providers` extra (the API
+  runs `POST /v1/ingestions` in process); `sweeper` gets the base dependencies. Functions with the
+  same extras get byte-identical bundles, so the assembly holds two code assets. Sizes (unzipped,
+  limit 250 MB): `ingestion`/`plan-api` 178 MiB (63 MiB zipped), `sweeper` 29 MiB (18 MiB zipped).
+  The synth then runs in release mode (`FINPLAN_RELEASE_BUILD=1`, `FINPLAN_LAMBDA_BUNDLE_DIR`), in
+  which `infra.stacks.common.lambda_code` fails on a missing or incomplete bundle. The build project
+  sets `FINPLAN_RELEASE_BUILD=1`, and any CodeBuild synth counts as release mode unless
+  `FINPLAN_RELEASE_BUILD=0` (the offline test environment sets it). A local synth without the flag
+  still packages the source tree, which is fine for tests and not deployable.
 - **Container images are not supported yet.** If the ingestion function must become a container
   image (task 6.17), an image repository is needed. The ownership matrix has no FinancialPlanning
   image-repository row (a contract gap), and the asset publisher refuses image assets until one
@@ -70,14 +84,20 @@ in the tooling stack (`infra/stacks/pipeline.py`), and its stages run in this or
 | `live-perm-scan` | post | `finplan_contracts.live_perms` |
 | `pipeline-structure` | post | `finplan_contracts.pipeline_check` and `bootstrap.check_deploy_roles` |
 | `cost` | post | `scripts/cost_checks.py` (COST-03 tags, COST-04 no always-on compute) |
+| `lambda-bundle` | post | every code asset that carries `finplan_platform` is a complete bundle from `scripts/lambda_bundle.py` (manifest, `finplan_contracts`, `jsonschema`, `rfc8785`, config, calendars), built for `aarch64-manylinux_2_28`, only arm64 ELF objects, at most 250 MB unzipped |
 
 To run them locally:
 
 ```sh
 uv run python scripts/build_gates.py --stage pre --skip-unit
-uv run python scripts/synth.py --out cdk.out
+uv run python scripts/synth.py --release --out cdk.out   # builds the arm64 bundles, release-mode synth
 uv run python scripts/build_gates.py --stage post --assembly cdk.out
 ```
+
+A plain `scripts/synth.py --out cdk.out` packages the source tree, and the `lambda-bundle` gate
+rejects that assembly. To check that the handlers import from a bundle alone on this machine, build
+for the host platform: `uv run python scripts/lambda_bundle.py --out /tmp/b --local --import-check`
+(the unit suite does the same in `tests/unit/ops/test_lambda_bundle.py`).
 
 ## Release manifest and published references (PIPE-04)
 
@@ -143,6 +163,47 @@ The suites run four tests in gamma and three in beta. The extra gamma test is th
 (ENV-03): the gamma stage role must be denied the prod SSM segment, the prod tables and the prod
 buckets. A credential probe checks that the deployed suite kept the stage role's credentials. The
 same flow runs offline against the deployment double (`tests/unit/ops/test_integration_double.py`).
+
+Before the suite, `scripts/stage_runner.py tests` sends one signed diagnostic
+`GET /v1/plans/<synthetic id>` through the deployed API. A healthy API answers 404 `NOT_FOUND`. A
+5xx (API Gateway returns 502 when the function crashes) or an `INTERNAL` envelope fails the stage
+at once, with a message that names a Lambda init or import failure as the likely cause. The
+integration suite's first read test reports the same hint.
+
+### Incident: source-only Lambda bundle (2026-10-07)
+
+**Symptom.** Every deployed platform function (`plan-api`, `ingestion-handler`,
+`metadata-sweeper`, in every environment) failed at init with `Runtime.ImportModuleError: No module
+named 'finplan_contracts'`. The code package was about 150 KB. The beta integration suite saw
+HTTP 502 from the API. The plan-api log group had no log streams at all.
+
+**Causes.**
+
+- `lambda_code()` packaged the `platform/` source tree unless `FINPLAN_LAMBDA_BUNDLE` was set, and
+  nothing in the build stage ever built a bundle or set the variable. The synth succeeded, the
+  gates checked only templates, and the source-only asset was published and deployed.
+- The plan-api role is an explicit role (`platform_role`), so it has no
+  `AWSLambdaBasicExecutionRole`, and CDK grants nothing for an explicit `log_group`. The role had
+  no `logs:CreateLogStream` or `logs:PutLogEvents`, so the init failure left no log. The
+  permission boundary was not the cause: it allows everything that the environment-tag and
+  other-environment denies do not cover. The ingestion and sweeper roles have the managed policy;
+  their log groups were empty only because they had not been invoked.
+
+**Fixes.**
+
+- `scripts/lambda_bundle.py` builds the arm64 bundles from `uv.lock` (see "Artifacts are built
+  once"), and the build stage builds them before the synth.
+- A release-mode synth fails for a function without a complete bundle, and the post-synth
+  `lambda-bundle` gate rejects any source-only or non-arm64 code asset. A source-only package can
+  no longer reach `BuildOutput`.
+- The plan-api role gets `logs:CreateLogStream` and `logs:PutLogEvents` on its own log group
+  (statement `OwnLogStreams`).
+- The stage runner probes the API before the suite and names the import problem on 502 or
+  `INTERNAL`.
+- Tests (`tests/unit/ops/test_lambda_bundle.py`) build the bundles for real, for the host platform.
+  Each function's handler must import in a `python -I -S -B` whose only non-stdlib path is the
+  bundle. A release-mode synth without bundles must fail, and the gate must reject the offline
+  (source-only) assembly.
 
 ### Incident: false pass in beta and gamma (first pipeline run)
 

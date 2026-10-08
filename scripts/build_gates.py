@@ -33,6 +33,10 @@ live-perm-scan         post   ``finplan_contracts.live_perms`` over every templa
 pipeline-structure     post   ``finplan_contracts.pipeline_check`` on the pipeline template (ENV-09)
                               and ``bootstrap.check_deploy_roles`` (scoped deploy roles, ENV-12)
 cost                   post   ``scripts/cost_checks.py`` (COST-03 tags, COST-04 no always-on)
+lambda-bundle          post   every platform Lambda code asset is a complete arm64 bundle from
+                              ``scripts/lambda_bundle.py`` (contract package, dependencies,
+                              config, manifest, size within the 250 MB unzipped limit), never
+                              the source tree (docs/pipeline.md "Source-only Lambda bundle")
 =====================  =====  ==============================================================
 
 The boundary gate checks the synthesized templates as they are: since contracts 0.2.0 the
@@ -246,6 +250,46 @@ def gate_pipeline_structure(ctx: GateContext) -> list[str]:
     return problems
 
 
+def lambda_code_assets(assembly: Path) -> dict[str, Path]:
+    """Every zip file asset of the assembly that carries the platform package (Lambda code)."""
+    found: dict[str, Path] = {}
+    for manifest in sorted(assembly.rglob("*.assets.json")):
+        for asset_id, asset in (_load(manifest).get("files") or {}).items():
+            src = asset.get("source") or {}
+            if src.get("packaging") != "zip" or not src.get("path"):
+                continue
+            path = (manifest.parent / src["path"]).resolve()
+            if (path / "finplan_platform").is_dir():
+                found[asset_id] = path
+    return found
+
+
+def gate_lambda_bundle(ctx: GateContext) -> list[str]:
+    """Every platform Lambda code asset is a complete build-stage bundle, never the source tree."""
+    from infra.stacks.common import bundle_problems
+
+    from scripts.lambda_bundle import LAMBDA_PLATFORM, MANIFEST, foreign_binaries, verify_bundle
+
+    problems: list[str] = []
+    assets = lambda_code_assets(_need_assembly(ctx))
+    if not assets:
+        problems.append("no platform Lambda code asset found in the assembly")
+    for asset_id, path in sorted(assets.items()):
+        issues = bundle_problems(path) or verify_bundle(path)
+        if issues:
+            problems.append(f"Lambda code asset {asset_id[:12]} is not a deployable bundle (source-only package?): {'; '.join(issues)}")
+            continue
+        manifest = _load(path / MANIFEST)
+        if manifest.get("python_platform") != LAMBDA_PLATFORM:
+            problems.append(f"Lambda code asset {asset_id[:12]} was built for {manifest.get('python_platform')}, not {LAMBDA_PLATFORM}")
+            continue
+        foreign = foreign_binaries(path)
+        if foreign:
+            problems.append(f"Lambda code asset {asset_id[:12]} has {len(foreign)} non-arm64 shared objects, e.g. {foreign[0]}")
+        ctx.note("lambda-bundle", f"{'+'.join(manifest.get('functions') or [str(manifest.get('function'))])} {manifest.get('unzipped_bytes', 0) // 2**20} MiB")
+    return problems
+
+
 def gate_cost(ctx: GateContext) -> list[str]:
     from scripts.cost_checks import check_paths
 
@@ -267,6 +311,7 @@ GATES: tuple[Gate, ...] = (
     ("live-perm-scan", "post", gate_live_perms),
     ("pipeline-structure", "post", gate_pipeline_structure),
     ("cost", "post", gate_cost),
+    ("lambda-bundle", "post", gate_lambda_bundle),
 )
 
 

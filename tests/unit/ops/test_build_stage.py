@@ -35,6 +35,11 @@ def _fixture_commit(tmp_path: Path, *, leak: bool) -> Path:
     return root
 
 
+def _no_bundles(root: Path, out: Path) -> dict[str, Any]:
+    """Bundle building is covered by tests/unit/ops/test_lambda_bundle.py (real uv build)."""
+    return {}
+
+
 def _fake_synth(source: Path) -> Any:
     def synth(out: Path) -> Path:
         shutil.copytree(source, out)
@@ -64,7 +69,7 @@ def test_leaked_account_id_produces_no_artifact_PIPE_02(tmp_path: Path, ops_asse
         return _fake_synth(ops_assembly)(o)
 
     with pytest.raises(build_stage.BuildFailed, match="pre-synth gates failed"):
-        build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", synth_fn=synth, only=("leak-scan",))
+        build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", bundle_fn=_no_bundles, synth_fn=synth, only=("leak-scan",))
     assert not out.exists() and synth_calls == []
     assert not (root / ".build" / "stage").exists()
 
@@ -72,7 +77,7 @@ def test_leaked_account_id_produces_no_artifact_PIPE_02(tmp_path: Path, ops_asse
 def test_clean_commit_builds_one_digest_addressed_output(tmp_path: Path, ops_assembly: Path) -> None:
     root = _fixture_commit(tmp_path, leak=False)
     out = tmp_path / "build-output"
-    info = build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", synth_fn=_fake_synth(ops_assembly), only=("leak-scan", "cost", "pipeline-structure"), log=lambda _m: None)
+    info = build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", bundle_fn=_no_bundles, synth_fn=_fake_synth(ops_assembly), only=("leak-scan", "cost", "pipeline-structure"), log=lambda _m: None)
     assert (out / "cdk.out" / "manifest.json").is_file() and (out / "config" / "beta.json").is_file()
     recorded = json.loads((out / "release-info.json").read_text())
     assert recorded["release_id"] == info.release_id and recorded["source_commit"] == COMMIT
@@ -80,7 +85,7 @@ def test_clean_commit_builds_one_digest_addressed_output(tmp_path: Path, ops_ass
 
     assert recorded["artifact_digest"] == assembly_digest(ops_assembly) == assembly_digest(out / "cdk.out")
     with pytest.raises(build_stage.BuildFailed, match="already exists"):
-        build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", synth_fn=_fake_synth(ops_assembly), only=("leak-scan",))
+        build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", bundle_fn=_no_bundles, synth_fn=_fake_synth(ops_assembly), only=("leak-scan",))
     with pytest.raises(build_stage.BuildFailed, match="commit"):
         build_stage.run_build(root, tmp_path / "o2", source_commit="main", region="us-east-2", synth_fn=_fake_synth(ops_assembly))
 
@@ -95,14 +100,19 @@ def test_post_synth_gate_failure_produces_no_artifact(tmp_path: Path, ops_assemb
     tpl.write_text(json.dumps(doc))
     out = tmp_path / "build-output"
     with pytest.raises(build_stage.BuildFailed, match="post-synth"):
-        build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", synth_fn=_fake_synth(bad), only=("cost",), log=lambda _m: None)
+        build_stage.run_build(root, out, source_commit=COMMIT, region="us-east-2", bundle_fn=_no_bundles, synth_fn=_fake_synth(bad), only=("cost",), log=lambda _m: None)
     assert not out.exists()
 
 
 def test_post_synth_gates_pass_on_the_synthesized_assembly(ops_assembly: Path) -> None:
     ctx = build_gates.GateContext(root=ROOT, assembly=ops_assembly)
     results = build_gates.run_gates(ctx, stage="post")
-    assert {r.name for r in results} == {"ownership", "boundaries", "live-perm-scan", "pipeline-structure", "cost"}
+    assert {r.name for r in results} == {"ownership", "boundaries", "live-perm-scan", "pipeline-structure", "cost", "lambda-bundle"}
+    # the offline assembly packages the source tree: only the lambda-bundle gate rejects it
+    # (tests/unit/ops/test_lambda_bundle.py); a release synth (scripts/synth.py --release) passes it
+    bundle = next(r for r in results if r.name == "lambda-bundle")
+    assert not bundle.ok and all("source-only" in p for p in bundle.problems)
+    results = [r for r in results if r.name != "lambda-bundle"]
     assert all(r.ok for r in results), [(r.name, r.problems[:3]) for r in results if not r.ok]
     assert not (ROOT / "scripts" / "ownership_known_gaps.json").exists()  # no accepted-gap list (contracts 0.2.0)
     ownership = next(r for r in results if r.name == "ownership")

@@ -10,6 +10,10 @@ store), see :mod:`infra.stacks.tooling`.
 
 Usage (offline): ``uv run python scripts/synth.py --out cdk.out``, or through the CDK CLI:
 ``npx aws-cdk@2 synth --app "uv run python scripts/synth.py"`` (the CLI passes ``CDK_OUTDIR``).
+That local form packages the source tree (fine for tests, NOT deployable). ``--release`` reproduces
+the build stage: it builds the arm64 Lambda bundles (:mod:`scripts.lambda_bundle`, into
+``--bundles``, default ``.build/lambda-bundles``) and synthesizes in release mode, where a
+missing bundle fails the synth.
 """
 
 from __future__ import annotations
@@ -43,8 +47,19 @@ def synth(outdir: str | os.PathLike[str] | None = None, envs: list[str] | None =
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Synthesize the platform cloud assembly for the pipeline (offline).")
     ap.add_argument("--out", help="assembly directory (default: $CDK_OUTDIR or ./cdk.out)")
+    ap.add_argument("--release", action="store_true", help="build the Lambda bundles and synthesize in release mode (as the build stage does)")
+    ap.add_argument("--bundles", type=Path, default=ROOT / ".build" / "lambda-bundles", help="bundle directory for --release")
     args = ap.parse_args(argv)
-    print(synth(args.out))
+    if not args.release:
+        print(synth(args.out))
+        return 0
+    from scripts.build_stage import release_environment
+    from scripts.lambda_bundle import build_all
+
+    for name, m in build_all(ROOT, args.bundles).items():
+        print(f"lambda bundle {name}: {m['unzipped_bytes'] / 2**20:.1f} MiB unzipped, {m['files']} files", file=sys.stderr)
+    with release_environment(args.bundles):
+        print(synth(args.out))
     return 0
 
 

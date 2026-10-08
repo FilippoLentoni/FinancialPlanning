@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 
+from scripts.stage_runner import PROBE_PATH, api_failure_message
 from tests.integration.lifecycle_suite import gamma_isolation_checks, run_key_from, run_lifecycle
 from tests.offline_env import FAKE_ACCESS_KEY, OFFLINE_MARKER
 from tests.smoke.transport import SigV4Transport, endpoint_parameter
@@ -61,7 +62,9 @@ def test_stage_runs_with_real_credentials_not_the_offline_fakes() -> None:
 
 def test_endpoint_resolves_from_ssm_and_reads_are_contract_envelopes_PIPE_04(deployed: dict[str, Any]) -> None:  # pragma: no cover - needs a deployment
     assert deployed["endpoint"].startswith("https://") and ".execute-api." in deployed["endpoint"]
-    code, body, headers = deployed["transport"].call("GET", "/v1/plans/pl_01KDVDNAZ83BAMMYCEGWF33DPM")
+    code, body, headers = deployed["transport"].call("GET", PROBE_PATH)
+    hint = api_failure_message(code, body)
+    assert hint is None, hint  # 502/INTERNAL: the Lambda failed at init (import error), not an API defect
     assert code == 404 and body["code"] == "NOT_FOUND", (code, body.get("code"), body.get("message"))
     assert body["correlation_id"].startswith(f"cor_it{ENV}")
 

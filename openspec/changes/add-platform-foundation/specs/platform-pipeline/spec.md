@@ -42,6 +42,10 @@ The build stage SHALL produce one digest-addressed cloud assembly and function b
 - **WHEN** a release reaches prod
 - **THEN** its `artifact_digest` equals that of the beta and gamma manifests for the same `release_id`
 
+#### Scenario: Source-only function code
+- **WHEN** the build stage synthesizes a platform function whose code is not a complete dependency bundle (contract package, runtime dependencies and configuration, built for the function's runtime and architecture)
+- **THEN** the build stage fails, and no artifact is produced
+
 ### Requirement: Published references and manifest
 Each deploy SHALL write the platform release manifest and `current-release-id`. It MUST publish under `/finplan/<env>/financialplanning/`: `api/plan-endpoint`, `api/ingestion-endpoint`, `config/run-staging-ref`, `config/ingest-schedule`, and the per-bucket `config/` parameters. Bucket parameter names are fixed in design.md.
 

@@ -58,6 +58,11 @@ def apply_offline_environment(environ: MutableMapping[str, str] | None = None) -
     env["AWS_SECRET_ACCESS_KEY"] = FAKE_SECRET_KEY
     env["AWS_DEFAULT_REGION"] = "us-east-2"
     env["AWS_REGION"] = "us-east-2"
+    # offline synth uses the source tree: never release mode (CodeBuild sets CODEBUILD_BUILD_ID for
+    # the unit gate too) and never a bundle left in the caller's environment
+    env["FINPLAN_RELEASE_BUILD"] = "0"
+    for var in ("FINPLAN_LAMBDA_BUNDLE", "FINPLAN_LAMBDA_BUNDLE_DIR"):
+        env.pop(var, None)
     env["AWS_EC2_METADATA_DISABLED"] = "true"
     env["AWS_CONFIG_FILE"] = os.devnull
     env["AWS_SHARED_CREDENTIALS_FILE"] = os.devnull
