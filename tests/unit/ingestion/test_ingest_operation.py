@@ -282,7 +282,10 @@ def test_duplicate_scheduler_delivery_yields_one_snapshot(make_deps: Any, sctx: 
     assert first.response["input_snapshot_id"] == second.response["input_snapshot_id"]
     assert second.replayed and not first.replayed and len(_snapshots(deps)) == 1
     assert len(deps.provider.calls) == 1
-    assert scheduled_idempotency_key("beta", "finance/etf-daily/SPY", __import__("datetime").date(2026, 1, 12)) == "sched-beta-finance_etf-daily_SPY-2026-01-12"
+    d = __import__("datetime").date(2026, 1, 12)
+    assert scheduled_idempotency_key("beta", "finance/etf-daily/SPY", d) == "sched-beta-finance_etf-daily_SPY-2026-01-12-fixture"
+    # regression (gamma's first phase 2 day): a provider switch on the same day yields a new key
+    assert scheduled_idempotency_key("gamma", "finance/etf-daily/SPY", d, "yfinance") != scheduled_idempotency_key("gamma", "finance/etf-daily/SPY", d, "fixture")
 
 
 def test_on_demand_requires_idempotency_key(make_deps: Any, octx: Any) -> None:

@@ -190,9 +190,13 @@ class _Plan:
     session_status: str | None = None
 
 
-def scheduled_idempotency_key(env: str, dataset_id: str, session_date: date) -> str:
-    """``sched-<env>-<dataset>-<date>``; the dataset's ``/`` become ``_`` to fit the contract key pattern."""
-    return f"sched-{env}-{dataset_id.replace('/', '_')}-{session_date.isoformat()}"
+def scheduled_idempotency_key(env: str, dataset_id: str, session_date: date, provider_id: str = "fixture") -> str:
+    """``sched-<env>-<dataset>-<date>-<provider>``; the dataset's ``/`` become ``_`` to fit the contract key pattern.
+
+    The provider is part of the key so a same-day provider switch (phase 1 fixture -> phase 2 yfinance)
+    commits a new snapshot instead of replaying the fixture one (gamma's first phase 2 day); duplicate
+    deliveries with the same provider still collapse into one snapshot."""
+    return f"sched-{env}-{dataset_id.replace('/', '_')}-{session_date.isoformat()}-{provider_id}"
 
 
 def _served_major(version: str) -> int:
@@ -262,7 +266,7 @@ def _plan_scheduled(ctx: OperationContext, body: Any, deps: IngestionDeps) -> _P
     cal = deps.calendar
     fire_date = cal.local_date(scheduled_at)
     cal.require_covered(fire_date)
-    key = scheduled_idempotency_key(ctx.env, dataset.dataset_id, fire_date)
+    key = scheduled_idempotency_key(ctx.env, dataset.dataset_id, fire_date, deps.provider.describe().provider_id)
     request_body = {"trigger": "scheduled", "dataset_id": dataset.dataset_id, "scheduled_session_date": fire_date.isoformat(), "granularity": "daily"}
     status = cal.status(fire_date)
     if status not in ("regular", "early_close"):

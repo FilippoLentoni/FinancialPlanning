@@ -115,7 +115,7 @@ def _plan(ctx: OperationContext, body: Mapping[str, Any], deps: Any) -> _UPlan:
             raise PlatformError.validation("scheduled_time must be an RFC 3339 timestamp", pointer="/scheduled_time") from None
         fire_date = cal.local_date(scheduled_at)
         cal.require_covered(fire_date)
-        key = scheduled_idempotency_key(ctx.env, spec.dataset_id, fire_date)
+        key = scheduled_idempotency_key(ctx.env, spec.dataset_id, fire_date, deps.provider.describe().provider_id)
         request_body = {"trigger": "scheduled", "dataset_id": spec.dataset_id, "scheduled_session_date": fire_date.isoformat(), "granularity": "daily"}
         status = cal.status(fire_date)
         if status not in ("regular", "early_close"):
