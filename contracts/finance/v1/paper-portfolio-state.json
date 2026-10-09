@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/paper-portfolio-state.json",
+  "title": "Saved hypothetical paper portfolio state",
+  "type": "object",
+  "properties": {
+    "positions": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "properties": {
+          "instrument_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "instrument_id",
+          "quantity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "cash_balance": {
+      "type": "number",
+      "minimum": 0
+    },
+    "high_watermark": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "as_of": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "base_currency": {
+      "const": "USD"
+    },
+    "mode": {
+      "const": "paper"
+    },
+    "source": {
+      "enum": [
+        "paper_initialization",
+        "manual_update"
+      ]
+    },
+    "source_plan_version_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/plan_version_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    }
+  },
+  "required": [
+    "positions",
+    "cash_balance",
+    "high_watermark",
+    "as_of",
+    "base_currency",
+    "mode",
+    "source"
+  ],
+  "additionalProperties": false
+}

@@ -94,6 +94,16 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
         cond = {"ArnLike": {"aws:PrincipalArn": pattern}}
         statements.append({"Sid": f"Allow{_sid(cls)}Routes", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": resources, "Condition": cond})
         statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": resources, "Condition": cond})
+        # IAM '*' spans '/': an allowed parent-ID read can otherwise include known
+        # descendant routes. Deny only disallowed descendants, never their parents.
+        allowed_routes = [r for r in ROUTES if route_allowed(r, cls)]
+        descendants = sorted({route_resource(r) for r in ROUTES if not route_allowed(r, cls) and any(r.method == parent.method and r.path.startswith(parent.path + "/") for parent in allowed_routes)})
+        if descendants:
+            statements.append({"Sid": f"Deny{_sid(cls)}ExcludedDescendants", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": descendants[0] if len(descendants) == 1 else descendants, "Condition": cond})
+    # The website belongs to the broad platform pattern but does not administer paper state.
+    operator_routes = [route_resource(r) for r in ROUTES if r.operator_only]
+    if operator_routes:
+        statements.append({"Sid": "DenyWebsitePaperStateWrites", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": operator_routes[0] if len(operator_routes) == 1 else operator_routes, "Condition": {"ArnLike": {"aws:PrincipalArn": arn_for(cfg.principal_pattern("website_backend"))}}})
     # daily-recommendation-trigger (DLY-06): the platform automation roles never publish
     (publish,) = {route_resource(r) for r in ROUTES if r.operation == "publish_plan_version"}
     statements.append(

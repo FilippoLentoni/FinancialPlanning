@@ -156,7 +156,7 @@ def test_platform_roles_without_identity_policy_are_allowed_by_the_resource_poli
     policy = api_synth["policies"]["beta"]
     for cls in FULL_ACCESS_CLASSES:
         p = Principal.role(roles("beta")[cls])
-        assert all(simulate("execute-api:Invoke", invoke_arn(r), p, resource_policy=policy).allowed for r in ROUTES)
+        assert all(simulate("execute-api:Invoke", invoke_arn(r), p, resource_policy=policy).allowed == route_allowed(r, cls) for r in ROUTES)
 
 
 def test_plan_api_role_synthesized_grants(api_synth: dict[str, Any]) -> None:

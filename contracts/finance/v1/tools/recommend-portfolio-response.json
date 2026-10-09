@@ -131,6 +131,24 @@
               },
               "indicative_notional": {
                 "type": "number"
+              },
+              "current_quantity": {
+                "type": "number",
+                "minimum": 0
+              },
+              "target_quantity": {
+                "type": "number",
+                "minimum": 0
+              },
+              "delta_quantity": {
+                "type": "number"
+              },
+              "reference_price": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "price_as_of": {
+                "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
               }
             },
             "required": [
@@ -174,6 +192,84 @@
         },
         "bias_disclosures": {
           "type": "array"
+        },
+        "portfolio_state": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "enum": [
+                "saved_paper",
+                "supplied"
+              ]
+            },
+            "portfolio_id": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "as_of": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+            },
+            "valuation_as_of": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+            },
+            "base_currency": {
+              "const": "USD"
+            },
+            "portfolio_value": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "high_watermark": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "current_cash": {
+              "type": "number",
+              "minimum": 0
+            },
+            "positions": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "instrument_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "quantity": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "reference_price": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "price_as_of": {
+                    "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+                  }
+                },
+                "required": [
+                  "instrument_id",
+                  "quantity",
+                  "reference_price",
+                  "price_as_of"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "source",
+            "portfolio_value",
+            "high_watermark",
+            "current_cash"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

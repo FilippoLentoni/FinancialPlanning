@@ -156,6 +156,7 @@ class Route:
     response_schema: Any = None
     query: Mapping[str, str] = field(default_factory=dict)
     owner: str = "api"
+    operator_only: bool = False
 
     @property
     def write(self) -> bool:
@@ -209,8 +210,10 @@ def _observation_query(r: Parts) -> dict[str, Any]:
 ROUTES: tuple[Route, ...] = (
     Route("POST", "/v1/portfolios", "create_portfolio", _PLANS, lambda m, c, s, r: m.create_portfolio(c, s, r.body), status=201, response_schema=CREATE_PORTFOLIO_RESPONSE),
     Route("GET", "/v1/portfolios/{portfolio_id}", "get_portfolio", _PLANS, lambda m, c, s, r: m.get_portfolio(c, s, r.path["portfolio_id"]), _READERS, response_schema="portfolio"),
+    Route("GET", "/v1/portfolios/{portfolio_id}/state", "get_portfolio_state", _PLANS, lambda m, c, s, r: m.get_portfolio_state(c, s, r.path["portfolio_id"]), _READERS + ("financemodel-job-api",), response_schema="api/get-portfolio-state-response"),
+    Route("PUT", "/v1/portfolios/{portfolio_id}/state", "put_portfolio_state", _PLANS, lambda m, c, s, r: m.put_portfolio_state(c, s, r.path["portfolio_id"], r.body), response_schema="api/get-portfolio-state-response", operator_only=True),
     Route("POST", "/v1/portfolios/{portfolio_id}/plans", "create_plan", _PLANS, lambda m, c, s, r: m.create_plan(c, s, r.path["portfolio_id"], r.body), status=201, response_schema=CREATE_PLAN_RESPONSE),
-    Route("GET", "/v1/plans/{plan_id}", "get_plan", _PLANS, lambda m, c, s, r: m.get_plan(c, s, r.path["plan_id"]), _READERS + (AUTOMATION_CLASS,), response_schema="tools/get-plan-response"),
+    Route("GET", "/v1/plans/{plan_id}", "get_plan", _PLANS, lambda m, c, s, r: m.get_plan(c, s, r.path["plan_id"]), _READERS + (AUTOMATION_CLASS, "financemodel-job-api"), response_schema="tools/get-plan-response"),
     Route(
         "GET",
         "/v1/plans/{plan_id}/versions",
@@ -239,6 +242,7 @@ ROUTES: tuple[Route, ...] = (
     Route("GET", "/v1/publications/{publication_id}", "get_publication", _PUBLICATION, lambda m, c, s, r: m.get_publication(c, s, r.path["publication_id"]), _READERS+("financemodel-job-api",), response_schema="publication"),
     Route("POST", "/v1/publications/{publication_id}/executions", "record_execution", _EXECUTION, lambda m, c, s, r: m.record_execution(c, s, r.path["publication_id"], r.body), status=201, response_schema=RECORD_EXECUTION_RESPONSE),
     Route("GET", "/v1/executions/{execution_id}", "get_execution", _EXECUTION, lambda m, c, s, r: m.get_execution(c, s, r.path["execution_id"]), _READERS, response_schema="execution"),
+    Route("GET", "/v1/snapshots/latest", "latest_approved_snapshot", _SNAPSHOTS, lambda m, c, s, r: m.latest_approved_snapshot(c, s, r.query), _READERS + FINANCEMODEL_CLASSES, response_schema=SNAPSHOT_RESPONSE, query={"dataset_id": "str"}),
     Route(
         "GET",
         "/v1/snapshots/{input_snapshot_id}",
@@ -416,6 +420,8 @@ def resolve_role_class(principal_arn: str, cfg: Any) -> str | None:
 def route_allowed(route: Route, role_class: str | None) -> bool:
     if role_class is None:
         return False
+    if route.operator_only:
+        return role_class in ("platform", "operator")
     return role_class in FULL_ACCESS_CLASSES or role_class in route.grants
 
 

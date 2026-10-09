@@ -1,0 +1,18 @@
+{
+  "paper_state": {
+    "positions": [
+      {
+        "instrument_id": "SPY",
+        "quantity": 20
+      }
+    ],
+    "cash_balance": 1000,
+    "high_watermark": 10000,
+    "as_of": "2026-01-09",
+    "base_currency": "USD",
+    "mode": "live",
+    "source": "paper_initialization"
+  },
+  "expected_revision": 0,
+  "idempotency_key": "paper-init"
+}

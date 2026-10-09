@@ -119,7 +119,7 @@ class TableSpec:
 
 
 TABLES: dict[str, TableSpec] = {
-    "portfolio": TableSpec("portfolio", "portfolio-table", "portfolio_id", head_attributes=("revision",), attribute_fields=("portfolio_id", "synthetic")),
+    "portfolio": TableSpec("portfolio", "portfolio-table", "portfolio_id", head_attributes=("revision", "paper_state_revision", "paper_state"), attribute_fields=("portfolio_id", "synthetic")),
     "plan": TableSpec(
         "plan",
         "plan-table",
@@ -491,6 +491,8 @@ class HeadMove(Op):
     set_attrs: dict[str, Any] = field(default_factory=dict)
     revision_attr: str = "revision"
     error: ErrorFactory | None = None
+    #: Legacy rows have no optional head; opt-in initialization treats absence as revision zero.
+    allow_missing_revision: bool = False
 
     def key(self) -> dict[str, Any]:
         return {"pk": self.record_id}
@@ -501,7 +503,12 @@ class HeadMove(Op):
         r = _Renderer()
         sets = [f"{r.name(k)} = {r.value(v)}" for k, v in self.set_attrs.items()]
         sets.append(f"{r.name(self.revision_attr)} = {r.value(self.expected_revision + 1)}")
-        cond = r.cond(Cond.exists("pk") & Cond.eq(self.revision_attr, self.expected_revision))
+        revision_condition = Cond.eq(self.revision_attr, self.expected_revision)
+        if self.allow_missing_revision:
+            if self.expected_revision != 0:
+                raise PlatformError.validation("only revision zero may initialize a missing head", pointer="/expected_revision")
+            revision_condition = revision_condition | Cond.not_exists(self.revision_attr)
+        cond = r.cond(Cond.exists("pk") & revision_condition)
         out = {
             "TableName": names[self.table],
             "Key": _item_to_av(self.key()),

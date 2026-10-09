@@ -1,0 +1,77 @@
+{
+  "recommendation": {
+    "mode": "advisory_paper",
+    "strategy": "ppo",
+    "policy_source_run_id": "run_01JABCDEFGHJKMNPQRSTVWXY01",
+    "export_run_id": "run_01JABCDEFGHJKMNPQRSTVWXY01",
+    "configuration_id": "cfg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "input_snapshot_id": "snap_01JABCDEFGHJKMNPQRSTVWXY01",
+    "as_of": "2026-10-08",
+    "snapshot_checksum": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "policy_artifact_checksum": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "policy_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "aggregation": "mean_target_weights",
+    "decision_timing": "after_completed_close_for_next_session",
+    "forecast": {
+      "status": "not_available",
+      "reason": "The policy does not publish a calibrated return forecast."
+    },
+    "limitations": [
+      "research_only",
+      "no_trade_execution"
+    ],
+    "cash_weight": 0.2,
+    "target_weights": [
+      {
+        "instrument_id": "VOO",
+        "weight": 0.8
+      }
+    ],
+    "estimated_turnover": 0.8,
+    "decisions": [
+      {
+        "instrument_id": "VOO",
+        "action": "buy",
+        "delta_weight": 0.8,
+        "indicative_notional": 800,
+        "current_quantity": 20,
+        "target_quantity": 10,
+        "delta_quantity": -10,
+        "reference_price": 450,
+        "price_as_of": "2026-01-09"
+      }
+    ],
+    "constraint_outcome": {
+      "action": "accepted",
+      "violations": []
+    },
+    "solution_status": "feasible",
+    "diagnostics": {},
+    "portfolio_state": {
+      "source": "saved_paper",
+      "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM",
+      "revision": 1,
+      "as_of": "2026-01-09",
+      "valuation_as_of": "2026-01-09",
+      "base_currency": "USD",
+      "portfolio_value": 10000,
+      "high_watermark": 10000,
+      "current_cash": 1000,
+      "positions": [
+        {
+          "instrument_id": "SPY",
+          "quantity": 20,
+          "reference_price": 450,
+          "price_as_of": "2026-01-09"
+        }
+      ]
+    }
+  },
+  "synthetic": true
+}

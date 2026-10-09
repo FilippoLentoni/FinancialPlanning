@@ -19,6 +19,8 @@ Every state change is one transaction with its idempotency record and audit even
 from __future__ import annotations
 
 from collections.abc import Mapping
+import copy
+import math
 from typing import Any
 
 from .audit import audit_event
@@ -34,6 +36,8 @@ __all__ = [
     "create_portfolio",
     "get_plan",
     "get_portfolio",
+    "get_portfolio_state",
+    "put_portfolio_state",
     "list_plan_versions",
     "plan_view",
     "version_summary",
@@ -73,6 +77,64 @@ def create_portfolio(ctx: OperationContext, svc: Services, request: Mapping[str,
 def get_portfolio(ctx: OperationContext, svc: Services, portfolio_id: str) -> dict[str, Any]:
     require_valid({"portfolio_id": portfolio_id}, GET_BY_ID_REQUEST("portfolio_id"))
     return serve(svc.repo.require("portfolio", portfolio_id))
+
+
+# ===================================================================== saved paper state
+def _state_view(portfolio: Any) -> dict[str, Any]:
+    state = portfolio.attrs.get("paper_state")
+    if not state:
+        raise PlatformError.precondition("saved paper portfolio state has not been initialized", reason="portfolio_state_missing", portfolio_id=portfolio.id)
+    return {"portfolio_id": portfolio.id, "revision": int(portfolio.attrs["paper_state_revision"]), "paper_state": copy.deepcopy(state), "synthetic": True, "contract_version": current_version()}
+
+
+def get_portfolio_state(ctx: OperationContext, svc: Services, portfolio_id: str) -> dict[str, Any]:
+    require_valid({"portfolio_id": portfolio_id}, GET_BY_ID_REQUEST("portfolio_id"))
+    return _state_view(svc.repo.require("portfolio", portfolio_id))
+
+
+def put_portfolio_state(ctx: OperationContext, svc: Services, portfolio_id: str, request: Mapping[str, Any]) -> IdempotentOutcome:
+    """Operator-only compare-and-set of a hypothetical book; inference never calls this write."""
+    if ctx.caller.role_class not in ("platform", "operator"):
+        raise PlatformError("FORBIDDEN", "only platform operators may update saved paper portfolio state")
+    req = dict(request)
+    if "portfolio_id" in req and req["portfolio_id"] != portfolio_id:
+        raise PlatformError.validation("portfolio_id in the body does not match the path", pointer="/portfolio_id")
+    req["portfolio_id"] = portfolio_id
+    require_valid(req, "api/put-portfolio-state-request")
+    check_declared_version(req.get("contract_version"))
+    state = req["paper_state"]
+    seen = set()
+    for index, position in enumerate(state["positions"]):
+        if position["instrument_id"] in seen:
+            raise PlatformError.validation("paper positions must have unique instruments", pointer=f"/paper_state/positions/{index}/instrument_id")
+        seen.add(position["instrument_id"])
+        if not math.isfinite(position["quantity"]):
+            raise PlatformError.validation("quantity must be finite", pointer=f"/paper_state/positions/{index}/quantity")
+    for field in ("cash_balance", "high_watermark"):
+        if not math.isfinite(state[field]):
+            raise PlatformError.validation(f"{field} must be finite", pointer=f"/paper_state/{field}")
+    if state["high_watermark"] < state["cash_balance"]:
+        raise PlatformError.validation("high_watermark cannot be below current cash", pointer="/paper_state/high_watermark")
+    if state["as_of"] > ctx.clock.now().date().isoformat():
+        raise PlatformError.validation("paper state date cannot be in the future", pointer="/paper_state/as_of")
+
+    def execute() -> Mutation:
+        portfolio = svc.repo.require("portfolio", portfolio_id)
+        if portfolio.doc.get("synthetic") is not True:
+            raise PlatformError.not_permitted("only hypothetical portfolios support paper state", field="synthetic")
+        if portfolio.doc.get("base_currency") != state["base_currency"]:
+            raise PlatformError.validation("paper state currency must match the portfolio", pointer="/paper_state/base_currency")
+        expected = req["expected_revision"]
+        current = int(portfolio.attrs.get("paper_state_revision") or 0)
+        if current != expected or (current == 0 and portfolio.attrs.get("paper_state")):
+            raise PlatformError.conflict("expected_revision does not match the paper state revision", expected_revision=expected, current_revision=current)
+        stored = copy.deepcopy(state)
+        response = {"portfolio_id": portfolio_id, "revision": expected + 1, "paper_state": stored, "synthetic": True, "contract_version": current_version()}
+        event = audit_event(ctx, record_id=portfolio_id, record_type="portfolio", operation="put_portfolio_state", prior={"revision": current, "paper_state": copy.deepcopy(portfolio.attrs.get("paper_state"))}, new={"revision": expected + 1, "paper_state": stored}, synthetic=True)
+        move = HeadMove("portfolio", record_id=portfolio_id, expected_revision=expected, revision_attr="paper_state_revision", set_attrs={"paper_state": stored}, allow_missing_revision=expected == 0)
+        return Mutation(ops=[move], response=response, audit=[event])
+
+    return svc.repo.run_idempotent(ctx, operation="put_portfolio_state", idempotency_key=req.get("idempotency_key"), request_body=req, execute=execute)
 
 
 # ===================================================================== plans

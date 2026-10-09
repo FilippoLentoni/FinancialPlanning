@@ -67,6 +67,25 @@ SNAPSHOT_RESPONSE: dict[str, Any] = {
 }
 
 
+def latest_approved_snapshot(ctx: OperationContext, svc: Services, query: Mapping[str, Any]) -> dict[str, Any]:
+    """Resolve approved-only dataset state; the static /latest route precedes ID matching."""
+    require_valid(dict(query), "api/latest-snapshot-request")
+    token = None
+    while True:
+        records, token = svc.repo.query_index("snapshot_catalog", "dataset-index", query["dataset_id"], newest_first=True, limit=25, page_token=token)
+        for record in records:
+            if record.attrs.get("status") != "approved":
+                continue
+            try:
+                return get_snapshot(ctx, svc, record.id)
+            except PlatformError as exc:
+                if exc.code != "NOT_FOUND":
+                    raise
+        if not token:
+            break
+    raise PlatformError.not_found("no approved snapshot exists for this dataset", dataset_id=query["dataset_id"], reason="approved_snapshot_missing")
+
+
 def _snapshots_module() -> Any:
     try:
         return importlib.import_module(SNAPSHOTS_MODULE)
