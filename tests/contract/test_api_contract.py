@@ -73,6 +73,8 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     tool.get(f"/v1/plans/{pid}/versions?page_size=1")
     _, pub, _ = writer.post(f"/v1/plans/{pid}/publications", {"plan_version_id": child["plan_version_id"], "expected_revision": 1, "idempotency_key": "c-pub"})
     tool.get(f"/v1/publications/{pub['publication_id']}")
+    tool.get(f"/v1/plans/{pid}/publications")
+    tool.get(f"/v1/publications/{pub['publication_id']}/executions")
     _, exe, _ = op.post(f"/v1/publications/{pub['publication_id']}/executions", {"mode": "paper", "idempotency_key": "c-exe"})
     tool.get(f"/v1/executions/{exe['execution_id']}")
     tool.get(f"/v1/snapshots/{snap}")

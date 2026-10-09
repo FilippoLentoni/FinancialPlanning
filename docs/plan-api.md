@@ -615,3 +615,13 @@ Error envelopes:
 - **Ownership matrix.** Resolved in contracts 0.2.0: the `plan-lifecycle-api` row lists the
   API's child resources, handler role and log group, and the endpoint parameter, and the
   ownership gate passes with no accepted problem.
+
+## Publication and execution history reads (contracts 1.2.0)
+
+`GET /v1/plans/{plan_id}/publications` (`list_publications`) and
+`GET /v1/publications/{publication_id}/executions` (`list_executions`) accept bounded
+`page_size` and opaque `next_token` pagination. Execution history is read-only for tools.
+The FinanceModel job-API role can read an exact published version, publication and its execution
+records for deterministic evidence. Its numerical strategy-inference role remains limited to
+approved snapshots through its narrower identity policy. Recorded executions may include the
+optional finance execution-ledger envelope; an execution intent alone is not an account statement.

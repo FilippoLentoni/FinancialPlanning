@@ -81,7 +81,7 @@ def test_route_grant_table_matches_the_design() -> None:
     assert by_class["submitter"] == gets | {("POST", "/v1/ingestions")}
     assert by_class["plan-writer"] == gets | {("POST", "/v1/plans/{plan_id}/versions"), ("POST", "/v1/plan-versions/{plan_version_id}/validate"), ("POST", "/v1/plans/{plan_id}/publications")}
     assert by_class["financemodel-job"] == {("GET", "/v1/snapshots/{input_snapshot_id}"), ("GET", "/v1/snapshots/{input_snapshot_id}/observations")}
-    assert by_class["financemodel-job-api"] == by_class["financemodel-job"] | {("GET", "/v1/staged-outputs/{run_id}")}
+    assert by_class["financemodel-job-api"] == by_class["financemodel-job"] | {("GET", "/v1/staged-outputs/{run_id}"), ("GET", "/v1/plan-versions/{plan_version_id}"), ("GET", "/v1/publications/{publication_id}"), ("GET", "/v1/publications/{publication_id}/executions")}
     for cls in FULL_ACCESS_CLASSES:
         assert all(route_allowed(r, cls) for r in ROUTES)
     # daily-recommendation-trigger (DLY-06): the automation class reads, accepts and never publishes

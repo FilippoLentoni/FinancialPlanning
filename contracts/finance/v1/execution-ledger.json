@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "window": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+    },
+    "start_value": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "end_value": {
+      "type": "number",
+      "minimum": 0
+    },
+    "cash_flows": {
+      "type": "number"
+    },
+    "realized_pnl": {
+      "type": "number"
+    },
+    "unrealized_pnl": {
+      "type": "number"
+    },
+    "fees": {
+      "type": "number",
+      "minimum": 0
+    },
+    "positions_note": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "window",
+    "start_value",
+    "end_value",
+    "cash_flows",
+    "realized_pnl",
+    "unrealized_pnl",
+    "fees"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/execution-ledger.json",
+  "title": "Recorded account ledger"
+}

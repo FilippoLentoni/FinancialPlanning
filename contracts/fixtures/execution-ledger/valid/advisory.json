@@ -1,0 +1,13 @@
+{
+  "window": {
+    "start": "2026-01-05",
+    "end": "2026-01-06"
+  },
+  "start_value": 1000,
+  "end_value": 1010,
+  "cash_flows": 0,
+  "realized_pnl": 0,
+  "unrealized_pnl": 11,
+  "fees": 1,
+  "synthetic": true
+}

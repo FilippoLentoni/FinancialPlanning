@@ -112,3 +112,14 @@ def publish(ctx: OperationContext, svc: Services, plan_id: str, request: Mapping
 def get_publication(ctx: OperationContext, svc: Services, publication_id: str) -> dict[str, Any]:
     require_valid({"publication_id": publication_id}, GET_BY_ID_REQUEST("publication_id"))
     return serve(svc.repo.require("publication", publication_id))
+
+
+def list_publications(ctx, svc, plan_id, *, page_size=None, next_token=None):
+    from .contract_io import require_valid
+    from .repository import decode_page_token
+    require_valid({"plan_id":plan_id, **({"page_size":page_size} if page_size is not None else {}), **({"next_token":next_token} if next_token else {})}, "tools/list-publications-request")
+    svc.repo.require("plan",plan_id)
+    if next_token and (decode_page_token(next_token).get("plan_id") or {}).get("S") != plan_id:
+        raise PlatformError.validation("page token belongs to another plan",pointer="/next_token")
+    rows,token=svc.repo.query_index("publication","plan-index",plan_id,limit=min(int(page_size or 100),100),page_token=next_token)
+    return {"publications":[serve(r) for r in rows],"next_token":token}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-performance-evidence-request.json",
+  "title": "get-performance-evidence-request",
+  "type": "object",
+  "properties": {
+    "publication_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/publication_id"
+    },
+    "realized_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "window": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date_range"
+    },
+    "actual_source": {
+      "enum": [
+        "paper",
+        "simulated"
+      ]
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "publication_id",
+    "realized_snapshot_id",
+    "window",
+    "actual_source"
+  ],
+  "additionalProperties": false
+}

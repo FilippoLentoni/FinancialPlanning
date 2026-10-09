@@ -58,7 +58,7 @@ This example is synthetic, and every identifier is a placeholder ULID.
   "completion_status": "succeeded",
   "solution_status": "optimal",
   "evaluator_version": "eval-1.0.0",
-  "contract_version": "1.1.0",
+  "contract_version": "1.2.0",
   "files": [
     {"name": "plan-content.json", "checksum": "sha256:a1eb0afabfbba3ff3db159497c3ff95028044dffbeead1075cd43e4a9043a890", "size_bytes": 512, "content_type": "application/json"},
     {"name": "metrics/summary.json", "checksum": "sha256:03ecd7ccd61ddffe9481c627ab90c65a1f7171ccbcd3109d1e44116de39a92c2", "size_bytes": 256, "content_type": "application/json"}
