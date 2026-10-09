@@ -7,7 +7,7 @@
 
 ## 2. Deployed beta verification
 
-- [ ] 2.1 Release the contract producer into beta and verify the new contract version through its deployed manifest without advancing gamma/prod.
+- [x] 2.1 Release the contract producer into beta and verify the new contract version through its deployed manifest without advancing gamma/prod.
 
 ## Workflow follow-up
 
