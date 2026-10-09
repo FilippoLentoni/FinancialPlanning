@@ -61,6 +61,10 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     snap = seed_snapshot(svc, clock)
     _, pf, _ = web.post("/v1/portfolios", {"name": "Contract portfolio", "base_currency": "USD", "idempotency_key": "c-pf"})
     tool.get(f"/v1/portfolios/{pf['portfolio_id']}")
+    op.call("PUT", f"/v1/portfolios/{pf['portfolio_id']}/state", {"paper_state": {"positions": [{"instrument_id": "SPY", "quantity": 20.5}], "cash_balance": 1000, "high_watermark": 10000, "as_of": "2026-01-09", "base_currency": "USD", "mode": "paper", "source": "paper_initialization"}, "expected_revision": 0, "idempotency_key": "c-paper-state"})
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/state")
+    dataset_id = svc.repo.require("snapshot_catalog", snap).doc["dataset"]["dataset_id"]
+    tool.get(f"/v1/snapshots/latest?dataset_id={dataset_id}")
     _, plan, _ = web.post(f"/v1/portfolios/{pf['portfolio_id']}/plans", {"name": "Contract plan", "expected_revision": 1, "idempotency_key": "c-pl"})
     pid = plan["plan_id"]
     _, root, _ = web.post(f"/v1/plans/{pid}/versions", flow.root_body(snap, expected_revision=1, key="c-root"))
