@@ -39,6 +39,14 @@ requires exactly one of portfolio or session. Tokens are scoped to their history
 partition. API responses expose trusted identifiers and checksums, never storage
 locations or S3 grants.
 
+Activity listing reserves `ae1_` plus base64url-encoded JSON containing only
+`activity_event_id` as an exact immutable-event lookup cursor. The MCP adapter uses
+this cursor to retrieve an original event while serving a large receipt in bounded
+chunks. The same portfolio or session filter is mandatory and must match the stored
+event. The API verifies the original artifact checksum and returns one complete
+event with `next_token: null`. Ordinary list pagination remains unchanged; the
+cursor cannot select storage paths or grant access to another history.
+
 ## Paper execution and concurrency
 
 Acceptance uses fractional shares at the issued snapshot's unadjusted close, with

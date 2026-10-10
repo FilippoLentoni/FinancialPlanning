@@ -1,6 +1,7 @@
 """Issued evidence and paper execution are durable, self-financing and single use."""
 from __future__ import annotations
 
+import base64
 import json
 import threading
 
@@ -286,3 +287,75 @@ def test_cash_only_fully_invested_and_high_fee_rebalances_self_finance(svc, cloc
     after_value = after["cash_balance"] + sum(p["quantity"] * price for p in after["positions"])
     assert after["cash_balance"] >= 0 and after_value + got["transaction_cost"] == pytest.approx(before_value)
     assert after["cash_balance"] == pytest.approx(after_value * (1-weight), abs=1e-7)
+
+
+def _activity_cursor(value):
+    return "ae1_" + base64.urlsafe_b64encode(json.dumps(value, separators=(",", ":")).encode()).decode().rstrip("=")
+
+
+def test_exact_activity_lookup_returns_one_full_large_event_and_checksum(repo_any, artifacts, clock, ctx_factory):
+    svc = Services(cfg=load_config("beta"), repo=repo_any, artifacts=artifacts)
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    payload = {"large_result": "observable evidence " * 5000, "decision_references": ["retained"]}
+    request = {"event_kind": "large_tool_result", "portfolio_id": pid, "session_id": "large-session", "correlation_id": ctx.correlation_id,
+               "payload": payload, "idempotency_key": "large-receipt"}
+    stored = record_activity(ctx, svc, request).response
+    cursor = _activity_cursor({"activity_event_id": stored["activity_event_id"]})
+    for partition in ({"portfolio_id": pid}, {"session_id": "large-session"}):
+        result = list_activity(ctx, svc, {**partition, "next_token": cursor, "page_size": 1})
+        assert validate(result, "api/list-activity-events-response").valid
+        assert result["next_token"] is None and len(result["events"]) == 1
+        assert result["events"][0]["payload"] == payload
+        assert result["events"][0]["checksum"] == stored["checksum"]
+        assert result["events"][0]["activity_event_id"] == stored["activity_event_id"]
+
+
+def test_exact_activity_lookup_cannot_cross_portfolio_or_session_partition(svc, clock, ctx_factory):
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    stored = record_activity(ctx, svc, {"event_kind": "tool_result", "portfolio_id": pid, "session_id": "source-session",
+                                      "correlation_id": ctx.correlation_id, "payload": {"private_evidence": 1}, "idempotency_key": "receipt"}).response
+    other_pid = create_portfolio(ctx, svc, {"name": "Other", "base_currency": "USD", "idempotency_key": "other"}).response["portfolio_id"]
+    cursor = _activity_cursor({"activity_event_id": stored["activity_event_id"]})
+    for partition in ({"portfolio_id": other_pid}, {"session_id": "other-session"}):
+        with pytest.raises(PlatformError) as exc:
+            list_activity(ctx, svc, {**partition, "next_token": cursor})
+        assert exc.value.code == "VALIDATION_FAILED" and exc.value.details["pointer"] == "/next_token"
+
+
+@pytest.mark.parametrize("cursor", [
+    "ae1_", "ae1_!!!!", "ae1_8A", "ae1_" + "a" * 257,
+    _activity_cursor([]), _activity_cursor({}),
+    _activity_cursor({"activity_event_id": 1}),
+    _activity_cursor({"activity_event_id": "s3://untrusted/path"}),
+    _activity_cursor({"activity_event_id": "act_81KES9T7J05DMZFBP5SJAHGHFH"}),
+    _activity_cursor({"activity_event_id": "act_01KES9T7J05DMZFBP5SJAHGHFH", "key": "untrusted"}),
+])
+def test_invalid_reserved_activity_cursor_is_a_validation_error(svc, ctx_factory, cursor):
+    with pytest.raises(PlatformError) as exc:
+        list_activity(ctx_factory(role_class="reader"), svc, {"session_id": "source-session", "next_token": cursor})
+    assert exc.value.code == "VALIDATION_FAILED" and exc.value.details["pointer"] == "/next_token"
+
+
+def test_exact_activity_lookup_detects_tampered_immutable_payload(svc, s3, buckets, clock, ctx_factory):
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    stored = record_activity(ctx, svc, {"event_kind": "tool_result", "portfolio_id": pid, "correlation_id": ctx.correlation_id,
+                                      "payload": {"original": 1}, "idempotency_key": "receipt"}).response
+    aid = stored["activity_event_id"]
+    record = svc.repo.require("activity_event", aid)
+    s3.put_object(Bucket=buckets["reports"], Key=record.doc["artifact_key"], Body=b'{"tampered":true}', Metadata={"sha256": stored["checksum"][7:]})
+    with pytest.raises(PlatformError) as exc:
+        list_activity(ctx, svc, {"portfolio_id": pid, "next_token": _activity_cursor({"activity_event_id": aid})})
+    assert exc.value.code == "INTERNAL"
+
+
+def test_ordinary_activity_pagination_remains_partition_scoped(svc, clock, ctx_factory):
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    ids = []
+    for i in range(3):
+        ids.append(record_activity(ctx, svc, {"event_kind": "tool_result", "portfolio_id": pid, "correlation_id": ctx.correlation_id,
+                                             "payload": {"sequence": i}, "idempotency_key": f"receipt-{i}"}).response["activity_event_id"])
+    first = list_activity(ctx, svc, {"portfolio_id": pid, "page_size": 2})
+    assert not first["next_token"].startswith("ae1_")
+    second = list_activity(ctx, svc, {"portfolio_id": pid, "page_size": 2, "next_token": first["next_token"]})
+    assert [e["activity_event_id"] for e in first["events"] + second["events"]] == list(reversed(ids))
+    assert second["next_token"] is None

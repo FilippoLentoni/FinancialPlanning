@@ -6,6 +6,8 @@ transaction. Uncommitted S3 objects are never exposed by read APIs.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import copy
 import json
 import math
@@ -13,7 +15,7 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-from finplan_contracts.canonical import canonicalize
+from finplan_contracts.canonical import CanonicalizationError, canonicalize, loads_strict
 
 from .artifacts import sha256_checksum
 from .audit import audit_event
@@ -26,6 +28,8 @@ from .snapshot_reads import load_payloads
 from .upgrade import check_declared_version, current_version, serve
 
 _DECISION_RE = re.compile(r"^pd_[0-9A-HJKMNP-TV-Z]{26}$")
+_ACTIVITY_RE = re.compile(r"^act_[0-7][0-9A-HJKMNP-TV-Z]{25}$")
+_ACTIVITY_LOOKUP_PREFIX = "ae1_"
 MAX_ARTIFACT_BYTES = 512 * 1024
 
 
@@ -407,6 +411,31 @@ def list_activity(ctx: OperationContext, svc: Services, query: Mapping[str, Any]
     value = query[field]
     if field == "portfolio_id":
         require_valid({field: value}, GET_BY_ID_REQUEST(field))
+    lookup_token = query.get("next_token")
+    if isinstance(lookup_token, str) and lookup_token.startswith(_ACTIVITY_LOOKUP_PREFIX):
+        # This cursor retrieves one original immutable event for MCP chunk
+        # continuations. It carries only a service-issued ID, never a storage path.
+        _page(svc, {**query, "next_token": None}, partition=field, value=value)
+        try:
+            if not re.fullmatch(r"ae1_[A-Za-z0-9_-]{1,256}={0,2}", lookup_token):
+                raise ValueError
+            encoded = lookup_token[len(_ACTIVITY_LOOKUP_PREFIX):]
+            raw = base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True)
+            cursor = loads_strict(raw.decode("utf-8"))
+            if not isinstance(cursor, dict) or set(cursor) != {"activity_event_id"}:
+                raise ValueError
+            activity_id = cursor["activity_event_id"]
+            if not isinstance(activity_id, str) or not _ACTIVITY_RE.fullmatch(activity_id):
+                raise ValueError
+        except (ValueError, TypeError, binascii.Error, CanonicalizationError):
+            raise PlatformError.validation("invalid activity lookup cursor", pointer="/next_token") from None
+        record = svc.repo.require("activity_event", activity_id)
+        if record.doc.get(field) != value:
+            raise PlatformError.validation("activity lookup belongs to another history", pointer="/next_token")
+        event = _read_json(svc, record.doc["artifact_key"], record.doc["checksum"])
+        if event.get(field) != value or event.get("activity_event_id") != activity_id:
+            raise PlatformError.internal("activity evidence does not match its committed index")
+        return {"events": [{**event, "checksum": record.doc["checksum"]}], "next_token": None, "contract_version": current_version()}
     limit, token = _page(svc, query, partition=field, value=value)
     records, token = svc.repo.query_index("activity_event", "portfolio-index" if field == "portfolio_id" else "session-index", value, limit=limit, page_token=token)
     events = [{**_read_json(svc, r.doc["artifact_key"], r.doc["checksum"]), "checksum": r.doc["checksum"]} for r in records]
