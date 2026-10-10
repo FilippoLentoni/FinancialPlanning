@@ -28,6 +28,7 @@ import os
 import time
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -68,9 +69,20 @@ def _ingestion_function(env: str) -> str:
     return f"finplan-{env}-financialplanning-ingestion-handler"
 
 
-def _scheduler_event(dataset_id: str) -> dict[str, Any]:
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {"source": "finplan.scheduler", "trigger": "scheduled", "dataset_id": dataset_id, "scheduled_time": now, "execution_id": f"it-{int(time.time())}-{dataset_id.rsplit('/', 1)[-1]}"}
+def _scheduled_fire(cfg: Any, *, now: datetime | None = None) -> datetime:
+    """Reproduce this NY fire date's configured scheduler cutoff, even after close.
+
+    Scheduled ingestion replays by local fire date. Its expected snapshot must
+    therefore use the same morning cutoff rather than the test's wall clock.
+    """
+    local = (now or datetime.now(UTC)).astimezone(ZoneInfo(cfg.ingest["timezone"]))
+    hour, minute = map(int, cfg.schedule_time.split(":"))
+    return local.replace(hour=hour, minute=minute, second=0, microsecond=0).astimezone(UTC)
+
+
+def _scheduler_event(cfg: Any, dataset_id: str, *, now: datetime | None = None) -> dict[str, Any]:
+    scheduled_time = _scheduled_fire(cfg, now=now).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"source": "finplan.scheduler", "trigger": "scheduled", "dataset_id": dataset_id, "scheduled_time": scheduled_time, "execution_id": f"it-{int(time.time())}-{dataset_id.rsplit('/', 1)[-1]}"}
 
 
 def _strategy_param(env: str) -> str:
@@ -111,15 +123,15 @@ def _wait_outcome(t: Any, session_date: str, after: str, *, run_tag: str | None 
     raise AssertionError(f"no trigger outcome for {session_date} after {after} within {OUTCOME_WAIT_SECONDS}s")
 
 
-def _target_session(cfg: Any) -> tuple[str, bool]:
+def _target_session(cfg: Any, *, now: datetime | None = None) -> tuple[str, bool]:
     from finplan_platform.core.calendar import calendar_for_provider
 
     cal = calendar_for_provider(cfg.provider)
-    now = datetime.now(UTC)
-    fire = cal.local_date(now)
+    scheduled_at = _scheduled_fire(cfg, now=now)
+    fire = cal.local_date(scheduled_at)
     if not cal.is_session(fire):
         return fire.isoformat(), False
-    return cal.latest_closed_session(now).day.isoformat(), True
+    return cal.latest_closed_session(scheduled_at).day.isoformat(), True
 
 
 # ------------------------------------------------------------------ DLY-07 (beta and gamma)
@@ -130,9 +142,11 @@ def test_dly07_no_strategy_means_nothing_runs(dep: dict[str, Any]) -> None:  # p
     plan_id = _research_plan(ssm, ENV)
     before = _version_ids(t, plan_id)
     started = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    resp = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="Event", Payload=json.dumps(_scheduler_event(cfg.universe.dataset_id)).encode())
+    event = _scheduler_event(cfg, cfg.universe.dataset_id)
+    resp = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="Event", Payload=json.dumps(event).encode())
     assert resp["StatusCode"] == 202
-    session, is_session = _target_session(cfg)
+    # Keep the exact submitted fire date if the invocation crosses NY midnight.
+    session, is_session = _target_session(cfg, now=datetime.fromisoformat(event["scheduled_time"]))
     rec = _wait_outcome(t, session, started)
     if not is_session:
         assert rec["outcome"] == "no_session"
@@ -148,8 +162,9 @@ def test_uni05_universe_snapshot_from_yfinance(dep: dict[str, Any], capsys: pyte
     if cfg.phase != 2:
         pytest.skip(f"{ENV} is phase 1: the universe is served by the fixture provider (UNI-05 runs once the environment declares phase 2)")
     out = {}
+    scheduled_fire = _scheduled_fire(cfg)
     for ds in (cfg.dataset_id, cfg.universe.dataset_id):
-        r = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="RequestResponse", Payload=json.dumps(_scheduler_event(ds)).encode())
+        r = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="RequestResponse", Payload=json.dumps(_scheduler_event(cfg, ds, now=scheduled_fire)).encode())
         body = json.loads(r["Payload"].read() or b"{}")
         assert "FunctionError" not in r, body
         out[ds] = body
