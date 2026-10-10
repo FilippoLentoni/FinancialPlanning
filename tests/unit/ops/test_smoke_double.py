@@ -267,6 +267,33 @@ def test_sigv4_transport_signs_requests_without_network() -> None:
         SigV4Transport("http://example.invalid", "us-east-2", None)
 
 
+@pytest.mark.parametrize("dataset", ["finance/equity-etf-daily/research-universe", "finance%2Fequity-etf-daily%2Fresearch-universe"])
+def test_sigv4_query_signature_matches_independent_parameter_canonicalization(dataset: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import UTC, datetime
+    from urllib.parse import parse_qsl, urlsplit, urlunsplit
+
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+    from botocore.credentials import Credentials
+
+    monkeypatch.setattr("botocore.auth.get_current_datetime", lambda: datetime(2026, 10, 10, 12, tzinfo=UTC))
+    credentials = Credentials("testing-fake-key", "testing-fake-secret", "testing-fake-token")
+    transport = SigV4Transport("https://example.invalid/live", "us-east-2", credentials)
+    request = transport.signed_request("GET", f"/v1/snapshots/latest?dataset_id={dataset}&cursor=a%2Bb%2F%3D&tag=two%20words&empty=&tag=one")
+    url = urlsplit(request.full_url)
+    values = parse_qsl(url.query, keep_blank_values=True)
+    assert ("dataset_id", "finance/equity-etf-daily/research-universe") in values
+    assert ("cursor", "a+b/=") in values and ("empty", "") in values
+    assert "dataset_id=finance%2Fequity-etf-daily%2Fresearch-universe" in url.query
+    assert " " not in url.query and "/" not in url.query and "+" not in url.query
+    # A server canonicalizes decoded parameters independently of the original
+    # URL spelling. Botocore's params path URI-encodes these values itself.
+    server_headers = {k: v for k, v in request.header_items() if k.lower() != "authorization"}
+    server = AWSRequest(method="GET", url=urlunsplit(url._replace(query="")), params=values, headers=server_headers)
+    SigV4Auth(credentials, "execute-api", "us-east-2").add_auth(server)
+    assert request.get_header("Authorization") == server.headers["Authorization"]
+
+
 # ------------------------------------------------------------------ stage runner
 class Proc:
     def __init__(self, rc: int) -> None:

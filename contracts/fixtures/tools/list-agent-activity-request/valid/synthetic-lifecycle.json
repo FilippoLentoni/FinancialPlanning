@@ -1,0 +1,6 @@
+{
+  "session_id": "synthetic-session",
+  "limit": 3,
+  "synthetic": true,
+  "contract_version": "1.5.0"
+}

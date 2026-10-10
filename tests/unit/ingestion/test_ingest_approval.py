@@ -98,14 +98,13 @@ def test_settle_repairs_a_missing_approved_tag(make_deps: Any, octx: Any) -> Non
     assert [e.operation for e in deps.repo.audit_events(sid)].count("approve_snapshot") == 1
 
 
-def test_approved_snapshot_expires_and_reads_not_found(make_deps: Any, octx: Any, clock: Any) -> None:
+def test_beta_approved_snapshot_remains_available_for_longitudinal_review(make_deps: Any, octx: Any, clock: Any) -> None:
     deps = make_deps()
     sid = run_ingestion(octx(), on_demand("2026-01-09", "2026-01-09"), deps=deps)["input_snapshot_id"]
-    clock.advance(days=15)  # beta snapshot retention: 14 days
-    expired_snapshot_sweep(octx(), deps.repo, deps.store, retention_days=deps.config.retention_days("snapshots"))
-    with pytest.raises(PlatformError) as ei:
-        get_snapshot(octx(), sid, deps=deps)
-    assert ei.value.code == "NOT_FOUND" and ei.value.details["reason"] == "expired"
+    clock.advance(days=15)
+    result = expired_snapshot_sweep(octx(), deps.repo, deps.store, retention_days=deps.config.retention_days("snapshots"))
+    assert result.expired == []
+    assert get_snapshot(octx(), sid, deps=deps)["snapshot"]["status"] == "approved"
 
 
 # ------------------------------------------------------------------ reads (API-12 helpers)

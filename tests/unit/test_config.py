@@ -86,11 +86,11 @@ def test_only_etf_daily_dataset_enabled_ING_13() -> None:
     assert ("/ingest/dataset/kind", "ING-13") in _problems(doc)
 
 
-def test_beta_and_gamma_must_expire_but_prod_may_leave_unset_STO_06() -> None:
-    for env in ("beta", "gamma"):
-        doc = _doc(env)
-        doc["retention"]["plans_days"] = None
-        assert ("/retention/plans_days", "STO-06") in _problems(doc)
+def test_beta_and_prod_retain_history_while_gamma_expires_STO_06() -> None:
+    doc = _doc("gamma")
+    doc["retention"]["plans_days"] = None
+    assert ("/retention/plans_days", "STO-06") in _problems(doc)
+    assert load_config("beta").retention_days("plans") is None
     prod = load_config("prod")
     assert prod.retention_days("plans") is None and prod.retention_days("snapshots") is None
     assert prod.retention["staging_window_days"] == 7

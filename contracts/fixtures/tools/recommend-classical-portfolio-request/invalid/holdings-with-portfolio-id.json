@@ -1,0 +1,12 @@
+{
+  "portfolio_id": "pf_01JA2B3C4D5E6F7G8H9JKMNPQR",
+  "input_snapshot_id": "snap_01JA2B3C4D5E6F7G8H9JKMNPQR",
+  "as_of": "2026-01-09",
+  "holdings": {
+    "weights": [],
+    "cash_weight": 1,
+    "portfolio_value": 10000,
+    "high_watermark": 10000
+  },
+  "synthetic": true
+}

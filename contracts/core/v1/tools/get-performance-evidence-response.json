@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-performance-evidence-response.json",
+  "title": "get-performance-evidence-response",
+  "type": "object",
+  "properties": {
+    "evidence": {
+      "type": "object"
+    },
+    "evidence_ref": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "evidence",
+    "evidence_ref"
+  ]
+}

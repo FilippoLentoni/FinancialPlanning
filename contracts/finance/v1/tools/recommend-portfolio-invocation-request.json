@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/recommend-portfolio-invocation-request.json",
+  "title": "recommend-portfolio-invocation-request",
+  "type": "object",
+  "properties": {
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date"
+    },
+    "holdings": {
+      "type": "object",
+      "properties": {
+        "weights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "instrument_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "instrument_id",
+              "weight"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
+        "cash_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "portfolio_value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "high_watermark": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "weights",
+        "cash_weight",
+        "portfolio_value",
+        "high_watermark"
+      ],
+      "additionalProperties": false
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    }
+  },
+  "additionalProperties": false,
+  "dependentRequired": {
+    "input_snapshot_id": [
+      "as_of"
+    ],
+    "as_of": [
+      "input_snapshot_id"
+    ],
+    "holdings": [
+      "input_snapshot_id",
+      "as_of"
+    ]
+  },
+  "not": {
+    "required": [
+      "portfolio_id",
+      "holdings"
+    ]
+  }
+}

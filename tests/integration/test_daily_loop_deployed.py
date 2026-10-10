@@ -28,6 +28,7 @@ import os
 import time
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -68,9 +69,20 @@ def _ingestion_function(env: str) -> str:
     return f"finplan-{env}-financialplanning-ingestion-handler"
 
 
-def _scheduler_event(dataset_id: str) -> dict[str, Any]:
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return {"source": "finplan.scheduler", "trigger": "scheduled", "dataset_id": dataset_id, "scheduled_time": now, "execution_id": f"it-{int(time.time())}-{dataset_id.rsplit('/', 1)[-1]}"}
+def _scheduled_fire(cfg: Any, *, now: datetime | None = None) -> datetime:
+    """Reproduce this NY fire date's configured scheduler cutoff, even after close.
+
+    Scheduled ingestion replays by local fire date. Its expected snapshot must
+    therefore use the same morning cutoff rather than the test's wall clock.
+    """
+    local = (now or datetime.now(UTC)).astimezone(ZoneInfo(cfg.ingest["timezone"]))
+    hour, minute = map(int, cfg.schedule_time.split(":"))
+    return local.replace(hour=hour, minute=minute, second=0, microsecond=0).astimezone(UTC)
+
+
+def _scheduler_event(cfg: Any, dataset_id: str, *, now: datetime | None = None) -> dict[str, Any]:
+    scheduled_time = _scheduled_fire(cfg, now=now).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {"source": "finplan.scheduler", "trigger": "scheduled", "dataset_id": dataset_id, "scheduled_time": scheduled_time, "execution_id": f"it-{int(time.time())}-{dataset_id.rsplit('/', 1)[-1]}"}
 
 
 def _strategy_param(env: str) -> str:
@@ -99,6 +111,28 @@ def _research_plan(ssm: Any, env: str) -> str:
     return ssm.get_parameter(Name=research_plan_ref_parameter(env))["Parameter"]["Value"].strip()
 
 
+def _latest_approved_universe(t: Any, cfg: Any, *, required: bool = True) -> dict[str, Any] | None:
+    code, body, _ = t.call("GET", f"/v1/snapshots/latest?dataset_id={cfg.universe.dataset_id}")
+    if not required and code == 404 and body.get("code") == "NOT_FOUND":
+        return None
+    assert code == 200, ("approved universe baseline unavailable", code, body)
+    snapshot = body["snapshot"]
+    assert snapshot["status"] == "approved", snapshot["status"]
+    return snapshot
+
+
+def _assert_approved_universe(t: Any, snapshot: dict[str, Any], completed_cutoff: str) -> None:
+    assert snapshot["lineage"]["provider"] == "yfinance"
+    assert snapshot["coverage"]["start"] == "2010-10-01"
+    assert snapshot["status"] == "approved" and snapshot["approval_rule_version"] == "approval-v2-universe"
+    assert snapshot["coverage"]["end"] <= completed_cutoff, "approved baseline contains sessions after the test cutoff"
+    assert not set(snapshot.get("quality_flags", [])) & {"partial_response", "missing_sessions", "empty_response", "rejected_records"}, "blocking provider quality flags were approved"
+    assert {d["kind"] for d in snapshot["bias_disclosures"]} == {"hindsight_selection", "survivorship"}
+    assert snapshot["observation_summary"]["instruments_expected"] == 5 == snapshot["observation_summary"]["instruments_complete"]
+    code, obs, _ = t.call("GET", f"/v1/snapshots/{snapshot['input_snapshot_id']}/observations?page_size=1&start_date=2010-10-01&end_date=2010-10-01")
+    assert code == 200 and {i["instrument_id"] for i in obs["instruments"]} == UNIVERSE_TICKERS
+
+
 def _wait_outcome(t: Any, session_date: str, after: str, *, run_tag: str | None = None) -> dict[str, Any]:
     deadline = time.time() + OUTCOME_WAIT_SECONDS
     while time.time() < deadline:
@@ -111,15 +145,15 @@ def _wait_outcome(t: Any, session_date: str, after: str, *, run_tag: str | None 
     raise AssertionError(f"no trigger outcome for {session_date} after {after} within {OUTCOME_WAIT_SECONDS}s")
 
 
-def _target_session(cfg: Any) -> tuple[str, bool]:
+def _target_session(cfg: Any, *, now: datetime | None = None) -> tuple[str, bool]:
     from finplan_platform.core.calendar import calendar_for_provider
 
     cal = calendar_for_provider(cfg.provider)
-    now = datetime.now(UTC)
-    fire = cal.local_date(now)
+    scheduled_at = _scheduled_fire(cfg, now=now)
+    fire = cal.local_date(scheduled_at)
     if not cal.is_session(fire):
         return fire.isoformat(), False
-    return cal.latest_closed_session(now).day.isoformat(), True
+    return cal.latest_closed_session(scheduled_at).day.isoformat(), True
 
 
 # ------------------------------------------------------------------ DLY-07 (beta and gamma)
@@ -130,9 +164,11 @@ def test_dly07_no_strategy_means_nothing_runs(dep: dict[str, Any]) -> None:  # p
     plan_id = _research_plan(ssm, ENV)
     before = _version_ids(t, plan_id)
     started = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    resp = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="Event", Payload=json.dumps(_scheduler_event(cfg.universe.dataset_id)).encode())
+    event = _scheduler_event(cfg, cfg.universe.dataset_id)
+    resp = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="Event", Payload=json.dumps(event).encode())
     assert resp["StatusCode"] == 202
-    session, is_session = _target_session(cfg)
+    # Keep the exact submitted fire date if the invocation crosses NY midnight.
+    session, is_session = _target_session(cfg, now=datetime.fromisoformat(event["scheduled_time"]))
     rec = _wait_outcome(t, session, started)
     if not is_session:
         assert rec["outcome"] == "no_session"
@@ -147,28 +183,44 @@ def test_uni05_universe_snapshot_from_yfinance(dep: dict[str, Any], capsys: pyte
     cfg, t = dep["cfg"], dep["t"]
     if cfg.phase != 2:
         pytest.skip(f"{ENV} is phase 1: the universe is served by the fixture provider (UNI-05 runs once the environment declares phase 2)")
+    before = _latest_approved_universe(t, cfg, required=False)
     out = {}
+    scheduled_fire = _scheduled_fire(cfg)
+    from finplan_platform.core.calendar import calendar_for_provider
+    completed_cutoff = calendar_for_provider(cfg.provider).latest_closed_session(scheduled_fire).day.isoformat()
     for ds in (cfg.dataset_id, cfg.universe.dataset_id):
-        r = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="RequestResponse", Payload=json.dumps(_scheduler_event(ds)).encode())
+        r = dep["lambda"].invoke(FunctionName=_ingestion_function(ENV), InvocationType="RequestResponse", Payload=json.dumps(_scheduler_event(cfg, ds, now=scheduled_fire)).encode())
         body = json.loads(r["Payload"].read() or b"{}")
         assert "FunctionError" not in r, body
         out[ds] = body
     spy = out[cfg.dataset_id]
-    if spy.get("quality_flags") == ["no_session"] and not spy.get("snapshot"):
-        pytest.skip("not a trading day")
+    if spy.get("quality_flags") == ["no_session"]:
+        # No-session responses may carry the latest *committed* snapshot. That record
+        # is historical context, not freshly ingested data or necessarily approved.
+        assert out[cfg.universe.dataset_id].get("quality_flags") == ["no_session"]
+        assert all(result["new_snapshot"] is False for result in out.values())
+        retained = _latest_approved_universe(t, cfg)
+        assert before is not None and retained["input_snapshot_id"] == before["input_snapshot_id"]
+        _assert_approved_universe(t, retained, completed_cutoff)
+        with capsys.disabled():
+            print("\nUNIVERSE-FRESHNESS " + json.dumps({"status": "no_session", "new_snapshot": False, "approved_input_snapshot_id": retained["input_snapshot_id"], "approved_coverage_end": retained["coverage"]["end"]}, sort_keys=True), flush=True)
+        return
     assert spy["snapshot"]["dataset"]["dataset_id"] == "finance/etf-daily/SPY"
     u = out[cfg.universe.dataset_id]
     sid = u["input_snapshot_id"]
     code, body, _ = t.call("GET", f"/v1/snapshots/{sid}")
     assert code == 200, (code, body.get("code"))
     snap = body["snapshot"]
-    assert snap["lineage"]["provider"] == "yfinance"
-    assert snap["coverage"]["start"] == "2010-10-01"
-    assert snap["status"] == "approved" and snap["approval_rule_version"] == "approval-v2-universe", (snap["status"], snap["quality_flags"], snap.get("quality_details", {}).get("partial_response"))
-    assert {d["kind"] for d in snap["bias_disclosures"]} == {"hindsight_selection", "survivorship"}
-    assert snap["observation_summary"]["instruments_expected"] == 5 == snap["observation_summary"]["instruments_complete"]
-    code, obs, _ = t.call("GET", f"/v1/snapshots/{sid}/observations?page_size=1&start_date=2010-10-01&end_date=2010-10-01")
-    assert code == 200 and {i["instrument_id"] for i in obs["instruments"]} == UNIVERSE_TICKERS
+    if snap["status"] != "approved":
+        blocking = set(snap.get("quality_flags", [])) & {"partial_response", "missing_sessions", "empty_response", "rejected_records"}
+        assert snap["status"] == "committed" and blocking, (snap["status"], snap["quality_flags"], snap.get("quality_details"))
+        retained = _latest_approved_universe(t, cfg)
+        assert before is not None and retained["input_snapshot_id"] == before["input_snapshot_id"], "rejected provider data changed latest approved universe"
+        _assert_approved_universe(t, retained, completed_cutoff)
+        with capsys.disabled():
+            print("\nUNIVERSE-FRESHNESS " + json.dumps({"status": "provider_quality_rejected", "candidate_input_snapshot_id": sid, "quality_flags": snap["quality_flags"], "approved_input_snapshot_id": retained["input_snapshot_id"], "approved_coverage_end": retained["coverage"]["end"], "fresh_data_available": False}, sort_keys=True), flush=True)
+        return
+    _assert_approved_universe(t, snap, completed_cutoff)
     evidence = {"input_snapshot_id": sid, "dataset_id": cfg.universe.dataset_id, "status": snap["status"], "approval_rule_version": snap["approval_rule_version"], "provider": "yfinance", "trigger": u.get("trigger")}
     with capsys.disabled():  # visible in the stage log (pytest -q captures passing tests' output)
         print("\nPHASE2-EVIDENCE " + json.dumps({ENV: evidence}, sort_keys=True), flush=True)

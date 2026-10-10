@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tarfile
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -111,20 +112,20 @@ def test_compat_gate_passes_as_minor_without_zero_exemption() -> None:
     assert {c.kind for c in report.changes} <= {compat.ADDITIVE, compat.ANNOTATION}
 
 
-def test_1_0_0_fixtures_keep_their_bytes() -> None:
-    """Every 1.0.0 fixture is byte-identical (same checksum) in 1.1.0 and still validates."""
-    with tarfile.open(BASELINE) as tf:
-        members = [m for m in tf.getmembers() if m.isfile() and "/fixtures/" in m.name and m.name.endswith(".json")]
+def test_prior_1_3_0_fixtures_keep_their_bytes() -> None:
+    """Every fixture from the immediately preceding released wheel keeps its exact bytes."""
+    wheel = CONTRACTS.parent / "vendor/finplan-contracts/finplan_contracts-1.3.0-py3-none-any.whl"
+    assert hashlib.sha256(wheel.read_bytes()).hexdigest() == "ee347e88ecdd80f135a4cd79c0eec8bc98ca8744b4ec5acf9961e1ada7728638"
+    with zipfile.ZipFile(wheel) as archive:
+        members = [name for name in archive.namelist() if "/data/fixtures/" in name and name.endswith(".json")]
         assert len(members) > 300
-        for m in members:
-            rel = m.name.split("/fixtures/", 1)[1]
-            old = tf.extractfile(m).read()  # type: ignore[union-attr]
-            new = (CONTRACTS / "fixtures" / rel).read_bytes()
-            assert hashlib.sha256(old).hexdigest() == hashlib.sha256(new).hexdigest(), rel
+        for name in members:
+            rel = name.split("/data/fixtures/", 1)[1]
+            assert archive.read(name) == (CONTRACTS / "fixtures" / rel).read_bytes(), rel
 
 
 def test_baseline_is_1_0_0() -> None:
     with tarfile.open(BASELINE) as tf:
         ver = next(m for m in tf.getmembers() if m.name.endswith("/VERSION"))
         assert tf.extractfile(ver).read().decode().strip() == "1.0.0"  # type: ignore[union-attr]
-    assert (CONTRACTS / "VERSION").read_text().strip() == "1.1.0"
+    assert (CONTRACTS / "VERSION").read_text().strip() == "1.5.0"

@@ -189,6 +189,15 @@ process, so its bundle carries the same extra (it is the same bundle).
 
 ## Testing
 
+The deployed universe check distinguishes a new approved snapshot from retained historical data.
+On weekends or holidays, `no_session` may include the latest committed snapshot; the test verifies
+that no snapshot was created and the separate latest-approved baseline is unchanged. A live
+provider response with blocking quality flags must remain committed and must not replace that
+approved baseline. Both cases report `UNIVERSE-FRESHNESS` with the approved coverage end. The
+baseline must still contain the complete five-instrument historical universe and no sessions after
+the completed cutoff. A passing infrastructure check does not assert that rejected or unavailable
+latest-session market data became available.
+
 | Gate | Command |
 |---|---|
 | Unit and contract suites (fixture provider, mock, mocked `yfinance` interface; sockets blocked where relevant) | `uv run pytest tests/unit/ingestion tests/contract/test_ingest_contract.py` |

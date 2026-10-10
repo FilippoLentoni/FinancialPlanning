@@ -1,0 +1,10 @@
+{
+  "publication_id": "pub_01JABCDEFGHJKMNPQRSTVWXY01",
+  "realized_snapshot_id": "snap_01JABCDEFGHJKMNPQRSTVWXY01",
+  "window": {
+    "start": "2026-01-05",
+    "end": "2026-01-06"
+  },
+  "actual_source": "paper",
+  "synthetic": true
+}

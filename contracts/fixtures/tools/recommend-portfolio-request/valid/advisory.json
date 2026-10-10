@@ -1,0 +1,16 @@
+{
+  "input_snapshot_id": "snap_01JABCDEFGHJKMNPQRSTVWXY01",
+  "as_of": "2026-01-06",
+  "holdings": {
+    "weights": [
+      {
+        "instrument_id": "SYNTH",
+        "weight": 0.5
+      }
+    ],
+    "cash_weight": 0.5,
+    "portfolio_value": 1000,
+    "high_watermark": 1000
+  },
+  "synthetic": true
+}

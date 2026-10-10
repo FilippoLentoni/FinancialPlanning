@@ -1,0 +1,14 @@
+{
+  "evidence": {
+    "evidence_kind": "performance_decomposition"
+  },
+  "evidence_ref": {
+    "artifact_id": "evidence_synthetic_001",
+    "owner": "financemodel",
+    "kind": "explanation_evidence",
+    "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "content_type": "application/json",
+    "synthetic": true
+  },
+  "synthetic": true
+}

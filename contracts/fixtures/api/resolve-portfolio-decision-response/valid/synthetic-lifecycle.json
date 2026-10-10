@@ -1,0 +1,43 @@
+{
+  "decision_id": "pd_01JA2B3C4D5E6F7G8H9JKMNPQR",
+  "portfolio_id": "pf_01JA2B3C4D5E6F7G8H9JKMNPQR",
+  "action": "accept",
+  "status": "accepted",
+  "before_revision": 1,
+  "after_revision": 2,
+  "paper_state": {
+    "positions": [
+      {
+        "instrument_id": "SPY",
+        "quantity": 10
+      }
+    ],
+    "cash_balance": 100,
+    "high_watermark": 1100,
+    "as_of": "2026-01-09",
+    "base_currency": "USD",
+    "mode": "paper",
+    "source": "paper_rebalance"
+  },
+  "simulated_fills": [
+    {
+      "instrument_id": "SPY",
+      "side": "sell",
+      "quantity": 1,
+      "reference_price": 100,
+      "notional": 100,
+      "transaction_cost": 0.02
+    }
+  ],
+  "transaction_cost": 0.02,
+  "paper_execution": true,
+  "recorded_at": "2026-01-09T15:00:00Z",
+  "reference_date": "2026-01-09",
+  "reference_prices": {
+    "SPY": 100
+  },
+  "input_snapshot_id": "snap_01JA2B3C4D5E6F7G8H9JKMNPQR",
+  "confirmed_by_user": true,
+  "synthetic": true,
+  "contract_version": "1.5.0"
+}

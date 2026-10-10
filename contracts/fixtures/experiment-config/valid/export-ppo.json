@@ -1,0 +1,9 @@
+{
+  "strategy": "prepare_policy",
+  "universe": [
+    "VOO"
+  ],
+  "policy_source_run_id": "run_01JABCDEFGHJKMNPQRSTVWXY01",
+  "policy_strategy_id": "ppo",
+  "synthetic": true
+}

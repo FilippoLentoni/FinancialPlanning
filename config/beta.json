@@ -1,5 +1,5 @@
 {
-  "$comment": "FinancialPlanning platform configuration for beta. Settings, placeholders and SSM parameter NAMES only; never account IDs, ARNs, bucket, role or endpoint values. Retention values are the proposed P2 defaults (PQ-3 open).",
+  "$comment": "Beta retains linked financial evidence for longitudinal paper-portfolio review. Staging uploads remain short-lived.",
   "environment": "beta",
   "region": "us-east-2",
   "phase": 2,
@@ -79,12 +79,12 @@
     }
   },
   "retention": {
-    "raw_days": 14,
-    "curated_days": 14,
-    "snapshots_days": 14,
-    "plans_days": 14,
-    "outputs_days": 14,
-    "reports_days": 14,
+    "raw_days": null,
+    "curated_days": null,
+    "snapshots_days": null,
+    "plans_days": null,
+    "outputs_days": null,
+    "reports_days": null,
     "staging_window_days": 7,
     "noncurrent_version_days": 1,
     "incomplete_multipart_days": 1

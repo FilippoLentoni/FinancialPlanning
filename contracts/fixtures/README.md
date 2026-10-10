@@ -27,6 +27,10 @@ Every fixture carries `"synthetic": true` at the top level, except the fixtures
 listed below (the conformance hygiene check reads this list):
 
 <!-- synthetic-exceptions:start -->
+- `api/latest-snapshot-request/invalid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- `api/latest-snapshot-request/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- `api/put-portfolio-state-request/invalid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- `api/put-portfolio-state-request/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `budget-allocation/invalid/defaults-above-lowered-ceiling.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/invalid/empty.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/invalid/negative-amount.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
@@ -35,5 +39,8 @@ listed below (the conformance hygiene check reads this list):
 - `budget-allocation/valid/defaults.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/valid/raised-ceiling-context.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/valid/user-adjusted-under-ceiling.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
+- `paper-portfolio-state/invalid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- `paper-portfolio-state/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `portfolio/invalid/missing-synthetic-flag.json`: the portfolio's own 'synthetic' field is the property under test, so this invalid fixture omits it
+- `tools/recommend-portfolio-invocation-request/valid/saved-default.json`: the empty object deliberately tests saved-default invocation without supplied state
 <!-- synthetic-exceptions:end -->

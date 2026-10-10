@@ -77,29 +77,29 @@ def test_role_class_resolution() -> None:
 def test_route_grant_table_matches_the_design() -> None:
     by_class = {cls: {(r.method, r.path) for r in ROUTES if route_allowed(r, cls)} for cls in ("reader", "submitter", "plan-writer", "financemodel-job", "financemodel-job-api")}
     gets = {(r.method, r.path) for r in ROUTES if r.method == "GET"}
-    assert by_class["reader"] == gets
-    assert by_class["submitter"] == gets | {("POST", "/v1/ingestions")}
-    assert by_class["plan-writer"] == gets | {("POST", "/v1/plans/{plan_id}/versions"), ("POST", "/v1/plan-versions/{plan_version_id}/validate"), ("POST", "/v1/plans/{plan_id}/publications")}
-    assert by_class["financemodel-job"] == {("GET", "/v1/snapshots/{input_snapshot_id}"), ("GET", "/v1/snapshots/{input_snapshot_id}/observations")}
-    assert by_class["financemodel-job-api"] == by_class["financemodel-job"] | {("GET", "/v1/staged-outputs/{run_id}")}
+    assert by_class["reader"] == gets | {("POST", "/v1/activity-events")}
+    assert by_class["submitter"] == by_class["reader"] | {("POST", "/v1/ingestions")}
+    assert by_class["plan-writer"] == by_class["reader"] | {("POST", "/v1/portfolio-decisions/{decision_id}/resolution"), ("POST", "/v1/plans/{plan_id}/versions"), ("POST", "/v1/plan-versions/{plan_version_id}/validate"), ("POST", "/v1/plans/{plan_id}/publications")}
+    assert by_class["financemodel-job"] == {("GET", "/v1/snapshots"), ("GET", "/v1/snapshots/latest"), ("GET", "/v1/snapshots/{input_snapshot_id}"), ("GET", "/v1/snapshots/{input_snapshot_id}/observations")}
+    assert by_class["financemodel-job-api"] == by_class["financemodel-job"] | {("POST", "/v1/portfolios/{portfolio_id}/decisions"), ("POST", "/v1/activity-events"), ("GET", "/v1/activity-events"), ("GET", "/v1/portfolios/{portfolio_id}/history"), ("GET", "/v1/portfolios/{portfolio_id}/history/{revision}"), ("GET", "/v1/portfolios/{portfolio_id}/decisions"), ("GET", "/v1/portfolio-decisions/{decision_id}"), ("GET", "/v1/portfolios/{portfolio_id}/state"), ("GET", "/v1/plans/{plan_id}"), ("GET", "/v1/staged-outputs/{run_id}"), ("GET", "/v1/plan-versions/{plan_version_id}"), ("GET", "/v1/publications/{publication_id}"), ("GET", "/v1/publications/{publication_id}/executions")}
     for cls in FULL_ACCESS_CLASSES:
-        assert all(route_allowed(r, cls) for r in ROUTES)
+        assert all(route_allowed(r, cls) == (not r.operator_only or cls != "website") for r in ROUTES)
     # daily-recommendation-trigger (DLY-06): the automation class reads, accepts and never publishes
     automation = {(r.method, r.path) for r in ROUTES if route_allowed(r, "automation")}
     assert automation == {("GET", "/v1/plans/{plan_id}"), ("GET", "/v1/snapshots/{input_snapshot_id}"), ("POST", "/v1/plans/{plan_id}/staged-outputs/{run_id}/accept"), ("GET", "/v1/daily-trigger/outcomes/{session_date}")}
     tool_forbidden = {("POST", p) for p in ("/v1/publications/{publication_id}/executions", "/v1/plan-versions/{plan_version_id}/exports", "/v1/plans/{plan_id}/imports", "/v1/plans/{plan_id}/imports/{import_id}/commit", "/v1/plans/{plan_id}/staged-outputs/{run_id}/accept")}
     for cls in ("reader", "submitter", "plan-writer"):
         assert not (by_class[cls] & tool_forbidden)
-    for cls in ("financemodel-job", "financemodel-job-api"):
-        assert all(m == "GET" for m, _ in by_class[cls])
+    assert all(m == "GET" for m, _ in by_class["financemodel-job"])
+    assert {p for m,p in by_class["financemodel-job-api"] if m != "GET"} == {"/v1/activity-events", "/v1/portfolios/{portfolio_id}/decisions"}
 
 
 def test_reader_is_denied_every_write_route_at_the_handler(clients: Any) -> None:
     for r in ROUTES:
-        if r.method == "GET":
+        if r.method == "GET" or r.path == "/v1/activity-events":
             continue
-        path = r.path.format(plan_id="pl_01KDVDNAZ83BAMMYCEGWF33DPM", plan_version_id=PV, publication_id="pub_01KDVDNAZ83BAMMYCEGWF33DPM", portfolio_id="pf_01KDVDNAZ83BAMMYCEGWF33DPM", run_id="run_01KDVDNAZ83BAMMYCEGWF33DPM", import_id="imp_01KDVDNAZ83BAMMYCEGWF33DPM")
-        code, body, _ = clients.reader.post(path, {"idempotency_key": "x"})
+        path = r.path.format(decision_id="pd_01KDVDNAZ83BAMMYCEGWF33DPM", plan_id="pl_01KDVDNAZ83BAMMYCEGWF33DPM", plan_version_id=PV, publication_id="pub_01KDVDNAZ83BAMMYCEGWF33DPM", portfolio_id="pf_01KDVDNAZ83BAMMYCEGWF33DPM", run_id="run_01KDVDNAZ83BAMMYCEGWF33DPM", import_id="imp_01KDVDNAZ83BAMMYCEGWF33DPM")
+        code, body, _ = clients.reader.call(r.method, path, {"idempotency_key": "x"})
         assert code == 403 and body["code"] == "FORBIDDEN", r.path
     for who in ("fm_job", "fm_job_api"):
         code, body, _ = getattr(clients, who).post("/v1/plans/pl_01KDVDNAZ83BAMMYCEGWF33DPM/versions", {"idempotency_key": "x"})
@@ -112,7 +112,7 @@ def test_unsupported_contract_major_lists_the_served_majors(clients: Any) -> Non
     code, body, _ = clients.website.post("/v1/portfolios", {"name": "X", "base_currency": "USD", "idempotency_key": "v2", "contract_version": "2.0.0"})
     assert code == 400
     _envelope_ok(body, "UNSUPPORTED_CONTRACT_VERSION")
-    assert body["details"]["served_contract_majors"] == [0, 1]  # 1.0.0 pinned; 0 still served (contracts D16)
+    assert body["details"]["served_contract_majors"] == [0, 1]  # current major 1; stored major 0 remains served (contracts D16)
     code, body, _ = clients.reader.get(f"/v1/snapshots/{SNAP}", headers={"X-Finplan-Contract-Version": "2.1.0"})
     assert code == 400 and body["code"] == "UNSUPPORTED_CONTRACT_VERSION"
     code, body, _ = clients.website.post("/v1/portfolios", {"name": "X", "base_currency": "USD", "idempotency_key": "v0", "contract_version": "0.1.0"})

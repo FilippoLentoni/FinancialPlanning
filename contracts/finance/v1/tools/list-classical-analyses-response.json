@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/list-classical-analyses-response.json",
+  "title": "tools/list-classical-analyses-response",
+  "type": "object",
+  "properties": {
+    "analyses": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "properties": {
+          "analysis_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+          },
+          "analysis_kind": {
+            "enum": [
+              "recommendation",
+              "explanation",
+              "comparison",
+              "performance",
+              "research",
+              "feedback",
+              "research_run",
+              "market_events"
+            ]
+          }
+        },
+        "required": [
+          "analysis_id",
+          "analysis_kind"
+        ]
+      }
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "next_token": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "analyses",
+    "contract_version",
+    "synthetic"
+  ],
+  "additionalProperties": false
+}

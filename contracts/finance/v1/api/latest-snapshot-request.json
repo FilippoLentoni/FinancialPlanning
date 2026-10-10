@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/latest-snapshot-request.json",
+  "title": "latest-snapshot-request",
+  "type": "object",
+  "properties": {
+    "dataset_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)+$",
+      "maxLength": 256
+    }
+  },
+  "required": [
+    "dataset_id"
+  ],
+  "additionalProperties": false
+}

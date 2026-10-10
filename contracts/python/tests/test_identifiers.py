@@ -8,13 +8,13 @@ from conftest import fixture
 
 PREFIXES = {
     "portfolio_id": "pf_", "plan_id": "pl_", "plan_version_id": "pv_", "input_snapshot_id": "snap_", "model_version": "mv_",
-    "run_id": "run_", "publication_id": "pub_", "execution_id": "exe_",
+    "decision_id": "pd_", "activity_event_id": "act_", "run_id": "run_", "publication_id": "pub_", "execution_id": "exe_",
 }
 
 
-def test_exactly_the_nine_identifiers(store):
+def test_canonical_platform_and_analysis_identifiers(store):
     root_props = set(store.get("identifiers").schema["properties"]) - {"synthetic", "release_id"}
-    assert root_props == set(PREFIXES) | {"configuration_id"}
+    assert root_props == set(PREFIXES) | {"configuration_id", "analysis_id"}
 
 
 @pytest.mark.parametrize("field,prefix", PREFIXES.items())

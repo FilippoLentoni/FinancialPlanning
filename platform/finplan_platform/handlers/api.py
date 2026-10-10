@@ -156,6 +156,7 @@ class Route:
     response_schema: Any = None
     query: Mapping[str, str] = field(default_factory=dict)
     owner: str = "api"
+    operator_only: bool = False
 
     @property
     def write(self) -> bool:
@@ -189,6 +190,8 @@ _VALIDATION = "finplan_platform.core.validation"
 _PUBLICATION = "finplan_platform.core.publication"
 _EXECUTION = "finplan_platform.core.execution"
 _SNAPSHOTS = "finplan_platform.core.snapshot_reads"
+_LIFECYCLE = "finplan_platform.core.portfolio_lifecycle"
+BETA_LIFECYCLE_OPERATIONS = frozenset({"create_portfolio_decision", "get_portfolio_decision", "list_portfolio_decisions", "resolve_portfolio_decision", "get_portfolio_history", "list_portfolio_history", "list_market_snapshots", "record_activity_event", "list_activity_events"})
 
 
 def _lazy_schema(target: str) -> Callable[[Mapping[str, Any]], Any]:
@@ -207,10 +210,21 @@ def _observation_query(r: Parts) -> dict[str, Any]:
 
 
 ROUTES: tuple[Route, ...] = (
+    Route("POST", "/v1/portfolios/{portfolio_id}/decisions", "create_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.create_decision(c,s,r.path["portfolio_id"],r.body), ("financemodel-job-api",), status=201, response_schema="api/portfolio-decision-response"),
+    Route("GET", "/v1/portfolios/{portfolio_id}/decisions", "list_portfolio_decisions", _LIFECYCLE, lambda m,c,s,r: m.list_decisions(c,s,r.path["portfolio_id"],r.query), _READERS+("financemodel-job-api",), response_schema="api/list-portfolio-decisions-response", query={"page_size":"int","next_token":"str"}),
+    Route("GET", "/v1/portfolio-decisions/{decision_id}", "get_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.get_decision(c,s,r.path["decision_id"]), _READERS+("financemodel-job-api",), response_schema="api/portfolio-decision-response"),
+    Route("POST", "/v1/portfolio-decisions/{decision_id}/resolution", "resolve_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.resolve_decision(c,s,r.path["decision_id"],r.body), ("plan-writer",), response_schema="api/resolve-portfolio-decision-response"),
+    Route("GET", "/v1/portfolios/{portfolio_id}/history", "list_portfolio_history", _LIFECYCLE, lambda m,c,s,r: m.list_history(c,s,r.path["portfolio_id"],r.query), _READERS+("financemodel-job-api",), response_schema="api/portfolio-history-response", query={"page_size":"int","next_token":"str"}),
+    Route("GET", "/v1/portfolios/{portfolio_id}/history/{revision}", "get_portfolio_history", _LIFECYCLE, lambda m,c,s,r: m.get_history(c,s,r.path["portfolio_id"],r.path["revision"]), _READERS+("financemodel-job-api",), response_schema="api/portfolio-history-entry-response"),
+    Route("GET", "/v1/snapshots", "list_market_snapshots", _SNAPSHOTS, lambda m,c,s,r: m.list_approved_snapshots(c,s,r.query), _READERS+FINANCEMODEL_CLASSES, response_schema="api/list-market-snapshots-response", query={"dataset_id":"str","page_size":"int","next_token":"str"}),
+    Route("POST", "/v1/activity-events", "record_activity_event", _LIFECYCLE, lambda m,c,s,r: m.record_activity(c,s,r.body), _READERS+("financemodel-job-api",), status=201, response_schema="api/activity-event-response"),
+    Route("GET", "/v1/activity-events", "list_activity_events", _LIFECYCLE, lambda m,c,s,r: m.list_activity(c,s,r.query), _READERS+("financemodel-job-api",), response_schema="api/list-activity-events-response", query={"portfolio_id":"str","session_id":"str","page_size":"int","next_token":"str"}),
     Route("POST", "/v1/portfolios", "create_portfolio", _PLANS, lambda m, c, s, r: m.create_portfolio(c, s, r.body), status=201, response_schema=CREATE_PORTFOLIO_RESPONSE),
     Route("GET", "/v1/portfolios/{portfolio_id}", "get_portfolio", _PLANS, lambda m, c, s, r: m.get_portfolio(c, s, r.path["portfolio_id"]), _READERS, response_schema="portfolio"),
+    Route("GET", "/v1/portfolios/{portfolio_id}/state", "get_portfolio_state", _PLANS, lambda m, c, s, r: m.get_portfolio_state(c, s, r.path["portfolio_id"]), _READERS + ("financemodel-job-api",), response_schema="api/get-portfolio-state-response"),
+    Route("PUT", "/v1/portfolios/{portfolio_id}/state", "put_portfolio_state", _PLANS, lambda m, c, s, r: m.put_portfolio_state(c, s, r.path["portfolio_id"], r.body), response_schema="api/get-portfolio-state-response", operator_only=True),
     Route("POST", "/v1/portfolios/{portfolio_id}/plans", "create_plan", _PLANS, lambda m, c, s, r: m.create_plan(c, s, r.path["portfolio_id"], r.body), status=201, response_schema=CREATE_PLAN_RESPONSE),
-    Route("GET", "/v1/plans/{plan_id}", "get_plan", _PLANS, lambda m, c, s, r: m.get_plan(c, s, r.path["plan_id"]), _READERS + (AUTOMATION_CLASS,), response_schema="tools/get-plan-response"),
+    Route("GET", "/v1/plans/{plan_id}", "get_plan", _PLANS, lambda m, c, s, r: m.get_plan(c, s, r.path["plan_id"]), _READERS + (AUTOMATION_CLASS, "financemodel-job-api"), response_schema="tools/get-plan-response"),
     Route(
         "GET",
         "/v1/plans/{plan_id}/versions",
@@ -228,15 +242,18 @@ ROUTES: tuple[Route, ...] = (
         "get_plan_version",
         _VERSIONS,
         lambda m, c, s, r: m.get_plan_version(c, s, r.path["plan_version_id"], download=bool(r.query.get("download"))),
-        _READERS,
+        _READERS+("financemodel-job-api",),
         response_schema="tools/get-plan-version-response",
         query={"download": "bool"},
     ),
     Route("POST", "/v1/plan-versions/{plan_version_id}/validate", "validate_plan_version", _VALIDATION, lambda m, c, s, r: m.validate_plan_version(c, s, r.path["plan_version_id"], r.body), ("plan-writer",), response_schema="tools/validate-plan-version-response"),
     Route("POST", "/v1/plans/{plan_id}/publications", "publish_plan_version", _PUBLICATION, lambda m, c, s, r: m.publish(c, s, r.path["plan_id"], r.body), ("plan-writer",), status=201, response_schema="tools/publish-plan-version-response"),
-    Route("GET", "/v1/publications/{publication_id}", "get_publication", _PUBLICATION, lambda m, c, s, r: m.get_publication(c, s, r.path["publication_id"]), _READERS, response_schema="publication"),
+    Route("GET", "/v1/plans/{plan_id}/publications", "list_publications", _PUBLICATION, lambda m,c,s,r: m.list_publications(c,s,r.path["plan_id"],page_size=r.query.get("page_size"),next_token=r.query.get("next_token")), _READERS, response_schema="tools/list-publications-response", query={"page_size":"int","next_token":"str"}),
+    Route("GET", "/v1/publications/{publication_id}/executions", "list_executions", _EXECUTION, lambda m,c,s,r: m.list_executions(c,s,r.path["publication_id"],page_size=r.query.get("page_size"),next_token=r.query.get("next_token")), _READERS+("financemodel-job-api",), response_schema="tools/list-executions-response", query={"page_size":"int","next_token":"str"}),
+    Route("GET", "/v1/publications/{publication_id}", "get_publication", _PUBLICATION, lambda m, c, s, r: m.get_publication(c, s, r.path["publication_id"]), _READERS+("financemodel-job-api",), response_schema="publication"),
     Route("POST", "/v1/publications/{publication_id}/executions", "record_execution", _EXECUTION, lambda m, c, s, r: m.record_execution(c, s, r.path["publication_id"], r.body), status=201, response_schema=RECORD_EXECUTION_RESPONSE),
     Route("GET", "/v1/executions/{execution_id}", "get_execution", _EXECUTION, lambda m, c, s, r: m.get_execution(c, s, r.path["execution_id"]), _READERS, response_schema="execution"),
+    Route("GET", "/v1/snapshots/latest", "latest_approved_snapshot", _SNAPSHOTS, lambda m, c, s, r: m.latest_approved_snapshot(c, s, r.query), _READERS + FINANCEMODEL_CLASSES, response_schema=SNAPSHOT_RESPONSE, query={"dataset_id": "str"}),
     Route(
         "GET",
         "/v1/snapshots/{input_snapshot_id}",
@@ -414,6 +431,8 @@ def resolve_role_class(principal_arn: str, cfg: Any) -> str | None:
 def route_allowed(route: Route, role_class: str | None) -> bool:
     if role_class is None:
         return False
+    if route.operator_only:
+        return role_class in ("platform", "operator")
     return role_class in FULL_ACCESS_CLASSES or role_class in route.grants
 
 

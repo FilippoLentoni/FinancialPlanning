@@ -9,22 +9,23 @@ so the denials shown come from the platform's resource policy alone.
 from __future__ import annotations
 
 import json
+from fnmatch import fnmatchcase
 from typing import Any
 
 import pytest
 from finplan_contracts.ownership import check_template
 from finplan_contracts.validate import validate
 from finplan_platform.core.config import load_config
-from finplan_platform.handlers.api import FULL_ACCESS_CLASSES, ROUTES, route_allowed
+from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, FULL_ACCESS_CLASSES, ROUTES, route_allowed
 
 from infra.policy_sim import Principal, role_arn, simulate
-from infra.stacks.api import GATEWAY_RESPONSES, STAGE_NAME, resource_policy_document
+from infra.stacks.api import GATEWAY_RESPONSES, STAGE_NAME, compact_route_resources, resource_policy_document
 
 pytestmark = pytest.mark.synth
 
 ENVS = ("beta", "gamma", "prod")
 WORST = {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "execute-api:*", "Resource": "*"}]}
-IDS = {"plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM", "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM", "publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM", "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM", "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM", "import_id": "imp_01KDVDNAZ83BAMMYCEGWF33DPM", "execution_id": "exe_01KDVDNAZ83BAMMYCEGWF33DPM", "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM", "session_date": "2026-01-09"}
+IDS = {"plan_id": "pl_01KDVDNAZ83BAMMYCEGWF33DPM", "plan_version_id": "pv_01KDVDNAZ83BAMMYCEGWF33DPM", "publication_id": "pub_01KDVDNAZ83BAMMYCEGWF33DPM", "portfolio_id": "pf_01KDVDNAZ83BAMMYCEGWF33DPM", "run_id": "run_01KDVDNAZ83BAMMYCEGWF33DPM", "import_id": "imp_01KDVDNAZ83BAMMYCEGWF33DPM", "execution_id": "exe_01KDVDNAZ83BAMMYCEGWF33DPM", "input_snapshot_id": "snap_01KDVDNAZ83BAMMYCEGWF33DPM", "session_date": "2026-01-09", "decision_id": "pd_01KDVDNAZ83BAMMYCEGWF33DPM", "revision": "1"}
 
 
 def roles(env: str) -> dict[str, str]:
@@ -80,7 +81,7 @@ def resources(t: dict[str, Any], typ: str) -> list[dict[str, Any]]:
 def test_every_method_requires_iam_auth(api_synth: dict[str, Any], env: str) -> None:
     t = api_template(api_synth, env)
     methods = resources(t, "AWS::ApiGateway::Method")
-    assert len(methods) == len(ROUTES)
+    assert len(methods) == len([route for route in ROUTES if env == "beta" or route.operation not in BETA_LIFECYCLE_OPERATIONS])
     assert {m["Properties"]["AuthorizationType"] for m in methods} == {"AWS_IAM"}
     api = resources(t, "AWS::ApiGateway::RestApi")
     assert len(api) == 1 and api[0]["Properties"]["EndpointConfiguration"]["Types"] == ["REGIONAL"] and api[0]["Properties"]["Policy"]
@@ -138,6 +139,8 @@ def test_resource_policy_grants_exactly_the_route_table(api_synth: dict[str, Any
     for cls, name in roles(env).items():
         principal = Principal.role(name, WORST)
         for route in ROUTES:
+            if env != "beta" and route.operation in BETA_LIFECYCLE_OPERATIONS:
+                continue
             res = simulate("execute-api:Invoke", invoke_arn(route), principal, resource_policy=policy)
             assert res.allowed == route_allowed(route, cls), (env, cls, route.method, route.path, res)
 
@@ -156,7 +159,7 @@ def test_platform_roles_without_identity_policy_are_allowed_by_the_resource_poli
     policy = api_synth["policies"]["beta"]
     for cls in FULL_ACCESS_CLASSES:
         p = Principal.role(roles("beta")[cls])
-        assert all(simulate("execute-api:Invoke", invoke_arn(r), p, resource_policy=policy).allowed for r in ROUTES)
+        assert all(simulate("execute-api:Invoke", invoke_arn(r), p, resource_policy=policy).allowed == route_allowed(r, cls) for r in ROUTES)
 
 
 def test_plan_api_role_synthesized_grants(api_synth: dict[str, Any]) -> None:
@@ -175,15 +178,66 @@ def test_plan_api_role_synthesized_grants(api_synth: dict[str, Any]) -> None:
     assert not simulate("s3:PutObject", key, p, resource_policy=buckets[plans]).allowed  # write-once
     assert not simulate("s3:DeleteObject", key, p, resource_policy=buckets[plans]).allowed
     tarn = lambda env, logical: f"arn:aws:dynamodb:us-east-2:{acct}:table/finplan-{env}-financialplanning-{logical}"
-    for logical in ("plan", "plan-version", "publication", "execution", "idempotency", "audit-event"):
+    for logical in ("plan", "plan-version", "publication", "execution", "idempotency", "audit-event", "portfolio-decision", "portfolio-history", "activity-event"):
         rp = tables.get(f"finplan-beta-financialplanning-{logical}")
         assert simulate("dynamodb:PutItem", tarn("beta", logical), p, resource_policy=rp).allowed, logical
         assert not simulate("dynamodb:DeleteItem", tarn("beta", logical), p, resource_policy=rp).allowed, logical
     assert simulate("dynamodb:UpdateItem", tarn("beta", "plan"), p, resource_policy=tables.get("finplan-beta-financialplanning-plan")).allowed
     assert not simulate("dynamodb:UpdateItem", tarn("beta", "audit-event"), p, resource_policy=tables.get("finplan-beta-financialplanning-audit-event")).allowed
+    for logical in ("portfolio-history", "activity-event"):
+        assert not simulate("dynamodb:UpdateItem", tarn("beta", logical), p, resource_policy=tables.get(f"finplan-beta-financialplanning-{logical}")).allowed
+    assert simulate("dynamodb:UpdateItem", tarn("beta", "portfolio-decision"), p, resource_policy=tables.get("finplan-beta-financialplanning-portfolio-decision")).allowed
     assert not simulate("dynamodb:GetItem", tarn("gamma", "plan"), p, resource_policy=tables.get("finplan-gamma-financialplanning-plan")).allowed
 
 
 def test_pure_policy_builder_matches_the_synthesized_policy(api_synth: dict[str, Any]) -> None:
     built = resource_policy_document(load_config("beta"), lambda pat: role_arn(pat))
     assert built == api_synth["policies"]["beta"]
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_effective_rest_api_policy_fits_aws_size_limit(api_synth: dict[str, Any], env: str) -> None:
+    """API Gateway permits 8192 bytes; resolve deployment tokens before measuring.
+
+    Normal JSON whitespace is deliberately retained, reserving 512 bytes beyond
+    today's policy so changes cannot pass synth and then roll back in AWS.
+    """
+    effective = json.dumps(api_synth["policies"][env]).replace("<account-id>", "0" * 12).replace("<region>", "us-east-2")
+    assert "<account-id>" not in effective and "<region>" not in effective
+    size = len(effective.encode("utf-8"))
+    assert size <= 8192 - 512, (env, size)
+
+
+def test_compaction_removes_only_existing_wildcard_redundancy() -> None:
+    resources = ["execute-api:/*/GET/v1/snapshots/*", "execute-api:/*/GET/v1/snapshots/latest", "execute-api:/*/GET/v1/snapshots/*/observations", "execute-api:/*/GET/v1/portfolios/*/state", "execute-api:/*/GET/v1/plans/*", "execute-api:/*/GET/v1/plans/*/versions"]
+    reduced = compact_route_resources(resources)
+    assert reduced == ["execute-api:/*/GET/v1/plans/*", "execute-api:/*/GET/v1/portfolios/*/state", "execute-api:/*/GET/v1/snapshots/*"]
+    candidates = ["execute-api:/live/GET/v1/snapshots/latest", "execute-api:/live/GET/v1/snapshots/snap_fixture/observations", "execute-api:/live/GET/v1/plans/pl_fixture/versions", "execute-api:/live/GET/v1/portfolios/pf_fixture/state", "execute-api:/live/GET/v1/portfolios/pf_fixture", "execute-api:/live/PUT/v1/portfolios/pf_fixture/state", "execute-api:/live/POST/v1/plans/pl_fixture/versions"]
+    for candidate in candidates:
+        assert any(fnmatchcase(candidate, r) for r in resources) == any(fnmatchcase(candidate, r) for r in reduced)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_compacted_policy_preserves_original_allow_and_deny_semantics(api_synth: dict[str, Any], env: str, monkeypatch: Any) -> None:
+    import infra.stacks.api as api
+    monkeypatch.setattr(api, "compact_route_resources", lambda resources: sorted(set(resources)))
+    original = api.resource_policy_document(load_config(env), role_arn)
+    compacted = api_synth["policies"][env]
+    for cls, name in roles(env).items():
+        principal = Principal.role(name, WORST)
+        for route in ROUTES:
+            resource = invoke_arn(route)
+            assert simulate("execute-api:Invoke", resource, principal, resource_policy=original).allowed == simulate("execute-api:Invoke", resource, principal, resource_policy=compacted).allowed, (env, cls, route.path)
+    denied_descendants = next(s for s in compacted["Statement"] if s.get("Sid") == "DenyFinancemodelJobApiExcludedDescendants")
+    assert denied_descendants["Effect"] == "Deny" and denied_descendants["Resource"]
+
+
+def test_shared_beta_allow_is_constrained_by_explicit_consumer_route_denials(api_synth: dict[str, Any]) -> None:
+    policy = api_synth["policies"]["beta"]
+    assert any(s["Sid"] == "AllowConsumersWithinExplicitRouteDenials" for s in policy["Statement"])
+    for cls, name in roles("beta").items():
+        if cls in FULL_ACCESS_CLASSES:
+            continue
+        principal = Principal.role(name, WORST)
+        for resource in ("execute-api:/live/DELETE/v1/portfolios/any", "execute-api:/live/POST/v1/unregistered", "execute-api:/live/PUT/v1/portfolios/any/state"):
+            assert not simulate("execute-api:Invoke", resource, principal, resource_policy=policy).allowed

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/record-agent-activity-response.json",
+  "title": "tools/record-agent-activity-response",
+  "$ref": "https://contracts.finplan.invalid/finance/v1/api/activity-event-response.json"
+}

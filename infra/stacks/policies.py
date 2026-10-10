@@ -280,7 +280,7 @@ def table_policy_statements(*, env: str, logical: str, table_arn: str, arn_for: 
             "Condition": {"ArnNotLike": {"aws:PrincipalArn": [arn_for(_platform(env))]}},
         }
     ]
-    if logical == "audit_event":
+    if logical in ("audit_event", "portfolio_history", "activity_event"):
         st.append({"Sid": "DenyAuditMutation", "Effect": "Deny", "Principal": "*", "Action": list(AUDIT_MUTATION_ACTIONS), "Resource": resources})
     return st
 

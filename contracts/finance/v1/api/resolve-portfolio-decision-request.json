@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/resolve-portfolio-decision-request.json",
+  "title": "api/resolve-portfolio-decision-request",
+  "type": "object",
+  "properties": {
+    "decision_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
+    },
+    "action": {
+      "enum": [
+        "accept",
+        "reject"
+      ]
+    },
+    "expected_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
+    "confirmed_by_user": {
+      "const": true
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "decision_id",
+    "action",
+    "expected_revision",
+    "idempotency_key",
+    "confirmed_by_user"
+  ],
+  "additionalProperties": false
+}

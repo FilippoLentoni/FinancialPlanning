@@ -144,8 +144,9 @@ def test_lifecycle_rules_follow_configuration(foundation_synth: dict[str, Any], 
     assert staging["Prefix"] == "staging/" and staging["ExpirationInDays"] == cfg.retention["staging_window_days"]
 
 
-def test_beta_and_gamma_expire_prod_plans_do_not(foundation_synth: dict[str, Any]) -> None:
-    assert next(r for r in _rules(foundation_synth, "beta", "plans") if r["Id"] == "expire-plans-after-retention")["ExpirationInDays"] == 14
+def test_beta_retains_linked_evidence_gamma_and_prod_retention_unchanged(foundation_synth: dict[str, Any]) -> None:
+    for role in BUCKET_ROLES:
+        assert not [r for r in _rules(foundation_synth, "beta", role) if r["Id"] == f"expire-{role}-after-retention"]
     assert next(r for r in _rules(foundation_synth, "gamma", "plans") if r["Id"] == "expire-plans-after-retention")["ExpirationInDays"] == 30
     assert not [r for r in _rules(foundation_synth, "prod", "plans") if "ExpirationInDays" in r]
 
@@ -162,11 +163,12 @@ def test_prod_storage_is_retained(foundation_synth: dict[str, Any]) -> None:
 @pytest.mark.parametrize("env", ENVS)
 def test_metadata_tables_on_demand_pitr_kms_tagged(foundation_synth: dict[str, Any], env: str) -> None:
     t = _tmpl(foundation_synth, env, "metadata")
-    t.resource_count_is("AWS::DynamoDB::Table", len(TABLES))
+    expected_tables = {logical: spec for logical, spec in TABLES.items() if env == "beta" or logical not in ("portfolio_decision", "portfolio_history", "activity_event")}
+    t.resource_count_is("AWS::DynamoDB::Table", len(expected_tables))
     tables = _resources(foundation_synth, env, "metadata", "AWS::DynamoDB::Table")
     by_name = {v["Properties"]["TableName"]: v for v in tables.values()}
-    assert set(by_name) == {table_name(env, logical) for logical in TABLES}
-    for logical, spec in TABLES.items():
+    assert set(by_name) == {table_name(env, logical) for logical in expected_tables}
+    for logical, spec in expected_tables.items():
         p = by_name[table_name(env, logical)]["Properties"]
         assert p["BillingMode"] == "PAY_PER_REQUEST" and "ProvisionedThroughput" not in p
         assert p["PointInTimeRecoverySpecification"] == {"PointInTimeRecoveryEnabled": True}

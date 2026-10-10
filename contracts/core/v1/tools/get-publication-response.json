@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/core/v1/tools/get-publication-response.json",
+  "title": "get-publication-response",
+  "type": "object",
+  "properties": {
+    "publication": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/publication.json"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "publication"
+  ]
+}

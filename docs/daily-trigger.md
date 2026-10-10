@@ -69,3 +69,12 @@ environment (`synthetic: true`, no real holdings) and writes its `plan_id` to
 
 Deployed tests submit at most one `buy_and_hold` job per beta or gamma suite (DLY-08); the prod smoke
 never submits.
+
+## Deployed scheduler checks
+
+The deployed daily-loop tests reproduce the environment's configured 09:00 or 09:30
+America/New_York fire timestamp for the current New York fire date. The ingestion event
+and expected outcome session use that same cutoff, including when tests run after market
+close or after UTC midnight. Scheduled ingestion replays by local fire date, so using the
+wall-clock latest close would incorrectly wait for another session's outcome. This test
+alignment leaves production freshness checks and scheduled idempotency unchanged.
