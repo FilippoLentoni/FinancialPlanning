@@ -326,7 +326,7 @@ def test_exact_activity_lookup_cannot_cross_portfolio_or_session_partition(svc, 
     "ae1_", "ae1_!!!!", "ae1_8A", "ae1_" + "a" * 257,
     _activity_cursor([]), _activity_cursor({}),
     _activity_cursor({"activity_event_id": 1}),
-    _activity_cursor({"activity_event_id": "s3://untrusted/path"}),
+    _activity_cursor({"activity_event_id": "s3://example-untrusted/path"}),
     _activity_cursor({"activity_event_id": "act_81KES9T7J05DMZFBP5SJAHGHFH"}),
     _activity_cursor({"activity_event_id": "act_01KES9T7J05DMZFBP5SJAHGHFH", "key": "untrusted"}),
 ])
