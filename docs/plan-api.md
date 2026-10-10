@@ -1,5 +1,9 @@
 # Plan lifecycle API
 
+For confirmed recommendation acceptance/rejection, immutable holdings revisions,
+snapshot history and durable activity in beta, see
+[Versioned paper-portfolio lifecycle](paper-portfolio-lifecycle.md).
+
 The single plan API of the FinancialPlanning platform (OpenSpec change `add-platform-foundation`,
 tasks 4.1 to 4.8 and 5.1 to 5.4; requirements in `specs/plan-lifecycle-api/spec.md`). The
 website, Excel import, scheduled workflows and the FinanceLambdasTool MCP adapters all call these
@@ -67,6 +71,15 @@ result.
 |---|---|---|---|---|---|
 | `POST /v1/portfolios` | create synthetic portfolio | `api/create-portfolio-request` | `api/create-portfolio-response` | required | n/a |
 | `GET /v1/portfolios/{portfolio_id}` | portfolio read | path | `portfolio` | n/a | n/a |
+| `POST /v1/portfolios/{portfolio_id}/decisions` | beta issued recommendation capture | `api/create-portfolio-decision-request` | `api/portfolio-decision-response` | required | saved holdings revision |
+| `GET /v1/portfolios/{portfolio_id}/decisions` | beta issued decision history | path/query | `api/list-portfolio-decisions-response` | n/a | n/a |
+| `GET /v1/portfolio-decisions/{decision_id}` | beta decision evidence | path | `api/portfolio-decision-response` | n/a | n/a |
+| `POST /v1/portfolio-decisions/{decision_id}/resolution` | beta confirmed paper accept/reject | `api/resolve-portfolio-decision-request` | `api/resolve-portfolio-decision-response` | required | saved holdings revision |
+| `GET /v1/portfolios/{portfolio_id}/history` | beta saved holdings history | path/query | `api/portfolio-history-response` | n/a | n/a |
+| `GET /v1/portfolios/{portfolio_id}/history/{revision}` | beta saved holdings revision | path | `api/portfolio-history-entry-response` | n/a | n/a |
+| `GET /v1/snapshots` | beta approved market snapshot history | query | `api/list-market-snapshots-response` | n/a | n/a |
+| `POST /v1/activity-events` | beta sanitized durable activity | `api/activity-event-request` | `api/activity-event-response` | required | n/a |
+| `GET /v1/activity-events` | beta session or portfolio activity history | query | `api/list-activity-events-response` | n/a | n/a |
 | `POST /v1/portfolios/{portfolio_id}/plans` | create plan | `api/create-plan-request` | `api/create-plan-response` | required | portfolio revision |
 | `GET /v1/plans/{plan_id}` | plan head | `tools/get-plan-request` | `tools/get-plan-response` | n/a | n/a |
 | `GET /v1/plans/{plan_id}/versions` | version list (`page_size`, `next_token`) | `tools/list-plan-versions-request` | `tools/list-plan-versions-response` | n/a | n/a |

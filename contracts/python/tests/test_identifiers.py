@@ -8,7 +8,7 @@ from conftest import fixture
 
 PREFIXES = {
     "portfolio_id": "pf_", "plan_id": "pl_", "plan_version_id": "pv_", "input_snapshot_id": "snap_", "model_version": "mv_",
-    "run_id": "run_", "publication_id": "pub_", "execution_id": "exe_",
+    "decision_id": "pd_", "activity_event_id": "act_", "run_id": "run_", "publication_id": "pub_", "execution_id": "exe_",
 }
 
 

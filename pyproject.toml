@@ -10,7 +10,7 @@ dependencies = [
     # 1.1.0: backward-compatible minor of the first stable release 1.0.0 (beta, gamma and prod). The wheel is built from
     # contracts/python and vendored; the build stage publishes it to CodeArtifact once the
     # contract registry exists (the vendored file stays the build input).
-    "finplan-contracts==1.4.0",
+    "finplan-contracts==1.5.0",
     "boto3>=1.40",
     "defusedxml>=0.7.1",
     "openpyxl>=3.1.5",
@@ -37,7 +37,7 @@ dev = [
 default-groups = ["dev"]
 
 [tool.uv.sources]
-finplan-contracts = { path = "vendor/finplan-contracts/finplan_contracts-1.4.0-py3-none-any.whl" }
+finplan-contracts = { path = "vendor/finplan-contracts/finplan_contracts-1.5.0-py3-none-any.whl" }
 finplan-platform = { workspace = true }
 
 [build-system]

@@ -21,6 +21,7 @@ from finplan_contracts.validate import validate
 from finplan_platform.core import upgrade
 from finplan_platform.core.contract_io import validate_document
 from finplan_platform.core.repository import PutNew
+from finplan_platform.core.snapshot_reads import load_payloads
 from finplan_platform.handlers.api import ROUTES, match_route
 
 from tests.api_support import *
@@ -83,6 +84,27 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     tool.get(f"/v1/executions/{exe['execution_id']}")
     tool.get(f"/v1/snapshots/{snap}")
     tool.get(f"/v1/snapshots/{snap}/observations?instrument_id=SPY&start_date=2025-12-31&end_date=2026-01-06")
+    # The issued-decision lifecycle uses the same stored snapshot and book, and
+    # every new route is validated with the installed contract package.
+    model = rec.wrap(clients.fm_job_api)
+    observations = load_payloads(svc, svc.repo.require("snapshot_catalog", snap))[0]["observations"]
+    observation = max(observations, key=lambda item: item["session_date"])
+    proposal = {"portfolio_id": pf["portfolio_id"], "algorithm_family": "optimization", "algorithm": "min_variance",
+                "input_snapshot_id": snap, "portfolio_revision": 1,
+                "recommendation": {"target_weights": {"SPY": 0.6, "USD_CASH": 0.4}}, "provenance": {"model_version": "fixed-solver"},
+                "execution": {"reference_date": observation["session_date"], "reference_prices": {"SPY": observation["close"]},
+                              "target_weights": {"SPY": 0.6, "USD_CASH": 0.4}, "transaction_cost_bps": 2}, "idempotency_key": "c-decision"}
+    _, issued, _ = model.post(f"/v1/portfolios/{pf['portfolio_id']}/decisions", proposal)
+    decision_id = issued["decision"]["decision_id"]
+    tool.get(f"/v1/portfolio-decisions/{decision_id}")
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/decisions")
+    op.post(f"/v1/portfolio-decisions/{decision_id}/resolution", {"action": "accept", "expected_revision": 1, "confirmed_by_user": True, "idempotency_key": "c-resolution"})
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/history")
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/history/2")
+    tool.get(f"/v1/snapshots?dataset_id={dataset_id}")
+    tool.post("/v1/activity-events", {"event_kind": "contract_test", "portfolio_id": pf["portfolio_id"], "session_id": "contract-session",
+                                    "correlation_id": "cor_contract_receipt", "payload": {"decision_id": decision_id}, "idempotency_key": "c-activity"}, headers={"X-Correlation-Id": "cor_contract_receipt"})
+    tool.get(f"/v1/activity-events?portfolio_id={pf['portfolio_id']}")
     # error paths
     writer.post(f"/v1/plans/{pid}/publications", {"plan_version_id": child["plan_version_id"], "expected_revision": 1, "idempotency_key": "c-pub2"})  # CONFLICT
     op.post(f"/v1/publications/{pub['publication_id']}/executions", {"mode": "live", "idempotency_key": "c-live"})

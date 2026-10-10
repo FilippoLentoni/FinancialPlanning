@@ -589,6 +589,9 @@ registerCheck("no_storage_locations", (ctx) => {
   const out: ValidationIssue[] = [];
   for (const [path, s] of iterStrings(ctx.document)) {
     if (s.startsWith(ID_BASE)) continue; // contract $ids are identifiers, never fetched
+    // Public citations inside evidence are stored as data, never fetched as destinations.
+    if (ctx.info.name === "tools/record-agent-activity-request" && path[0] === "payload"
+        && s.startsWith("https://") && !STORAGE_URI.test(s)) continue;
     if (STORAGE_URI.test(s) || PATH_LIKE.test(s)) {
       out.push(fail(pointerOf(path), "storage locations, URIs, ARNs and path-like values are not accepted; use a trusted artifact reference", lastStringToken(path), VALIDATION_FAILED, "x-finplan-no-storage-locations"));
     }

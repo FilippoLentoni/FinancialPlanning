@@ -132,7 +132,11 @@ def put_portfolio_state(ctx: OperationContext, svc: Services, portfolio_id: str,
         response = {"portfolio_id": portfolio_id, "revision": expected + 1, "paper_state": stored, "synthetic": True, "contract_version": current_version()}
         event = audit_event(ctx, record_id=portfolio_id, record_type="portfolio", operation="put_portfolio_state", prior={"revision": current, "paper_state": copy.deepcopy(portfolio.attrs.get("paper_state"))}, new={"revision": expected + 1, "paper_state": stored}, synthetic=True)
         move = HeadMove("portfolio", record_id=portfolio_id, expected_revision=expected, revision_attr="paper_state_revision", set_attrs={"paper_state": stored}, allow_missing_revision=expected == 0)
-        return Mutation(ops=[move], response=response, audit=[event])
+        history = []
+        if ctx.env == "beta":
+            from .portfolio_lifecycle import baseline_ops, history_op
+            history = [*baseline_ops(ctx, svc, portfolio), history_op(ctx, svc, portfolio_id, expected + 1, stored, reason="operator_update")]
+        return Mutation(ops=[move, *history], response=response, audit=[event])
 
     return svc.repo.run_idempotent(ctx, operation="put_portfolio_state", idempotency_key=req.get("idempotency_key"), request_body=req, execute=execute)
 

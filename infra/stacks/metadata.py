@@ -47,6 +47,8 @@ class MetadataStack(PlatformStack):
         self.tables: dict[str, dynamodb.Table] = {}
         partition, region, account = cdk.Aws.PARTITION, cdk.Aws.REGION, cdk.Aws.ACCOUNT_ID
         for logical, spec in TABLES.items():
+            if env != "beta" and logical in ("portfolio_decision", "portfolio_history", "activity_event"):
+                continue
             name = table_name(env, logical)
             account_policy = iam.PolicyDocument(
                 statements=[

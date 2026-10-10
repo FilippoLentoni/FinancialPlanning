@@ -68,6 +68,10 @@
     },
     "portfolio_id": {
       "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
     }
   },
   "additionalProperties": false,

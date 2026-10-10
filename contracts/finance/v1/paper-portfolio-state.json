@@ -47,7 +47,8 @@
     "source": {
       "enum": [
         "paper_initialization",
-        "manual_update"
+        "manual_update",
+        "paper_rebalance"
       ]
     },
     "source_plan_version_id": {

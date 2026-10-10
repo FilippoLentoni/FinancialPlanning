@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/portfolio-decision.json",
+  "title": "portfolio-decision",
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "algorithm_family": {
+      "enum": [
+        "reinforcement_learning",
+        "optimization"
+      ]
+    },
+    "algorithm": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "portfolio_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "recommendation": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "source_analysis_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "reference_date": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+        },
+        "reference_prices": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 100,
+          "additionalProperties": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "target_weights": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 101,
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "transaction_cost_bps": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "reference_date",
+        "reference_prices",
+        "target_weights",
+        "transaction_cost_bps"
+      ],
+      "additionalProperties": false
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "decision_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "accepted",
+        "rejected"
+      ]
+    },
+    "created_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "resolution": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/api/resolve-portfolio-decision-response.json"
+    }
+  },
+  "required": [
+    "decision_id",
+    "portfolio_id",
+    "algorithm_family",
+    "algorithm",
+    "input_snapshot_id",
+    "portfolio_revision",
+    "recommendation",
+    "provenance",
+    "execution",
+    "status",
+    "created_at",
+    "checksum",
+    "synthetic",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

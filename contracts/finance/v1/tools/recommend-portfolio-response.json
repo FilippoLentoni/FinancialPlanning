@@ -301,6 +301,9 @@
     },
     "synthetic": {
       "type": "boolean"
+    },
+    "decision_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
     }
   },
   "required": [

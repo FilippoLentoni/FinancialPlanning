@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/evaluate-portfolio-decision-response.json",
+  "title": "tools/evaluate-portfolio-decision-response",
+  "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+}

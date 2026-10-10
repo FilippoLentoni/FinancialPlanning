@@ -128,4 +128,4 @@ def test_baseline_is_1_0_0() -> None:
     with tarfile.open(BASELINE) as tf:
         ver = next(m for m in tf.getmembers() if m.name.endswith("/VERSION"))
         assert tf.extractfile(ver).read().decode().strip() == "1.0.0"  # type: ignore[union-attr]
-    assert (CONTRACTS / "VERSION").read_text().strip() == "1.4.0"
+    assert (CONTRACTS / "VERSION").read_text().strip() == "1.5.0"

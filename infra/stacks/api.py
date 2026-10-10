@@ -46,7 +46,7 @@ from constructs import Construct
 from finplan_platform.core.config import BUCKET_ROLES, EnvConfig
 from finplan_platform.core.repository import TABLES, table_name
 from finplan_platform.core.upgrade import current_version
-from finplan_platform.handlers.api import CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
+from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
 
 from .common import PlatformStack, StageContext, lambda_code, platform_role, resource_name, role_arn_pattern, ssm_name, tag_role
 
@@ -99,19 +99,27 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
         }
     ]
     allowed_patterns = [platform]
+    routes = tuple(r for r in ROUTES if cfg.env == "beta" or r.operation not in BETA_LIFECYCLE_OPERATIONS)
     for cls in CONSUMER_CLASSES:
         pattern = arn_for(cfg.principal_pattern(CONSUMER_CONFIG_KEYS[cls]))
         allowed_patterns.append(pattern)
-        resources = compact_route_resources([route_resource(r) for r in ROUTES if route_allowed(r, cls)])
+        resources = compact_route_resources([route_resource(r) for r in routes if route_allowed(r, cls)])
         cond = {"ArnLike": {"aws:PrincipalArn": pattern}}
-        statements.append({"Sid": f"Allow{_sid(cls)}Routes", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
+        if env != "beta":
+            statements.append({"Sid": f"Allow{_sid(cls)}Routes", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
         statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
         # IAM '*' spans '/': an allowed parent-ID read can otherwise include known
         # descendant routes. Deny only disallowed descendants, never their parents.
-        allowed_routes = [r for r in ROUTES if route_allowed(r, cls)]
-        descendants = sorted({route_resource(r) for r in ROUTES if not route_allowed(r, cls) and any(r.method == parent.method and r.path.startswith(parent.path + "/") for parent in allowed_routes)})
+        allowed_routes = [r for r in routes if route_allowed(r, cls)]
+        descendants = sorted({route_resource(r) for r in routes if not route_allowed(r, cls) and any(r.method == parent.method and r.path.startswith(parent.path + "/") for parent in allowed_routes)})
         if descendants:
             statements.append({"Sid": f"Deny{_sid(cls)}ExcludedDescendants", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": descendants[0] if len(descendants) == 1 else descendants, "Condition": cond})
+    if env == "beta":
+        # One shared consumer allow avoids repeating each route union twice. Every
+        # consumer retains its explicit NotResource deny plus excluded descendants,
+        # so the effective route permissions are identical even with broad identity
+        # policies. Gamma/prod retain their existing policy serialization.
+        statements.append({"Sid": "AllowConsumersWithinExplicitRouteDenials", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": "execute-api:/*", "Condition": {"ArnLike": {"aws:PrincipalArn": allowed_patterns[1:]}}})
     # The website belongs to the broad platform pattern but does not administer paper state.
     operator_routes = [route_resource(r) for r in ROUTES if r.operator_only]
     if operator_routes:
@@ -196,7 +204,7 @@ class ApiStack(PlatformStack):
             )
         )
         self.role.add_to_principal_policy(
-            iam.PolicyStatement(sid="MetadataConditionalUpdate", actions=["dynamodb:UpdateItem"], resources=[table_arn(table_name(env, t)) for t in TABLES if t != "audit_event"])
+            iam.PolicyStatement(sid="MetadataConditionalUpdate", actions=["dynamodb:UpdateItem"], resources=[table_arn(table_name(env, t)) for t in TABLES if t not in ("audit_event", "portfolio_history", "activity_event") and (env == "beta" or t != "portfolio_decision")])
         )
         metadata.storage.key.grant_encrypt_decrypt(self.role)
         self.node.add_dependency(metadata)  # tables exist before the API that uses them
@@ -280,6 +288,8 @@ class ApiStack(PlatformStack):
         integration = apigw.LambdaIntegration(self.function, proxy=True, allow_test_invoke=False)
         resources: dict[str, apigw.IResource] = {"": self.rest_api.root}
         for route in ROUTES:
+            if env != "beta" and route.operation in BETA_LIFECYCLE_OPERATIONS:
+                continue
             res = self._resource(resources, route.path)
             res.add_method(route.method, integration, authorization_type=apigw.AuthorizationType.IAM)
         for rtype, (code, message, retryable, details) in GATEWAY_RESPONSES.items():

@@ -348,7 +348,7 @@ def validate_config(doc: Any, *, env: str | None = None) -> list[ConfigProblem]:
             if worst >= timeout:
                 problems.append(ConfigProblem("/ingest/provider_settings", f"worst-case retry time {worst:.1f}s does not fit inside the function timeout {timeout}s", "ING-17"))
     ret = doc.get("retention") if isinstance(doc.get("retention"), dict) else {}
-    if environment in ("beta", "gamma"):
+    if environment == "gamma":
         for k in _EXPIRING_ROLES:
             if k in ret and ret[k] is None:
                 problems.append(ConfigProblem(f"/retention/{k}", f"{environment} must expire all artifacts; set a retention value", "STO-06"))

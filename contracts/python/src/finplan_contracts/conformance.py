@@ -110,6 +110,16 @@ PUBLISHED_TOOLS: tuple[str, ...] = (
     "research_market_events",
     "run_portfolio_research",
     "submit_portfolio_feedback",
+    "get_portfolio_history",
+    "list_portfolio_decisions",
+    "get_portfolio_decision",
+    "resolve_portfolio_decision",
+    "list_market_snapshots",
+    "record_agent_activity",
+    "list_agent_activity",
+    "explain_portfolio_decision",
+    "compare_portfolio_decisions",
+    "evaluate_portfolio_decision",
 )
 
 RESERVED_FIXTURE_DIRS = {"vectors"}

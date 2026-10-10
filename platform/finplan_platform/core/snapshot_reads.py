@@ -86,6 +86,31 @@ def latest_approved_snapshot(ctx: OperationContext, svc: Services, query: Mappin
     raise PlatformError.not_found("no approved snapshot exists for this dataset", dataset_id=query["dataset_id"], reason="approved_snapshot_missing")
 
 
+def list_approved_snapshots(ctx: OperationContext, svc: Services, query: Mapping[str, Any]) -> dict[str, Any]:
+    """Bounded catalog pagination returning only approved, committed snapshots."""
+    from .portfolio_lifecycle import _check_beta, _page
+    from .upgrade import current_version
+    _check_beta(ctx)
+    require_valid({"dataset_id": query.get("dataset_id")}, "api/latest-snapshot-request")
+    dataset_id = query["dataset_id"]
+    limit, token = _page(svc, query, partition="dataset_id", value=dataset_id)
+    snapshots = []
+    examined = 0
+    while len(snapshots) < limit and examined < 500:
+        records, token = svc.repo.query_index("snapshot_catalog", "dataset-index", dataset_id, limit=1, page_token=token)
+        examined += len(records)
+        for record in records:
+            if record.attrs.get("status") == "approved":
+                try:
+                    snapshots.append(get_snapshot(ctx, svc, record.id)["snapshot"])
+                except PlatformError as exc:
+                    if exc.code != "NOT_FOUND":
+                        raise
+        if not token:
+            break
+    return {"snapshots": snapshots, "next_token": token, "contract_version": current_version()}
+
+
 def _snapshots_module() -> Any:
     try:
         return importlib.import_module(SNAPSHOTS_MODULE)

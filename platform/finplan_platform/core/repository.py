@@ -162,6 +162,22 @@ TABLES: dict[str, TableSpec] = {
     "staged_output": TableSpec("staged_output", "staged-output-table", "run_id", attribute_fields=("run_id", "plan_id", "outcome")),
     "idempotency": TableSpec("idempotency", "idempotency-table", None, ttl_attribute="expires_at"),
     "audit_event": TableSpec("audit_event", "audit-event-table", None, sort_key="sk"),
+    "portfolio_decision": TableSpec(
+        "portfolio_decision", "portfolio-decision-table", "decision_id",
+        indexes=(IndexSpec("portfolio-index", "portfolio_id", "decision_id"),),
+        mutable_fields=("status", "resolution_key", "resolution_checksum"),
+        attribute_fields=("decision_id", "portfolio_id", "status", "input_snapshot_id", "portfolio_revision"),
+    ),
+    "portfolio_history": TableSpec(
+        "portfolio_history", "portfolio-history-table", "history_id",
+        indexes=(IndexSpec("portfolio-index", "portfolio_id", "history_id"),),
+        attribute_fields=("portfolio_id", "history_id"),
+    ),
+    "activity_event": TableSpec(
+        "activity_event", "activity-event-table", "activity_event_id",
+        indexes=(IndexSpec("portfolio-index", "portfolio_id", "activity_event_id"), IndexSpec("session-index", "session_id", "activity_event_id")),
+        attribute_fields=("activity_event_id", "portfolio_id", "session_id"),
+    ),
 }
 
 #: Allowed status transitions per table (contract lifecycle; MDS-04).
@@ -170,6 +186,7 @@ TRANSITIONS: dict[str, dict[str, frozenset[str]]] = {
     "snapshot_catalog": {"committed": frozenset({"approved", "expired"}), "approved": frozenset({"expired"}), "expired": frozenset()},
     # execution status is an open vocabulary in contracts 0.1/1.0; transitions are declared by the API module
     "execution": {},
+    "portfolio_decision": {"proposed": frozenset({"accepted", "rejected"}), "accepted": frozenset(), "rejected": frozenset()},
 }
 
 

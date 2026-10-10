@@ -1,0 +1,575 @@
+cases:
+- schema: portfolio-decision
+  expect: valid
+  fixture: portfolio-decision/valid/synthetic-lifecycle.json
+  document: &id004
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    algorithm_family: optimization
+    algorithm: min_variance
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    portfolio_revision: 1
+    recommendation: &id001
+      synthetic: true
+    provenance: &id002
+      source: synthetic_fixture
+    execution: &id003
+      reference_date: '2026-01-09'
+      reference_prices:
+        SPY: 100
+      target_weights:
+        SPY: 0.9
+        USD_CASH: 0.1
+      transaction_cost_bps: 2
+    synthetic: true
+    contract_version: 1.5.0
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    status: proposed
+    created_at: '2026-01-09T15:00:00Z'
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+- schema: portfolio-history-entry
+  expect: valid
+  fixture: portfolio-history-entry/valid/synthetic-lifecycle.json
+  document: &id006
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    revision: 2
+    paper_state: &id005
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    recorded_at: '2026-01-09T15:00:00Z'
+    reason: accepted_paper_decision
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/create-portfolio-decision-request
+  expect: valid
+  fixture: api/create-portfolio-decision-request/valid/synthetic-lifecycle.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    algorithm_family: optimization
+    algorithm: min_variance
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    portfolio_revision: 1
+    recommendation: *id001
+    provenance: *id002
+    execution: *id003
+    idempotency_key: synthetic-proposal
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/portfolio-decision-response
+  expect: valid
+  fixture: api/portfolio-decision-response/valid/synthetic-lifecycle.json
+  document: &id010
+    decision: *id004
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/list-portfolio-decisions-response
+  expect: valid
+  fixture: api/list-portfolio-decisions-response/valid/synthetic-lifecycle.json
+  document: &id009
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    decisions:
+    - *id004
+    next_token: null
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/resolve-portfolio-decision-request
+  expect: valid
+  fixture: api/resolve-portfolio-decision-request/valid/synthetic-lifecycle.json
+  document: &id011
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    expected_revision: 1
+    idempotency_key: synthetic-resolution
+    confirmed_by_user: true
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/resolve-portfolio-decision-response
+  expect: valid
+  fixture: api/resolve-portfolio-decision-response/valid/synthetic-lifecycle.json
+  document: &id012
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    status: accepted
+    before_revision: 1
+    after_revision: 2
+    paper_state: *id005
+    simulated_fills:
+    - instrument_id: SPY
+      side: sell
+      quantity: 1
+      reference_price: 100
+      notional: 100
+      transaction_cost: 0.02
+    transaction_cost: 0.02
+    paper_execution: true
+    recorded_at: '2026-01-09T15:00:00Z'
+    reference_date: '2026-01-09'
+    reference_prices:
+      SPY: 100
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    confirmed_by_user: true
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/portfolio-history-response
+  expect: valid
+  fixture: api/portfolio-history-response/valid/synthetic-lifecycle.json
+  document: &id008
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    history:
+    - *id006
+    next_token: null
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/portfolio-history-entry-response
+  expect: valid
+  fixture: api/portfolio-history-entry-response/valid/synthetic-lifecycle.json
+  document:
+    history: *id006
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/list-market-snapshots-response
+  expect: valid
+  fixture: api/list-market-snapshots-response/valid/synthetic-lifecycle.json
+  document: &id013
+    snapshots: []
+    next_token: null
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/activity-event-request
+  expect: valid
+  fixture: api/activity-event-request/valid/synthetic-lifecycle.json
+  document: &id014
+    event_kind: agent_turn
+    session_id: synthetic-session
+    correlation_id: synthetic-correlation
+    payload: &id007
+      narrative: Synthetic paper recommendation
+      synthetic: true
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    idempotency_key: synthetic-activity
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/activity-event-response
+  expect: valid
+  fixture: api/activity-event-response/valid/synthetic-lifecycle.json
+  document: &id015
+    activity_event_id: act_01JA2B3C4D5E6F7G8H9JKMNPQR
+    recorded_at: '2026-01-09T15:00:00Z'
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    synthetic: true
+    contract_version: 1.5.0
+- schema: api/list-activity-events-response
+  expect: valid
+  fixture: api/list-activity-events-response/valid/synthetic-lifecycle.json
+  document: &id016
+    events:
+    - event_kind: agent_turn
+      session_id: synthetic-session
+      correlation_id: synthetic-correlation
+      payload: *id007
+      portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+      synthetic: true
+      contract_version: 1.5.0
+      activity_event_id: act_01JA2B3C4D5E6F7G8H9JKMNPQR
+      recorded_at: '2026-01-09T15:00:00Z'
+      checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+      caller:
+        principal: synthetic
+    next_token: null
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/get-portfolio-history-request
+  expect: valid
+  fixture: tools/get-portfolio-history-request/valid/synthetic-lifecycle.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    limit: 3
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/get-portfolio-history-response
+  expect: valid
+  fixture: tools/get-portfolio-history-response/valid/synthetic-lifecycle.json
+  document: *id008
+- schema: tools/list-portfolio-decisions-request
+  expect: valid
+  fixture: tools/list-portfolio-decisions-request/valid/synthetic-lifecycle.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    limit: 3
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/list-portfolio-decisions-response
+  expect: valid
+  fixture: tools/list-portfolio-decisions-response/valid/synthetic-lifecycle.json
+  document: *id009
+- schema: tools/get-portfolio-decision-request
+  expect: valid
+  fixture: tools/get-portfolio-decision-request/valid/synthetic-lifecycle.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/get-portfolio-decision-response
+  expect: valid
+  fixture: tools/get-portfolio-decision-response/valid/synthetic-lifecycle.json
+  document: *id010
+- schema: tools/resolve-portfolio-decision-request
+  expect: valid
+  fixture: tools/resolve-portfolio-decision-request/valid/synthetic-lifecycle.json
+  document: *id011
+- schema: tools/resolve-portfolio-decision-response
+  expect: valid
+  fixture: tools/resolve-portfolio-decision-response/valid/synthetic-lifecycle.json
+  document: *id012
+- schema: tools/list-market-snapshots-request
+  expect: valid
+  fixture: tools/list-market-snapshots-request/valid/synthetic-lifecycle.json
+  document:
+    dataset_id: finance/equity-etf-daily/research-universe
+    limit: 3
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/list-market-snapshots-response
+  expect: valid
+  fixture: tools/list-market-snapshots-response/valid/synthetic-lifecycle.json
+  document: *id013
+- schema: tools/record-agent-activity-request
+  expect: valid
+  fixture: tools/record-agent-activity-request/valid/synthetic-lifecycle.json
+  document: *id014
+- schema: tools/record-agent-activity-response
+  expect: valid
+  fixture: tools/record-agent-activity-response/valid/synthetic-lifecycle.json
+  document: *id015
+- schema: tools/list-agent-activity-request
+  expect: valid
+  fixture: tools/list-agent-activity-request/valid/synthetic-lifecycle.json
+  document:
+    session_id: synthetic-session
+    limit: 3
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/list-agent-activity-response
+  expect: valid
+  fixture: tools/list-agent-activity-response/valid/synthetic-lifecycle.json
+  document: *id016
+- schema: tools/explain-portfolio-decision-request
+  expect: valid
+  fixture: tools/explain-portfolio-decision-request/valid/synthetic-lifecycle.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    instrument_id: SPY
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/explain-portfolio-decision-response
+  expect: valid
+  fixture: tools/explain-portfolio-decision-response/valid/synthetic-lifecycle.json
+  document: &id017
+    analysis_id: ca_abcdefababcdefababcdefababcdefab
+    analysis_kind: explanation
+    created_at: '2026-01-09T15:00:00Z'
+    analysis_ref:
+      artifact_id: ca_abcdefababcdefababcdefababcdefab
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+      content_type: application/json
+    summary: Synthetic stored decision evidence
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/compare-portfolio-decisions-request
+  expect: valid
+  fixture: tools/compare-portfolio-decisions-request/valid/synthetic-lifecycle.json
+  document:
+    previous_decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    current_decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/compare-portfolio-decisions-response
+  expect: valid
+  fixture: tools/compare-portfolio-decisions-response/valid/synthetic-lifecycle.json
+  document: *id017
+- schema: tools/evaluate-portfolio-decision-request
+  expect: valid
+  fixture: tools/evaluate-portfolio-decision-request/valid/synthetic-lifecycle.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    observed_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    end_date: '2026-01-09'
+    synthetic: true
+    contract_version: 1.5.0
+- schema: tools/evaluate-portfolio-decision-response
+  expect: valid
+  fixture: tools/evaluate-portfolio-decision-response/valid/synthetic-lifecycle.json
+  document: *id017
+- schema: tools/resolve-portfolio-decision-request
+  expect: invalid
+  fixture: tools/resolve-portfolio-decision-request/invalid/confirmed_by_user.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    expected_revision: 1
+    idempotency_key: synthetic-resolution
+    confirmed_by_user: false
+    synthetic: true
+    contract_version: 1.5.0
+  code: VALIDATION_FAILED
+- schema: tools/resolve-portfolio-decision-request
+  expect: invalid
+  fixture: tools/resolve-portfolio-decision-request/invalid/expected_revision.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    expected_revision: 0
+    idempotency_key: synthetic-resolution
+    confirmed_by_user: true
+    synthetic: true
+    contract_version: 1.5.0
+  code: VALIDATION_FAILED
+- schema: tools/resolve-portfolio-decision-request
+  expect: invalid
+  fixture: tools/resolve-portfolio-decision-request/invalid/action.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: execute_broker
+    expected_revision: 1
+    idempotency_key: synthetic-resolution
+    confirmed_by_user: true
+    synthetic: true
+    contract_version: 1.5.0
+  code: VALIDATION_FAILED
+- schema: tools/get-portfolio-decision-request
+  expect: invalid
+  fixture: tools/get-portfolio-decision-request/invalid/wrong-prefix.json
+  document:
+    decision_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    synthetic: true
+    contract_version: 1.5.0
+  code: INVALID_IDENTIFIER
+- schema: portfolio-decision
+  expect: invalid
+  fixture: portfolio-decision/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: portfolio-history-entry
+  expect: invalid
+  fixture: portfolio-history-entry/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/create-portfolio-decision-request
+  expect: invalid
+  fixture: api/create-portfolio-decision-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/portfolio-decision-response
+  expect: invalid
+  fixture: api/portfolio-decision-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/list-portfolio-decisions-response
+  expect: invalid
+  fixture: api/list-portfolio-decisions-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/resolve-portfolio-decision-request
+  expect: invalid
+  fixture: api/resolve-portfolio-decision-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  fixture: api/resolve-portfolio-decision-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/portfolio-history-response
+  expect: invalid
+  fixture: api/portfolio-history-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/portfolio-history-entry-response
+  expect: invalid
+  fixture: api/portfolio-history-entry-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/list-market-snapshots-response
+  expect: invalid
+  fixture: api/list-market-snapshots-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/activity-event-request
+  expect: invalid
+  fixture: api/activity-event-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/activity-event-response
+  expect: invalid
+  fixture: api/activity-event-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: api/list-activity-events-response
+  expect: invalid
+  fixture: api/list-activity-events-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/get-portfolio-history-request
+  expect: invalid
+  fixture: tools/get-portfolio-history-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/get-portfolio-history-response
+  expect: invalid
+  fixture: tools/get-portfolio-history-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/list-portfolio-decisions-request
+  expect: invalid
+  fixture: tools/list-portfolio-decisions-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/list-portfolio-decisions-response
+  expect: invalid
+  fixture: tools/list-portfolio-decisions-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/get-portfolio-decision-response
+  expect: invalid
+  fixture: tools/get-portfolio-decision-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/resolve-portfolio-decision-response
+  expect: invalid
+  fixture: tools/resolve-portfolio-decision-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/list-market-snapshots-request
+  expect: invalid
+  fixture: tools/list-market-snapshots-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/list-market-snapshots-response
+  expect: invalid
+  fixture: tools/list-market-snapshots-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/record-agent-activity-request
+  expect: invalid
+  fixture: tools/record-agent-activity-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/record-agent-activity-response
+  expect: invalid
+  fixture: tools/record-agent-activity-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/list-agent-activity-request
+  expect: invalid
+  fixture: tools/list-agent-activity-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/list-agent-activity-response
+  expect: invalid
+  fixture: tools/list-agent-activity-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/explain-portfolio-decision-request
+  expect: invalid
+  fixture: tools/explain-portfolio-decision-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/explain-portfolio-decision-response
+  expect: invalid
+  fixture: tools/explain-portfolio-decision-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/compare-portfolio-decisions-request
+  expect: invalid
+  fixture: tools/compare-portfolio-decisions-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/compare-portfolio-decisions-response
+  expect: invalid
+  fixture: tools/compare-portfolio-decisions-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/evaluate-portfolio-decision-request
+  expect: invalid
+  fixture: tools/evaluate-portfolio-decision-request/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/evaluate-portfolio-decision-response
+  expect: invalid
+  fixture: tools/evaluate-portfolio-decision-response/invalid/unexpected-field.json
+  document:
+    unexpected_field: true
+    synthetic: true
+  code: VALIDATION_FAILED

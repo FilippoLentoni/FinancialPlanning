@@ -15,6 +15,20 @@ cases:
   expect: valid
   covers:
   - DOM-03
+- fixture: api/activity-event-request/invalid/unexpected-field.json
+  schema: api/activity-event-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/activity-event-request/valid/synthetic-lifecycle.json
+  schema: api/activity-event-request
+  expect: valid
+- fixture: api/activity-event-response/invalid/unexpected-field.json
+  schema: api/activity-event-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/activity-event-response/valid/synthetic-lifecycle.json
+  schema: api/activity-event-response
+  expect: valid
 - fixture: api/create-plan-request/invalid/client-supplied-plan-id.json
   schema: api/create-plan-request
   expect: invalid
@@ -53,6 +67,13 @@ cases:
   expect: valid
   covers:
   - ID-11
+- fixture: api/create-portfolio-decision-request/invalid/unexpected-field.json
+  schema: api/create-portfolio-decision-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/create-portfolio-decision-request/valid/synthetic-lifecycle.json
+  schema: api/create-portfolio-decision-request
+  expect: valid
 - fixture: api/create-portfolio-request/invalid/client-supplied-portfolio-id.json
   schema: api/create-portfolio-request
   expect: invalid
@@ -240,6 +261,48 @@ cases:
 - fixture: api/latest-snapshot-request/valid/paper.json
   schema: api/latest-snapshot-request
   expect: valid
+- fixture: api/list-activity-events-response/invalid/unexpected-field.json
+  schema: api/list-activity-events-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/list-activity-events-response/valid/synthetic-lifecycle.json
+  schema: api/list-activity-events-response
+  expect: valid
+- fixture: api/list-market-snapshots-response/invalid/unexpected-field.json
+  schema: api/list-market-snapshots-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/list-market-snapshots-response/valid/synthetic-lifecycle.json
+  schema: api/list-market-snapshots-response
+  expect: valid
+- fixture: api/list-portfolio-decisions-response/invalid/unexpected-field.json
+  schema: api/list-portfolio-decisions-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/list-portfolio-decisions-response/valid/synthetic-lifecycle.json
+  schema: api/list-portfolio-decisions-response
+  expect: valid
+- fixture: api/portfolio-decision-response/invalid/unexpected-field.json
+  schema: api/portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/portfolio-decision-response/valid/synthetic-lifecycle.json
+  schema: api/portfolio-decision-response
+  expect: valid
+- fixture: api/portfolio-history-entry-response/invalid/unexpected-field.json
+  schema: api/portfolio-history-entry-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/portfolio-history-entry-response/valid/synthetic-lifecycle.json
+  schema: api/portfolio-history-entry-response
+  expect: valid
+- fixture: api/portfolio-history-response/invalid/unexpected-field.json
+  schema: api/portfolio-history-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/portfolio-history-response/valid/synthetic-lifecycle.json
+  schema: api/portfolio-history-response
+  expect: valid
 - fixture: api/put-portfolio-state-request/invalid/paper.json
   schema: api/put-portfolio-state-request
   expect: invalid
@@ -317,6 +380,20 @@ cases:
   expect: valid
   covers:
   - ID-09
+- fixture: api/resolve-portfolio-decision-request/invalid/unexpected-field.json
+  schema: api/resolve-portfolio-decision-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/resolve-portfolio-decision-request/valid/synthetic-lifecycle.json
+  schema: api/resolve-portfolio-decision-request
+  expect: valid
+- fixture: api/resolve-portfolio-decision-response/invalid/unexpected-field.json
+  schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/resolve-portfolio-decision-response/valid/synthetic-lifecycle.json
+  schema: api/resolve-portfolio-decision-response
+  expect: valid
 - fixture: artifact-ref/invalid/bucket-and-key-fields.json
   schema: artifact-ref
   expect: invalid
@@ -1860,6 +1937,20 @@ cases:
   covers:
   - ID-08
   - ID-11
+- fixture: portfolio-decision/invalid/unexpected-field.json
+  schema: portfolio-decision
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: portfolio-decision/valid/synthetic-lifecycle.json
+  schema: portfolio-decision
+  expect: valid
+- fixture: portfolio-history-entry/invalid/unexpected-field.json
+  schema: portfolio-history-entry
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: portfolio-history-entry/valid/synthetic-lifecycle.json
+  schema: portfolio-history-entry
+  expect: valid
 - fixture: portfolio/invalid/missing-synthetic-flag.json
   schema: portfolio
   expect: invalid
@@ -2156,6 +2247,20 @@ cases:
 - fixture: tools/compare-classical-plans-response/valid/synthetic.json
   schema: tools/compare-classical-plans-response
   expect: valid
+- fixture: tools/compare-portfolio-decisions-request/invalid/unexpected-field.json
+  schema: tools/compare-portfolio-decisions-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/compare-portfolio-decisions-request/valid/synthetic-lifecycle.json
+  schema: tools/compare-portfolio-decisions-request
+  expect: valid
+- fixture: tools/compare-portfolio-decisions-response/invalid/unexpected-field.json
+  schema: tools/compare-portfolio-decisions-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/compare-portfolio-decisions-response/valid/synthetic-lifecycle.json
+  schema: tools/compare-portfolio-decisions-response
+  expect: valid
 - fixture: tools/create-override-version-request/invalid/client-supplied-plan-version-id.json
   schema: tools/create-override-version-request
   expect: invalid
@@ -2241,6 +2346,20 @@ cases:
 - fixture: tools/evaluate-classical-performance-response/valid/synthetic.json
   schema: tools/evaluate-classical-performance-response
   expect: valid
+- fixture: tools/evaluate-portfolio-decision-request/invalid/unexpected-field.json
+  schema: tools/evaluate-portfolio-decision-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/evaluate-portfolio-decision-request/valid/synthetic-lifecycle.json
+  schema: tools/evaluate-portfolio-decision-request
+  expect: valid
+- fixture: tools/evaluate-portfolio-decision-response/invalid/unexpected-field.json
+  schema: tools/evaluate-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/evaluate-portfolio-decision-response/valid/synthetic-lifecycle.json
+  schema: tools/evaluate-portfolio-decision-response
+  expect: valid
 - fixture: tools/explain-classical-recommendation-request/invalid/unknown-field.json
   schema: tools/explain-classical-recommendation-request
   expect: invalid
@@ -2258,6 +2377,20 @@ cases:
   code: VALIDATION_FAILED
 - fixture: tools/explain-classical-recommendation-response/valid/synthetic.json
   schema: tools/explain-classical-recommendation-response
+  expect: valid
+- fixture: tools/explain-portfolio-decision-request/invalid/unexpected-field.json
+  schema: tools/explain-portfolio-decision-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/explain-portfolio-decision-request/valid/synthetic-lifecycle.json
+  schema: tools/explain-portfolio-decision-request
+  expect: valid
+- fixture: tools/explain-portfolio-decision-response/invalid/unexpected-field.json
+  schema: tools/explain-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/explain-portfolio-decision-response/valid/synthetic-lifecycle.json
+  schema: tools/explain-portfolio-decision-response
   expect: valid
 - fixture: tools/get-classical-analysis-request/invalid/unknown-field.json
   schema: tools/get-classical-analysis-request
@@ -2372,6 +2505,34 @@ cases:
 - fixture: tools/get-plan-version-response/valid/compact.json
   schema: tools/get-plan-version-response
   expect: valid
+- fixture: tools/get-portfolio-decision-request/invalid/wrong-prefix.json
+  schema: tools/get-portfolio-decision-request
+  expect: invalid
+  code: INVALID_IDENTIFIER
+- fixture: tools/get-portfolio-decision-request/valid/synthetic-lifecycle.json
+  schema: tools/get-portfolio-decision-request
+  expect: valid
+- fixture: tools/get-portfolio-decision-response/invalid/unexpected-field.json
+  schema: tools/get-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-portfolio-decision-response/valid/synthetic-lifecycle.json
+  schema: tools/get-portfolio-decision-response
+  expect: valid
+- fixture: tools/get-portfolio-history-request/invalid/unexpected-field.json
+  schema: tools/get-portfolio-history-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-portfolio-history-request/valid/synthetic-lifecycle.json
+  schema: tools/get-portfolio-history-request
+  expect: valid
+- fixture: tools/get-portfolio-history-response/invalid/unexpected-field.json
+  schema: tools/get-portfolio-history-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-portfolio-history-response/valid/synthetic-lifecycle.json
+  schema: tools/get-portfolio-history-response
+  expect: valid
 - fixture: tools/get-publication-request/invalid/advisory.json
   schema: tools/get-publication-request
   expect: invalid
@@ -2385,6 +2546,20 @@ cases:
   code: VALIDATION_FAILED
 - fixture: tools/get-publication-response/valid/advisory.json
   schema: tools/get-publication-response
+  expect: valid
+- fixture: tools/list-agent-activity-request/invalid/unexpected-field.json
+  schema: tools/list-agent-activity-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-agent-activity-request/valid/synthetic-lifecycle.json
+  schema: tools/list-agent-activity-request
+  expect: valid
+- fixture: tools/list-agent-activity-response/invalid/unexpected-field.json
+  schema: tools/list-agent-activity-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-agent-activity-response/valid/synthetic-lifecycle.json
+  schema: tools/list-agent-activity-response
   expect: valid
 - fixture: tools/list-classical-analyses-request/invalid/unknown-field.json
   schema: tools/list-classical-analyses-request
@@ -2414,6 +2589,20 @@ cases:
 - fixture: tools/list-executions-response/valid/advisory.json
   schema: tools/list-executions-response
   expect: valid
+- fixture: tools/list-market-snapshots-request/invalid/unexpected-field.json
+  schema: tools/list-market-snapshots-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-market-snapshots-request/valid/synthetic-lifecycle.json
+  schema: tools/list-market-snapshots-request
+  expect: valid
+- fixture: tools/list-market-snapshots-response/invalid/unexpected-field.json
+  schema: tools/list-market-snapshots-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-market-snapshots-response/valid/synthetic-lifecycle.json
+  schema: tools/list-market-snapshots-response
+  expect: valid
 - fixture: tools/list-plan-versions-request/invalid/page-size-zero.json
   schema: tools/list-plan-versions-request
   expect: invalid
@@ -2439,6 +2628,20 @@ cases:
   expect: valid
 - fixture: tools/list-plan-versions-response/valid/page-with-token.json
   schema: tools/list-plan-versions-response
+  expect: valid
+- fixture: tools/list-portfolio-decisions-request/invalid/unexpected-field.json
+  schema: tools/list-portfolio-decisions-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-portfolio-decisions-request/valid/synthetic-lifecycle.json
+  schema: tools/list-portfolio-decisions-request
+  expect: valid
+- fixture: tools/list-portfolio-decisions-response/invalid/unexpected-field.json
+  schema: tools/list-portfolio-decisions-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-portfolio-decisions-response/valid/synthetic-lifecycle.json
+  schema: tools/list-portfolio-decisions-response
   expect: valid
 - fixture: tools/list-publications-request/invalid/advisory.json
   schema: tools/list-publications-request
@@ -2650,6 +2853,20 @@ cases:
 - fixture: tools/recommend-portfolio-response/valid/saved-paper.json
   schema: tools/recommend-portfolio-response
   expect: valid
+- fixture: tools/record-agent-activity-request/invalid/unexpected-field.json
+  schema: tools/record-agent-activity-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/record-agent-activity-request/valid/synthetic-lifecycle.json
+  schema: tools/record-agent-activity-request
+  expect: valid
+- fixture: tools/record-agent-activity-response/invalid/unexpected-field.json
+  schema: tools/record-agent-activity-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/record-agent-activity-response/valid/synthetic-lifecycle.json
+  schema: tools/record-agent-activity-response
+  expect: valid
 - fixture: tools/refresh-market-data-request/invalid/intraday-granularity.json
   schema: tools/refresh-market-data-request
   expect: invalid
@@ -2749,6 +2966,28 @@ cases:
   code: VALIDATION_FAILED
 - fixture: tools/research-portfolio-models-response/valid/synthetic.json
   schema: tools/research-portfolio-models-response
+  expect: valid
+- fixture: tools/resolve-portfolio-decision-request/invalid/action.json
+  schema: tools/resolve-portfolio-decision-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/resolve-portfolio-decision-request/invalid/confirmed_by_user.json
+  schema: tools/resolve-portfolio-decision-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/resolve-portfolio-decision-request/invalid/expected_revision.json
+  schema: tools/resolve-portfolio-decision-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/resolve-portfolio-decision-request/valid/synthetic-lifecycle.json
+  schema: tools/resolve-portfolio-decision-request
+  expect: valid
+- fixture: tools/resolve-portfolio-decision-response/invalid/unexpected-field.json
+  schema: tools/resolve-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/resolve-portfolio-decision-response/valid/synthetic-lifecycle.json
+  schema: tools/resolve-portfolio-decision-response
   expect: valid
 - fixture: tools/run-portfolio-research-request/invalid/unconfirmed-paid-run.json
   schema: tools/run-portfolio-research-request

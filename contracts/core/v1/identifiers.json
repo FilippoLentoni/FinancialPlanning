@@ -52,6 +52,12 @@
     },
     "analysis_id": {
       "$ref": "#/$defs/analysis_id"
+    },
+    "decision_id": {
+      "$ref": "#/$defs/decision_id"
+    },
+    "activity_event_id": {
+      "$ref": "#/$defs/activity_event_id"
     }
   },
   "additionalProperties": false,
@@ -227,6 +233,20 @@
       "pattern": "^ca_[0-9a-f]{32}$",
       "description": "Immutable classical advisory analysis identifier issued by FinanceModel.",
       "x-finplan-identifier": "analysis_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "decision_id": {
+      "type": "string",
+      "pattern": "^pd_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Immutable platform decision_id.",
+      "x-finplan-identifier": "decision_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "activity_event_id": {
+      "type": "string",
+      "pattern": "^act_[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "description": "Immutable platform activity_event_id.",
+      "x-finplan-identifier": "activity_event_id",
       "x-finplan-error-code": "INVALID_IDENTIFIER"
     }
   }

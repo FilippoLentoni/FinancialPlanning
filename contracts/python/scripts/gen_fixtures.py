@@ -1161,7 +1161,7 @@ def main() -> None:
     build_1_1_0()
     # Serving and saved-state fixtures share declarative source cases so regeneration
     # cannot silently drop newer minor-release contracts.
-    for fixture_source in ("advisory_fixture_cases.yaml", "classical_fixture_cases.yaml"):
+    for fixture_source in ("advisory_fixture_cases.yaml", "classical_fixture_cases.yaml", "lifecycle_fixture_cases.yaml"):
         supplemental = yaml.safe_load((Path(__file__).with_name(fixture_source)).read_text())
         for case in supplemental["cases"]:
             name = Path(case["fixture"]).stem

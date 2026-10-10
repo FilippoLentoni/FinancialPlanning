@@ -190,6 +190,8 @@ _VALIDATION = "finplan_platform.core.validation"
 _PUBLICATION = "finplan_platform.core.publication"
 _EXECUTION = "finplan_platform.core.execution"
 _SNAPSHOTS = "finplan_platform.core.snapshot_reads"
+_LIFECYCLE = "finplan_platform.core.portfolio_lifecycle"
+BETA_LIFECYCLE_OPERATIONS = frozenset({"create_portfolio_decision", "get_portfolio_decision", "list_portfolio_decisions", "resolve_portfolio_decision", "get_portfolio_history", "list_portfolio_history", "list_market_snapshots", "record_activity_event", "list_activity_events"})
 
 
 def _lazy_schema(target: str) -> Callable[[Mapping[str, Any]], Any]:
@@ -208,6 +210,15 @@ def _observation_query(r: Parts) -> dict[str, Any]:
 
 
 ROUTES: tuple[Route, ...] = (
+    Route("POST", "/v1/portfolios/{portfolio_id}/decisions", "create_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.create_decision(c,s,r.path["portfolio_id"],r.body), ("financemodel-job-api",), status=201, response_schema="api/portfolio-decision-response"),
+    Route("GET", "/v1/portfolios/{portfolio_id}/decisions", "list_portfolio_decisions", _LIFECYCLE, lambda m,c,s,r: m.list_decisions(c,s,r.path["portfolio_id"],r.query), _READERS+("financemodel-job-api",), response_schema="api/list-portfolio-decisions-response", query={"page_size":"int","next_token":"str"}),
+    Route("GET", "/v1/portfolio-decisions/{decision_id}", "get_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.get_decision(c,s,r.path["decision_id"]), _READERS+("financemodel-job-api",), response_schema="api/portfolio-decision-response"),
+    Route("POST", "/v1/portfolio-decisions/{decision_id}/resolution", "resolve_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.resolve_decision(c,s,r.path["decision_id"],r.body), ("plan-writer",), response_schema="api/resolve-portfolio-decision-response"),
+    Route("GET", "/v1/portfolios/{portfolio_id}/history", "list_portfolio_history", _LIFECYCLE, lambda m,c,s,r: m.list_history(c,s,r.path["portfolio_id"],r.query), _READERS+("financemodel-job-api",), response_schema="api/portfolio-history-response", query={"page_size":"int","next_token":"str"}),
+    Route("GET", "/v1/portfolios/{portfolio_id}/history/{revision}", "get_portfolio_history", _LIFECYCLE, lambda m,c,s,r: m.get_history(c,s,r.path["portfolio_id"],r.path["revision"]), _READERS+("financemodel-job-api",), response_schema="api/portfolio-history-entry-response"),
+    Route("GET", "/v1/snapshots", "list_market_snapshots", _SNAPSHOTS, lambda m,c,s,r: m.list_approved_snapshots(c,s,r.query), _READERS+FINANCEMODEL_CLASSES, response_schema="api/list-market-snapshots-response", query={"dataset_id":"str","page_size":"int","next_token":"str"}),
+    Route("POST", "/v1/activity-events", "record_activity_event", _LIFECYCLE, lambda m,c,s,r: m.record_activity(c,s,r.body), _READERS+("financemodel-job-api",), status=201, response_schema="api/activity-event-response"),
+    Route("GET", "/v1/activity-events", "list_activity_events", _LIFECYCLE, lambda m,c,s,r: m.list_activity(c,s,r.query), _READERS+("financemodel-job-api",), response_schema="api/list-activity-events-response", query={"portfolio_id":"str","session_id":"str","page_size":"int","next_token":"str"}),
     Route("POST", "/v1/portfolios", "create_portfolio", _PLANS, lambda m, c, s, r: m.create_portfolio(c, s, r.body), status=201, response_schema=CREATE_PORTFOLIO_RESPONSE),
     Route("GET", "/v1/portfolios/{portfolio_id}", "get_portfolio", _PLANS, lambda m, c, s, r: m.get_portfolio(c, s, r.path["portfolio_id"]), _READERS, response_schema="portfolio"),
     Route("GET", "/v1/portfolios/{portfolio_id}/state", "get_portfolio_state", _PLANS, lambda m, c, s, r: m.get_portfolio_state(c, s, r.path["portfolio_id"]), _READERS + ("financemodel-job-api",), response_schema="api/get-portfolio-state-response"),
