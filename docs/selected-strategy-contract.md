@@ -1,4 +1,12 @@
-# Selected strategy contract, 1.2.0
+# Selected strategy contract, 1.3.0
+
+The MCP tool now uses the additive `finance/v1/tools/recommend-portfolio-invocation-request`.
+An empty request `{}` loads the saved default paper portfolio and latest approved market snapshot.
+An optional `portfolio_id` selects another saved paper book. Snapshot/date overrides must appear
+together, and saved portfolio selection cannot be mixed with supplied holdings. This mode requires
+producer and consumer contracts 1.3.0; the original explicit request below remains unchanged.
+Saved-mode responses include paper-state provenance and proposed fractional share quantities with
+reference prices and dates. Recommendations never update the saved book or execute trades.
 
 The strategy-neutral `finance/v1/tools/recommend-portfolio-request` requires an approved
 `input_snapshot_id`, completed-session `as_of`, and `holdings` with `weights`, `cash_weight`,

@@ -112,7 +112,7 @@ def test_unsupported_contract_major_lists_the_served_majors(clients: Any) -> Non
     code, body, _ = clients.website.post("/v1/portfolios", {"name": "X", "base_currency": "USD", "idempotency_key": "v2", "contract_version": "2.0.0"})
     assert code == 400
     _envelope_ok(body, "UNSUPPORTED_CONTRACT_VERSION")
-    assert body["details"]["served_contract_majors"] == [0, 1]  # 1.0.0 pinned; 0 still served (contracts D16)
+    assert body["details"]["served_contract_majors"] == [0, 1]  # current major 1; stored major 0 remains served (contracts D16)
     code, body, _ = clients.reader.get(f"/v1/snapshots/{SNAP}", headers={"X-Finplan-Contract-Version": "2.1.0"})
     assert code == 400 and body["code"] == "UNSUPPORTED_CONTRACT_VERSION"
     code, body, _ = clients.website.post("/v1/portfolios", {"name": "X", "base_currency": "USD", "idempotency_key": "v0", "contract_version": "0.1.0"})
