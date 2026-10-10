@@ -1,0 +1,404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json",
+  "title": "classical-analysis",
+  "description": "Immutable traditional-optimization recommendation or evidence record. Payload details are additive; reference, identity and provenance remain strict. Never a trained PPO run or published plan identifier.",
+  "type": "object",
+  "properties": {
+    "analysis_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+    },
+    "analysis_kind": {
+      "enum": [
+        "recommendation",
+        "explanation",
+        "comparison",
+        "performance",
+        "research",
+        "feedback",
+        "research_run",
+        "market_events"
+      ]
+    },
+    "created_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "analysis_ref": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 12000
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "recommendation": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "const": "advisory_paper"
+        },
+        "strategy": {
+          "enum": [
+            "min_variance",
+            "mean_variance",
+            "cvar"
+          ]
+        },
+        "configuration_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/configuration_id"
+        },
+        "input_snapshot_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+        },
+        "as_of": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+        },
+        "snapshot_checksum": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+        },
+        "decision_timing": {
+          "const": "after_completed_close_for_next_session"
+        },
+        "forecast": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "enum": [
+                "not_available",
+                "scenario_estimate"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "expected_return": {
+              "type": "number"
+            },
+            "horizon_sessions": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 63
+            },
+            "method": {
+              "type": "string"
+            },
+            "calibrated": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "status"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "target_weights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "instrument_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "instrument_id",
+              "weight"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "cash_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "estimated_turnover": {
+          "type": "number",
+          "minimum": 0
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "instrument_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "enum": [
+                  "buy",
+                  "sell",
+                  "hold"
+                ]
+              },
+              "delta_weight": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "indicative_notional": {
+                "type": "number"
+              },
+              "current_quantity": {
+                "type": "number",
+                "minimum": 0
+              },
+              "target_quantity": {
+                "type": "number",
+                "minimum": 0
+              },
+              "delta_quantity": {
+                "type": "number"
+              },
+              "reference_price": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "price_as_of": {
+                "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+              }
+            },
+            "required": [
+              "instrument_id",
+              "action",
+              "delta_weight",
+              "indicative_notional"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "constraint_outcome": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "enum": [
+                "accepted",
+                "projected",
+                "rejected"
+              ]
+            },
+            "violations": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "action",
+            "violations"
+          ]
+        },
+        "solution_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "diagnostics": {
+          "type": "object"
+        },
+        "bias_disclosures": {
+          "type": "array"
+        },
+        "portfolio_state": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "enum": [
+                "saved_paper",
+                "supplied"
+              ]
+            },
+            "portfolio_id": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+            },
+            "revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "as_of": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+            },
+            "valuation_as_of": {
+              "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+            },
+            "base_currency": {
+              "const": "USD"
+            },
+            "portfolio_value": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "high_watermark": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "current_cash": {
+              "type": "number",
+              "minimum": 0
+            },
+            "positions": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "instrument_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "quantity": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "reference_price": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "price_as_of": {
+                    "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+                  }
+                },
+                "required": [
+                  "instrument_id",
+                  "quantity",
+                  "reference_price",
+                  "price_as_of"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "source",
+            "portfolio_value",
+            "high_watermark",
+            "current_cash"
+          ],
+          "additionalProperties": false
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "lookback_days": {
+              "type": "integer",
+              "minimum": 20,
+              "maximum": 252
+            },
+            "risk_aversion": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 100
+            },
+            "cvar_alpha": {
+              "type": "number",
+              "minimum": 0.8,
+              "maximum": 0.99
+            },
+            "max_weight": {
+              "type": "number",
+              "minimum": 0.2,
+              "maximum": 1
+            },
+            "cash_weight": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 0.5
+            },
+            "horizon_sessions": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 63
+            },
+            "turnover_penalty": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "mode",
+        "strategy",
+        "input_snapshot_id",
+        "as_of",
+        "snapshot_checksum",
+        "decision_timing",
+        "forecast",
+        "limitations",
+        "target_weights",
+        "cash_weight",
+        "decisions",
+        "constraint_outcome"
+      ]
+    },
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "analysis_id",
+    "analysis_kind",
+    "created_at",
+    "analysis_ref",
+    "summary",
+    "contract_version",
+    "synthetic"
+  ],
+  "additionalProperties": true
+}

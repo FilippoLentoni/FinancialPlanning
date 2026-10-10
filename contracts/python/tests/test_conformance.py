@@ -31,7 +31,7 @@ def test_inventory_covers_spec_list_and_tools(store):
     assert conformance.check_inventory(store) == []
     for name in conformance.REQUIRED_SCHEMAS:
         assert name in store
-    assert len(conformance.PUBLISHED_TOOLS) == 13
+    assert len(conformance.PUBLISHED_TOOLS) == 28
 
 
 def test_inventory_fails_when_invalid_fixture_missing(tmp_root):

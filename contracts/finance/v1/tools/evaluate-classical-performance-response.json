@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/evaluate-classical-performance-response.json",
+  "title": "tools/evaluate-classical-performance-response",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+    },
+    {
+      "properties": {
+        "analysis_kind": {
+          "const": "performance"
+        }
+      }
+    },
+    {
+      "required": [
+        "source_analysis_id",
+        "source_analysis_ref",
+        "status",
+        "trend",
+        "actual_source"
+      ],
+      "properties": {
+        "source_analysis_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+        },
+        "source_analysis_ref": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "partial",
+            "not_available"
+          ]
+        },
+        "trend": {
+          "enum": [
+            "green",
+            "red",
+            "not_available"
+          ]
+        },
+        "actual_source": {
+          "enum": [
+            "saved_paper",
+            "hypothetical",
+            "provided_execution"
+          ]
+        }
+      }
+    }
+  ]
+}

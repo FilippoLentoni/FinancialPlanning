@@ -12,9 +12,9 @@ PREFIXES = {
 }
 
 
-def test_exactly_the_nine_identifiers(store):
+def test_canonical_platform_and_analysis_identifiers(store):
     root_props = set(store.get("identifiers").schema["properties"]) - {"synthetic", "release_id"}
-    assert root_props == set(PREFIXES) | {"configuration_id"}
+    assert root_props == set(PREFIXES) | {"configuration_id", "analysis_id"}
 
 
 @pytest.mark.parametrize("field,prefix", PREFIXES.items())

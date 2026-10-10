@@ -95,6 +95,21 @@ PUBLISHED_TOOLS: tuple[str, ...] = (
     "publish_plan_version",
     # 1.1.0: the FinanceLambdasTool production-strategy tool: get, set, clear
     "production_strategy",
+    "get_publication",
+    "list_publications",
+    "list_executions",
+    "get_performance_evidence",
+    "recommend_portfolio",
+    "recommend_classical_portfolio",
+    "explain_classical_recommendation",
+    "compare_classical_plans",
+    "evaluate_classical_performance",
+    "get_classical_analysis",
+    "list_classical_analyses",
+    "research_portfolio_models",
+    "research_market_events",
+    "run_portfolio_research",
+    "submit_portfolio_feedback",
 )
 
 RESERVED_FIXTURE_DIRS = {"vectors"}

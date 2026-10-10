@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/recommend-classical-portfolio-response.json",
+  "title": "tools/recommend-classical-portfolio-response",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+    },
+    {
+      "properties": {
+        "analysis_kind": {
+          "const": "recommendation"
+        }
+      }
+    },
+    {
+      "required": [
+        "recommendation",
+        "explanation"
+      ],
+      "properties": {
+        "explanation": {
+          "type": "object",
+          "required": [
+            "objective_gain",
+            "shapley",
+            "force_keep"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "settings": {
+    "lookback_days": 5000
+  },
+  "synthetic": true
+}

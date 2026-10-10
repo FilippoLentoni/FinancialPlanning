@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/compare-classical-plans-response.json",
+  "title": "tools/compare-classical-plans-response",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+    },
+    {
+      "properties": {
+        "analysis_kind": {
+          "const": "comparison"
+        }
+      }
+    },
+    {
+      "required": [
+        "previous_analysis_id",
+        "current_analysis_id",
+        "previous_analysis_ref",
+        "current_analysis_ref",
+        "status"
+      ],
+      "properties": {
+        "previous_analysis_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+        },
+        "current_analysis_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+        },
+        "previous_analysis_ref": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+        },
+        "current_analysis_ref": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+        },
+        "alignment": {
+          "type": "object"
+        },
+        "shapley": {
+          "type": "object",
+          "required": [
+            "method",
+            "groups",
+            "baseline",
+            "final",
+            "contributions",
+            "reconciliation_residual",
+            "coalition_count",
+            "tolerance"
+          ]
+        },
+        "changes": {
+          "type": "array",
+          "maxItems": 100
+        },
+        "status": {
+          "enum": [
+            "available",
+            "not_available"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "available"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "alignment",
+              "shapley",
+              "changes"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_available"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "reason",
+              "coalition_status"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

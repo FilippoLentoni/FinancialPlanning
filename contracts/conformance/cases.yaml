@@ -451,6 +451,13 @@ cases:
   expect: valid
   covers:
   - OWN-06
+- fixture: classical-analysis/invalid/missing-checksum.json
+  schema: classical-analysis
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: classical-analysis/valid/evidence.json
+  schema: classical-analysis
+  expect: valid
 - fixture: common/invalid/checksum-uppercase-hex.json
   schema: common
   expect: invalid
@@ -2135,6 +2142,20 @@ cases:
   expect: valid
   covers:
   - CS-02
+- fixture: tools/compare-classical-plans-request/invalid/unknown-field.json
+  schema: tools/compare-classical-plans-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/compare-classical-plans-request/valid/synthetic.json
+  schema: tools/compare-classical-plans-request
+  expect: valid
+- fixture: tools/compare-classical-plans-response/invalid/missing-required.json
+  schema: tools/compare-classical-plans-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/compare-classical-plans-response/valid/synthetic.json
+  schema: tools/compare-classical-plans-response
+  expect: valid
 - fixture: tools/create-override-version-request/invalid/client-supplied-plan-version-id.json
   schema: tools/create-override-version-request
   expect: invalid
@@ -2206,6 +2227,52 @@ cases:
   expect: valid
   covers:
   - OWN-06
+- fixture: tools/evaluate-classical-performance-request/invalid/unknown-field.json
+  schema: tools/evaluate-classical-performance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/evaluate-classical-performance-request/valid/synthetic.json
+  schema: tools/evaluate-classical-performance-request
+  expect: valid
+- fixture: tools/evaluate-classical-performance-response/invalid/missing-required.json
+  schema: tools/evaluate-classical-performance-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/evaluate-classical-performance-response/valid/synthetic.json
+  schema: tools/evaluate-classical-performance-response
+  expect: valid
+- fixture: tools/explain-classical-recommendation-request/invalid/unknown-field.json
+  schema: tools/explain-classical-recommendation-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/explain-classical-recommendation-request/invalid/wrong-analysis-id.json
+  schema: tools/explain-classical-recommendation-request
+  expect: invalid
+  code: INVALID_IDENTIFIER
+- fixture: tools/explain-classical-recommendation-request/valid/synthetic.json
+  schema: tools/explain-classical-recommendation-request
+  expect: valid
+- fixture: tools/explain-classical-recommendation-response/invalid/missing-required.json
+  schema: tools/explain-classical-recommendation-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/explain-classical-recommendation-response/valid/synthetic.json
+  schema: tools/explain-classical-recommendation-response
+  expect: valid
+- fixture: tools/get-classical-analysis-request/invalid/unknown-field.json
+  schema: tools/get-classical-analysis-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-classical-analysis-request/valid/synthetic.json
+  schema: tools/get-classical-analysis-request
+  expect: valid
+- fixture: tools/get-classical-analysis-response/invalid/missing-required.json
+  schema: tools/get-classical-analysis-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-classical-analysis-response/valid/synthetic.json
+  schema: tools/get-classical-analysis-response
+  expect: valid
 - fixture: tools/get-experiment-result-request/invalid/missing-run-id.json
   schema: tools/get-experiment-result-request
   expect: invalid
@@ -2318,6 +2385,20 @@ cases:
   code: VALIDATION_FAILED
 - fixture: tools/get-publication-response/valid/advisory.json
   schema: tools/get-publication-response
+  expect: valid
+- fixture: tools/list-classical-analyses-request/invalid/unknown-field.json
+  schema: tools/list-classical-analyses-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-classical-analyses-request/valid/synthetic.json
+  schema: tools/list-classical-analyses-request
+  expect: valid
+- fixture: tools/list-classical-analyses-response/invalid/missing-required.json
+  schema: tools/list-classical-analyses-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-classical-analyses-response/valid/synthetic.json
+  schema: tools/list-classical-analyses-response
   expect: valid
 - fixture: tools/list-executions-request/invalid/advisory.json
   schema: tools/list-executions-request
@@ -2494,6 +2575,35 @@ cases:
   expect: valid
   covers:
   - CS-11
+- fixture: tools/recommend-classical-portfolio-request/invalid/holdings-with-portfolio-id.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-request/invalid/holdings-without-snapshot.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-request/invalid/unbounded-settings.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-request/invalid/unknown-field.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-request/valid/explicit-historical.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: valid
+- fixture: tools/recommend-classical-portfolio-request/valid/synthetic.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: valid
+- fixture: tools/recommend-classical-portfolio-response/invalid/missing-required.json
+  schema: tools/recommend-classical-portfolio-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-response/valid/synthetic.json
+  schema: tools/recommend-classical-portfolio-response
+  expect: valid
 - fixture: tools/recommend-portfolio-invocation-request/invalid/advisory.json
   schema: tools/recommend-portfolio-invocation-request
   expect: invalid
@@ -2612,6 +2722,52 @@ cases:
   covers:
   - ID-05
   - ID-10
+- fixture: tools/research-market-events-request/invalid/unknown-field.json
+  schema: tools/research-market-events-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/research-market-events-request/valid/synthetic.json
+  schema: tools/research-market-events-request
+  expect: valid
+- fixture: tools/research-market-events-response/invalid/missing-required.json
+  schema: tools/research-market-events-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/research-market-events-response/valid/synthetic.json
+  schema: tools/research-market-events-response
+  expect: valid
+- fixture: tools/research-portfolio-models-request/invalid/unknown-field.json
+  schema: tools/research-portfolio-models-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/research-portfolio-models-request/valid/synthetic.json
+  schema: tools/research-portfolio-models-request
+  expect: valid
+- fixture: tools/research-portfolio-models-response/invalid/missing-required.json
+  schema: tools/research-portfolio-models-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/research-portfolio-models-response/valid/synthetic.json
+  schema: tools/research-portfolio-models-response
+  expect: valid
+- fixture: tools/run-portfolio-research-request/invalid/unconfirmed-paid-run.json
+  schema: tools/run-portfolio-research-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-portfolio-research-request/invalid/unknown-field.json
+  schema: tools/run-portfolio-research-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-portfolio-research-request/valid/synthetic.json
+  schema: tools/run-portfolio-research-request
+  expect: valid
+- fixture: tools/run-portfolio-research-response/invalid/missing-required.json
+  schema: tools/run-portfolio-research-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-portfolio-research-response/valid/synthetic.json
+  schema: tools/run-portfolio-research-response
+  expect: valid
 - fixture: tools/submit-experiment-request/invalid/missing-idempotency-key.json
   schema: tools/submit-experiment-request
   expect: invalid
@@ -2678,6 +2834,20 @@ cases:
   expect: valid
   covers:
   - CS-11
+- fixture: tools/submit-portfolio-feedback-request/invalid/unknown-field.json
+  schema: tools/submit-portfolio-feedback-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/submit-portfolio-feedback-request/valid/synthetic.json
+  schema: tools/submit-portfolio-feedback-request
+  expect: valid
+- fixture: tools/submit-portfolio-feedback-response/invalid/missing-required.json
+  schema: tools/submit-portfolio-feedback-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/submit-portfolio-feedback-response/valid/synthetic.json
+  schema: tools/submit-portfolio-feedback-response
+  expect: valid
 - fixture: tools/validate-plan-version-request/invalid/missing-idempotency-key.json
   schema: tools/validate-plan-version-request
   expect: invalid

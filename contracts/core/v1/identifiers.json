@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contracts.finplan.invalid/core/v1/identifiers.json",
   "title": "Canonical identifiers",
-  "description": "The nine canonical identifiers (plus release_id). The root validates an identifier set: an object whose keys are identifier names, so a value in the wrong field (for example a 'pl_' value in plan_version_id) fails with INVALID_IDENTIFIER naming the field.",
+  "description": "Canonical platform and model identifiers. Classical analysis identifiers are FinanceModel-issued immutable evidence records, distinct from published plan versions and experiment runs.",
   "x-finplan-minted-by": {
     "portfolio_id": "financialplanning",
     "plan_id": "financialplanning",
@@ -12,7 +12,8 @@
     "execution_id": "financialplanning",
     "model_version": "financemodel",
     "run_id": "financemodel",
-    "configuration_id": "any"
+    "configuration_id": "any",
+    "analysis_id": "financemodel"
   },
   "type": "object",
   "properties": {
@@ -48,6 +49,9 @@
     },
     "synthetic": {
       "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    },
+    "analysis_id": {
+      "$ref": "#/$defs/analysis_id"
     }
   },
   "additionalProperties": false,
@@ -216,6 +220,13 @@
       "pattern": "^cfg_[0-9a-f]{64}$",
       "description": "Content-addressed configuration identifier: 'cfg_' + lowercase hex SHA-256 of the RFC 8785 (JCS) canonical configuration document. Any party may compute it.",
       "x-finplan-identifier": "configuration_id",
+      "x-finplan-error-code": "INVALID_IDENTIFIER"
+    },
+    "analysis_id": {
+      "type": "string",
+      "pattern": "^ca_[0-9a-f]{32}$",
+      "description": "Immutable classical advisory analysis identifier issued by FinanceModel.",
+      "x-finplan-identifier": "analysis_id",
       "x-finplan-error-code": "INVALID_IDENTIFIER"
     }
   }

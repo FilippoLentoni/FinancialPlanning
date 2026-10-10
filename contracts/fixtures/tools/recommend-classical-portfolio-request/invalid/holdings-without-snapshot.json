@@ -1,0 +1,9 @@
+{
+  "holdings": {
+    "weights": [],
+    "cash_weight": 1,
+    "portfolio_value": 10000,
+    "high_watermark": 10000
+  },
+  "synthetic": true
+}

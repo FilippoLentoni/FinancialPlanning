@@ -8,7 +8,7 @@ from conftest import fixture
 
 D10_QUALITY_FLAGS = {"no_session", "missing_sessions", "rejected_records", "source_revised", "contains_intraday_partial", "finality_inferred", "no_new_observations", "stale_source"}
 D12_QUALITY_FLAGS = {"empty_response", "partial_response"}
-ARTIFACT_KINDS = {"snapshot_manifest", "snapshot_payload", "plan_content", "plan_export", "excel_source", "staged_output_manifest", "validation_report", "import_report", "research_dataset", "run_artifact", "explanation_evidence"}
+ARTIFACT_KINDS = {"snapshot_manifest", "snapshot_payload", "plan_content", "plan_export", "excel_source", "staged_output_manifest", "validation_report", "import_report", "research_dataset", "run_artifact", "explanation_evidence", "classical_analysis"}
 
 
 def test_budget_categories_closed(store):
@@ -96,7 +96,9 @@ def test_tool_catalog_lists_every_published_tool_and_ids_resolve():
 
     cat = fixture("tool-catalog/valid/gamma-catalog.json")
     # the catalog fixture is a 1.0.0 fixture (kept byte-identical, CON-02); production_strategy is added in 1.1.0
-    assert {t["name"] for t in cat["tools"]} == set(PUBLISHED_TOOLS) - {"production_strategy"}
+    original = {"describe_capabilities", "query_market_data", "get_plan", "get_plan_version", "list_plan_versions", "get_job_status", "get_experiment_result", "refresh_market_data", "submit_experiment", "create_override_version", "validate_plan_version", "publish_plan_version"}
+    assert {t["name"] for t in cat["tools"]} == original
+    assert original < set(PUBLISHED_TOOLS)
     assert validate(cat, "tool-catalog").valid
     bad = copy.deepcopy(cat)
     bad["tools"][0]["input_schema_id"] = bad["tools"][0]["input_schema_id"].replace("-request", "-v9-request")

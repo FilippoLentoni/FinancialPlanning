@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/list-classical-analyses-request.json",
+  "title": "tools/list-classical-analyses-request",
+  "type": "object",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "kind": {
+      "enum": [
+        "recommendation",
+        "explanation",
+        "comparison",
+        "performance",
+        "research",
+        "feedback",
+        "research_run",
+        "market_events"
+      ]
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}

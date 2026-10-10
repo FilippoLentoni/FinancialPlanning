@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/run-portfolio-research-response.json",
+  "title": "tools/run-portfolio-research-response",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+    },
+    {
+      "properties": {
+        "analysis_kind": {
+          "const": "research_run"
+        }
+      }
+    },
+    {
+      "required": [
+        "review_id",
+        "dry_run",
+        "cost_estimate",
+        "activation"
+      ],
+      "properties": {
+        "review_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+        },
+        "dry_run": {
+          "type": "boolean"
+        },
+        "cost_estimate": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/cost-estimate.json"
+        },
+        "activation": {
+          "const": "proposal_only"
+        }
+      }
+    }
+  ]
+}
