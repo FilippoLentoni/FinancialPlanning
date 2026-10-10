@@ -1,10 +1,12 @@
 """Deployed test events and outcome expectations share the scheduled morning cutoff."""
 from datetime import datetime
+from io import BytesIO
+import json
 
 import pytest
 
 from finplan_platform.core.config import EnvConfig, load_config
-from tests.integration.test_daily_loop_deployed import _scheduler_event, _target_session
+from tests.integration.test_daily_loop_deployed import _scheduler_event, _target_session, test_uni05_universe_snapshot_from_yfinance as run_uni05
 
 DATASET = "finance/equity-etf-daily/research-universe"
 
@@ -36,3 +38,57 @@ def test_new_york_date_boundary_weekend_and_dst(wallclock, fire, expected):
     event = _scheduler_event(config, DATASET, now=now)
     assert event["scheduled_time"] == fire
     assert _target_session(config, now=now) == expected
+
+
+class UniverseIntegrationDouble:
+    def __init__(self, *, no_session=True, latest_changed=False, candidate_status="committed"):
+        self.no_session, self.latest_changed = no_session, latest_changed
+        self.latest_reads = 0
+        self.approved = {
+            "input_snapshot_id": "snap_01KDVDP88REHGPBXFX6CHX92KS",
+            "lineage": {"provider": "yfinance"},
+            "coverage": {"start": "2010-10-01", "end": "2026-10-08"},
+            "status": "approved",
+            "approval_rule_version": "approval-v2-universe",
+            "bias_disclosures": [{"kind": "hindsight_selection"}, {"kind": "survivorship"}],
+            "observation_summary": {"instruments_expected": 5, "instruments_complete": 5},
+        }
+        self.candidate = {**self.approved, "input_snapshot_id": "snap_01KDVDP88REHGPBXFX6CHX92KT", "status": candidate_status, "quality_flags": ["partial_response", "rejected_records"], "coverage": {"start": "2010-10-01", "end": "2026-10-09"}}
+
+    def invoke(self, **kwargs):
+        event = json.loads(kwargs["Payload"])
+        if self.no_session:
+            result = {"quality_flags": ["no_session"], "new_snapshot": False, "input_snapshot_id": self.candidate["input_snapshot_id"], "snapshot": self.candidate}
+        else:
+            result = {"input_snapshot_id": self.candidate["input_snapshot_id"], "snapshot": {**self.candidate, "dataset": {"dataset_id": event["dataset_id"]}}}
+        return {"Payload": BytesIO(json.dumps(result).encode())}
+
+    def call(self, method, path):
+        assert method == "GET"
+        if path.startswith("/v1/snapshots/latest?"):
+            self.latest_reads += 1
+            latest = self.candidate if self.latest_changed and self.latest_reads > 1 else self.approved
+            return 200, {"snapshot": latest}, {}
+        if "/observations?" in path:
+            return 200, {"instruments": [{"instrument_id": name} for name in ("VOO", "GOOGL", "NFLX", "AAPL", "NVDA")]}, {}
+        return 200, {"snapshot": self.candidate}, {}
+
+
+@pytest.mark.parametrize("no_session", [True, False])
+def test_deployed_universe_check_verifies_retained_approved_baseline_and_reports_freshness(capsys, no_session):
+    double = UniverseIntegrationDouble(no_session=no_session)
+    run_uni05({"cfg": cfg(), "t": double, "lambda": double}, capsys)
+    assert double.latest_reads == 2
+
+
+@pytest.mark.parametrize("no_session", [True, False])
+def test_universe_check_refuses_rejected_data_becoming_latest_approved(capsys, no_session):
+    double = UniverseIntegrationDouble(no_session=no_session, latest_changed=True)
+    with pytest.raises(AssertionError):
+        run_uni05({"cfg": cfg(), "t": double, "lambda": double}, capsys)
+
+
+def test_universe_check_refuses_provider_quality_flags_marked_approved(capsys):
+    double = UniverseIntegrationDouble(no_session=False, candidate_status="approved")
+    with pytest.raises(AssertionError, match="blocking provider quality"):
+        run_uni05({"cfg": cfg(), "t": double, "lambda": double}, capsys)
