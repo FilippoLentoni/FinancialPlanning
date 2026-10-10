@@ -17,7 +17,9 @@
         "research",
         "feedback",
         "research_run",
-        "market_events"
+        "market_events",
+        "recursive_cycle",
+        "recursive_iteration"
       ]
     },
     "created_at": {

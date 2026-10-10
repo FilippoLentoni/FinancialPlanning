@@ -182,6 +182,7 @@ export const PUBLISHED_TOOLS = [
   "explain_portfolio_decision",
   "compare_portfolio_decisions",
   "evaluate_portfolio_decision",
+  "run_recursive_improvement",
 ] as const;
 
 const RESERVED_FIXTURE_DIRS = new Set(["vectors"]);

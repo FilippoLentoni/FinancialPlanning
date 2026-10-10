@@ -120,6 +120,7 @@ PUBLISHED_TOOLS: tuple[str, ...] = (
     "explain_portfolio_decision",
     "compare_portfolio_decisions",
     "evaluate_portfolio_decision",
+    "run_recursive_improvement",
 )
 
 RESERVED_FIXTURE_DIRS = {"vectors"}

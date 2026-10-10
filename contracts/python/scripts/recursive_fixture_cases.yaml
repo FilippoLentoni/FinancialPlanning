@@ -1,0 +1,224 @@
+cases:
+- schema: tools/run-recursive-improvement-request
+  expect: valid
+  fixture: tools/run-recursive-improvement-request/valid/review.json
+  document:
+    synthetic: true
+    query: Review persistent underperformance over the policy horizon
+    max_iterations: 3
+- schema: tools/run-recursive-improvement-request
+  expect: valid
+  fixture: tools/run-recursive-improvement-request/valid/confirmed-launch.json
+  document:
+    cycle_id: ca_11111111111111111111111111111111
+    dry_run: false
+    confirmed_by_user: true
+    idempotency_key: synthetic-cycle-launch
+    synthetic: true
+- schema: tools/run-recursive-improvement-request
+  expect: invalid
+  fixture: tools/run-recursive-improvement-request/invalid/missing-confirmation.json
+  document:
+    cycle_id: ca_11111111111111111111111111111111
+    dry_run: false
+    idempotency_key: synthetic-cycle-launch
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/run-recursive-improvement-request
+  expect: invalid
+  fixture: tools/run-recursive-improvement-request/invalid/missing-idempotency.json
+  document:
+    cycle_id: ca_11111111111111111111111111111111
+    dry_run: false
+    confirmed_by_user: true
+    synthetic: true
+  code: VALIDATION_FAILED
+- schema: tools/run-recursive-improvement-request
+  expect: invalid
+  fixture: tools/run-recursive-improvement-request/invalid/unbounded-iterations.json
+  document:
+    synthetic: true
+    query: Review persistent underperformance over the policy horizon
+    max_iterations: 4
+  code: VALIDATION_FAILED
+- schema: tools/run-recursive-improvement-request
+  expect: invalid
+  fixture: tools/run-recursive-improvement-request/invalid/caller-storage-location.json
+  document:
+    synthetic: true
+    query: Review persistent underperformance over the policy horizon
+    max_iterations: 3
+    output_uri: /tmp/synthetic-results.json
+  code: VALIDATION_FAILED
+- schema: tools/run-recursive-improvement-response
+  expect: valid
+  fixture: tools/run-recursive-improvement-response/valid/review.json
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recursive_cycle
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.6.0
+    synthetic: true
+    evidence: []
+    proposed_experiment:
+      job_type: recursive_evaluate
+      reason: Synthetic objective-aligned investigation
+    activation:
+      status: proposal_only
+    cycle_id: ca_11111111111111111111111111111111
+    state: awaiting_experiment_approval
+    iteration: 0
+    max_iterations: 3
+    lineage: []
+- schema: tools/run-recursive-improvement-response
+  expect: invalid
+  fixture: tools/run-recursive-improvement-response/invalid/automatic-activation.json
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recursive_cycle
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.6.0
+    synthetic: true
+    evidence: []
+    proposed_experiment:
+      job_type: recursive_evaluate
+      reason: Synthetic objective-aligned investigation
+    activation:
+      status: automatically_promoted
+    cycle_id: ca_11111111111111111111111111111111
+    state: awaiting_experiment_approval
+    iteration: 0
+    max_iterations: 3
+    lineage: []
+  code: VALIDATION_FAILED
+- schema: tools/run-recursive-improvement-response
+  expect: invalid
+  fixture: tools/run-recursive-improvement-response/invalid/missing-lineage.json
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recursive_cycle
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.6.0
+    synthetic: true
+    evidence: []
+    proposed_experiment:
+      job_type: recursive_evaluate
+      reason: Synthetic objective-aligned investigation
+    activation:
+      status: proposal_only
+    cycle_id: ca_11111111111111111111111111111111
+    state: awaiting_experiment_approval
+    iteration: 0
+    max_iterations: 3
+  code: VALIDATION_FAILED
+- schema: tools/evaluate-portfolio-decision-response
+  expect: valid
+  fixture: tools/evaluate-portfolio-decision-response/valid/horizon-partial.json
+  document:
+    analysis_id: ca_abcdefababcdefababcdefababcdefab
+    analysis_kind: performance
+    created_at: '2026-01-09T15:00:00Z'
+    analysis_ref: &id001
+      artifact_id: ca_abcdefababcdefababcdefababcdefab
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+      content_type: application/json
+    summary: Synthetic stored decision evidence
+    synthetic: true
+    contract_version: 1.6.0
+    horizon_evaluation:
+      version: finplan-decision-horizon/1
+      status: not_available
+      full_policy_replay: false
+      protocol_status: predeclared_at_issuance
+      available_forward_sessions: 0
+      primary_horizon_mature: false
+      protocol:
+        primary_horizon_sessions: 64
+      evidence_assessment: &id002
+        status: insufficient_forward_observations
+      source: &id003
+        decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+      limitations: &id004
+      - Synthetic no-forward-observation case
+      reason: no_forward_observations
+      windows: &id005 []
+- schema: tools/evaluate-portfolio-decision-response
+  expect: invalid
+  fixture: tools/evaluate-portfolio-decision-response/invalid/horizon-missing-protocol.json
+  document:
+    analysis_id: ca_abcdefababcdefababcdefababcdefab
+    analysis_kind: performance
+    created_at: '2026-01-09T15:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic stored decision evidence
+    synthetic: true
+    contract_version: 1.6.0
+    horizon_evaluation:
+      version: finplan-decision-horizon/1
+      status: not_available
+      full_policy_replay: false
+      protocol_status: predeclared_at_issuance
+      available_forward_sessions: 0
+      primary_horizon_mature: false
+      evidence_assessment: *id002
+      source: *id003
+      limitations: *id004
+      reason: no_forward_observations
+      windows: *id005
+  code: VALIDATION_FAILED
+- schema: tools/evaluate-portfolio-decision-response
+  expect: valid
+  fixture: tools/evaluate-portfolio-decision-response/valid/historical-counterfactual.json
+  document:
+    analysis_id: ca_abcdefababcdefababcdefababcdefab
+    analysis_kind: performance
+    created_at: '2026-01-09T15:00:00Z'
+    analysis_ref:
+      artifact_id: ca_abcdefababcdefababcdefababcdefab
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+      content_type: application/json
+    summary: Synthetic stored decision evidence
+    synthetic: true
+    contract_version: 1.6.0
+    horizon_evaluation:
+      version: finplan-decision-horizon/1
+      status: available
+      full_policy_replay: true
+      protocol_status: retrospective_historical_request
+      available_forward_sessions: 2
+      primary_horizon_mature: false
+      protocol:
+        primary_horizon_sessions: 64
+      evidence_assessment:
+        eligible_for_prospective_skill_evidence: false
+      source:
+        decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+      limitations:
+      - Synthetic no-forward-observation case
+      reason: historical_counterfactual
+      windows: []

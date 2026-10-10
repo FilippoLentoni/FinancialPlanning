@@ -2353,10 +2353,20 @@ cases:
 - fixture: tools/evaluate-portfolio-decision-request/valid/synthetic-lifecycle.json
   schema: tools/evaluate-portfolio-decision-request
   expect: valid
+- fixture: tools/evaluate-portfolio-decision-response/invalid/horizon-missing-protocol.json
+  schema: tools/evaluate-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
 - fixture: tools/evaluate-portfolio-decision-response/invalid/unexpected-field.json
   schema: tools/evaluate-portfolio-decision-response
   expect: invalid
   code: VALIDATION_FAILED
+- fixture: tools/evaluate-portfolio-decision-response/valid/historical-counterfactual.json
+  schema: tools/evaluate-portfolio-decision-response
+  expect: valid
+- fixture: tools/evaluate-portfolio-decision-response/valid/horizon-partial.json
+  schema: tools/evaluate-portfolio-decision-response
+  expect: valid
 - fixture: tools/evaluate-portfolio-decision-response/valid/synthetic-lifecycle.json
   schema: tools/evaluate-portfolio-decision-response
   expect: valid
@@ -3006,6 +3016,39 @@ cases:
   code: VALIDATION_FAILED
 - fixture: tools/run-portfolio-research-response/valid/synthetic.json
   schema: tools/run-portfolio-research-response
+  expect: valid
+- fixture: tools/run-recursive-improvement-request/invalid/caller-storage-location.json
+  schema: tools/run-recursive-improvement-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-recursive-improvement-request/invalid/missing-confirmation.json
+  schema: tools/run-recursive-improvement-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-recursive-improvement-request/invalid/missing-idempotency.json
+  schema: tools/run-recursive-improvement-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-recursive-improvement-request/invalid/unbounded-iterations.json
+  schema: tools/run-recursive-improvement-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-recursive-improvement-request/valid/confirmed-launch.json
+  schema: tools/run-recursive-improvement-request
+  expect: valid
+- fixture: tools/run-recursive-improvement-request/valid/review.json
+  schema: tools/run-recursive-improvement-request
+  expect: valid
+- fixture: tools/run-recursive-improvement-response/invalid/automatic-activation.json
+  schema: tools/run-recursive-improvement-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-recursive-improvement-response/invalid/missing-lineage.json
+  schema: tools/run-recursive-improvement-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/run-recursive-improvement-response/valid/review.json
+  schema: tools/run-recursive-improvement-response
   expect: valid
 - fixture: tools/submit-experiment-request/invalid/missing-idempotency-key.json
   schema: tools/submit-experiment-request

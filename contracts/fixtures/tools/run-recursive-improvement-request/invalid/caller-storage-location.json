@@ -1,0 +1,6 @@
+{
+  "synthetic": true,
+  "query": "Review persistent underperformance over the policy horizon",
+  "max_iterations": 3,
+  "output_uri": "/tmp/synthetic-results.json"
+}

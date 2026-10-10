@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/run-recursive-improvement-response.json",
+  "title": "tools/run-recursive-improvement-response",
+  "allOf": [
+    {"$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"},
+    {
+      "required": ["cycle_id", "state", "iteration", "max_iterations", "evidence", "proposed_experiment", "lineage", "activation"],
+      "properties": {
+        "analysis_kind": {"enum": ["recursive_cycle", "recursive_iteration"]},
+        "cycle_id": {"$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"},
+        "state": {"enum": ["evidence_review", "awaiting_experiment_approval", "experiment_running", "proposal_ready", "stopped"]},
+        "iteration": {"type": "integer", "minimum": 0, "maximum": 3},
+        "max_iterations": {"type": "integer", "minimum": 1, "maximum": 3},
+        "evidence": {"type": "array"},
+        "proposed_experiment": {"type": ["object", "null"]},
+        "lineage": {"type": "array"},
+        "activation": {
+          "type": "object", "required": ["status"],
+          "properties": {"status": {"const": "proposal_only"}}
+        },
+        "benchmark_capabilities": {"type": "object"},
+        "cost_estimate": {"type": "object"},
+        "job": {"type": "object"},
+        "stopping_reason": {"type": ["string", "null"]},
+        "result_summary": {"type": ["object", "null"]}
+      }
+    }
+  ]
+}

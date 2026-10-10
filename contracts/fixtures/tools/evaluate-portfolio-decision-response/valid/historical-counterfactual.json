@@ -1,0 +1,37 @@
+{
+  "analysis_id": "ca_abcdefababcdefababcdefababcdefab",
+  "analysis_kind": "performance",
+  "created_at": "2026-01-09T15:00:00Z",
+  "analysis_ref": {
+    "artifact_id": "ca_abcdefababcdefababcdefababcdefab",
+    "owner": "financemodel",
+    "kind": "classical_analysis",
+    "checksum": "sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab",
+    "content_type": "application/json"
+  },
+  "summary": "Synthetic stored decision evidence",
+  "synthetic": true,
+  "contract_version": "1.6.0",
+  "horizon_evaluation": {
+    "version": "finplan-decision-horizon/1",
+    "status": "available",
+    "full_policy_replay": true,
+    "protocol_status": "retrospective_historical_request",
+    "available_forward_sessions": 2,
+    "primary_horizon_mature": false,
+    "protocol": {
+      "primary_horizon_sessions": 64
+    },
+    "evidence_assessment": {
+      "eligible_for_prospective_skill_evidence": false
+    },
+    "source": {
+      "decision_id": "pd_01JA2B3C4D5E6F7G8H9JKMNPQR"
+    },
+    "limitations": [
+      "Synthetic no-forward-observation case"
+    ],
+    "reason": "historical_counterfactual",
+    "windows": []
+  }
+}
