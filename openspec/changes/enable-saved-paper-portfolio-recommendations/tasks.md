@@ -15,4 +15,4 @@
 
 ## 4. Beta verification
 
-- [ ] 4.1 Deploy through the existing beta pipeline and verify saved paper initialization plus read-only recommendation consumption with unchanged gamma and production releases.
+- [x] 4.1 Deploy through the existing beta pipeline and verify saved paper initialization plus read-only recommendation consumption with unchanged gamma and production releases.
