@@ -9,6 +9,7 @@ so the denials shown come from the platform's resource policy alone.
 from __future__ import annotations
 
 import json
+from fnmatch import fnmatchcase
 from typing import Any
 
 import pytest
@@ -18,7 +19,7 @@ from finplan_platform.core.config import load_config
 from finplan_platform.handlers.api import FULL_ACCESS_CLASSES, ROUTES, route_allowed
 
 from infra.policy_sim import Principal, role_arn, simulate
-from infra.stacks.api import GATEWAY_RESPONSES, STAGE_NAME, resource_policy_document
+from infra.stacks.api import GATEWAY_RESPONSES, STAGE_NAME, compact_route_resources, resource_policy_document
 
 pytestmark = pytest.mark.synth
 
@@ -187,3 +188,40 @@ def test_plan_api_role_synthesized_grants(api_synth: dict[str, Any]) -> None:
 def test_pure_policy_builder_matches_the_synthesized_policy(api_synth: dict[str, Any]) -> None:
     built = resource_policy_document(load_config("beta"), lambda pat: role_arn(pat))
     assert built == api_synth["policies"]["beta"]
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_effective_rest_api_policy_fits_aws_size_limit(api_synth: dict[str, Any], env: str) -> None:
+    """API Gateway permits 8192 bytes; resolve deployment tokens before measuring.
+
+    Normal JSON whitespace is deliberately retained, reserving 512 bytes beyond
+    today's policy so changes cannot pass synth and then roll back in AWS.
+    """
+    effective = json.dumps(api_synth["policies"][env]).replace("<account-id>", "0" * 12).replace("<region>", "us-east-2")
+    assert "<account-id>" not in effective and "<region>" not in effective
+    size = len(effective.encode("utf-8"))
+    assert size <= 8192 - 512, (env, size)
+
+
+def test_compaction_removes_only_existing_wildcard_redundancy() -> None:
+    resources = ["execute-api:/*/GET/v1/snapshots/*", "execute-api:/*/GET/v1/snapshots/latest", "execute-api:/*/GET/v1/snapshots/*/observations", "execute-api:/*/GET/v1/portfolios/*/state", "execute-api:/*/GET/v1/plans/*", "execute-api:/*/GET/v1/plans/*/versions"]
+    reduced = compact_route_resources(resources)
+    assert reduced == ["execute-api:/*/GET/v1/plans/*", "execute-api:/*/GET/v1/portfolios/*/state", "execute-api:/*/GET/v1/snapshots/*"]
+    candidates = ["execute-api:/live/GET/v1/snapshots/latest", "execute-api:/live/GET/v1/snapshots/snap_fixture/observations", "execute-api:/live/GET/v1/plans/pl_fixture/versions", "execute-api:/live/GET/v1/portfolios/pf_fixture/state", "execute-api:/live/GET/v1/portfolios/pf_fixture", "execute-api:/live/PUT/v1/portfolios/pf_fixture/state", "execute-api:/live/POST/v1/plans/pl_fixture/versions"]
+    for candidate in candidates:
+        assert any(fnmatchcase(candidate, r) for r in resources) == any(fnmatchcase(candidate, r) for r in reduced)
+
+
+@pytest.mark.parametrize("env", ENVS)
+def test_compacted_policy_preserves_original_allow_and_deny_semantics(api_synth: dict[str, Any], env: str, monkeypatch: Any) -> None:
+    import infra.stacks.api as api
+    monkeypatch.setattr(api, "compact_route_resources", lambda resources: sorted(set(resources)))
+    original = api.resource_policy_document(load_config(env), role_arn)
+    compacted = api_synth["policies"][env]
+    for cls, name in roles(env).items():
+        principal = Principal.role(name, WORST)
+        for route in ROUTES:
+            resource = invoke_arn(route)
+            assert simulate("execute-api:Invoke", resource, principal, resource_policy=original).allowed == simulate("execute-api:Invoke", resource, principal, resource_policy=compacted).allowed, (env, cls, route.path)
+    denied_descendants = next(s for s in compacted["Statement"] if s.get("Sid") == "DenyFinancemodelJobApiExcludedDescendants")
+    assert denied_descendants["Effect"] == "Deny" and denied_descendants["Resource"]

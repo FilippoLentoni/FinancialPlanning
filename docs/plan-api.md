@@ -697,3 +697,10 @@ use `tools/recommend-portfolio-invocation-request`, which accepts `{}` for the s
 default portfolio, an optional `portfolio_id`, or the complete explicit holdings mode.
 Snapshot and date overrides must be paired; supplied holdings and a saved portfolio ID
 cannot be mixed. The response adds optional state valuation and fractional share fields.
+
+The API Gateway resource policy removes redundant resource entries already covered
+by an existing terminal wildcard, using the identical resource union for Allow and
+NotResource. IAM wildcards span path separators. Explicit excluded-descendant and
+operator-only denials remain separate statements. Synthesized policy tests measure
+normal JSON serialization with resolved account/region values against the 8,192-byte
+service limit and retain 512 bytes of reserve.

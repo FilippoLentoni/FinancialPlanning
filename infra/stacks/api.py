@@ -67,6 +67,18 @@ def _sid(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", text.title())
 
 
+def compact_route_resources(resources: list[str]) -> list[str]:
+    """Drop redundant descendants of existing terminal wildcards.
+
+    IAM '*' already spans '/'. A pattern ending in '*' covers every resource
+    whose literal pattern starts with that prefix, including nested routes.
+    Use the same reduced union for Allow and NotResource so permissions stay
+    identical. Explicit descendant denials remain separate statements.
+    """
+    unique = sorted(set(resources))
+    return [resource for resource in unique if not any(parent != resource and parent.endswith("*") and resource.startswith(parent[:-1]) for parent in unique)]
+
+
 def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> dict[str, Any]:
     """The API resource policy as a plain IAM document (pure; also used by the policy simulation).
 
@@ -90,10 +102,10 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
     for cls in CONSUMER_CLASSES:
         pattern = arn_for(cfg.principal_pattern(CONSUMER_CONFIG_KEYS[cls]))
         allowed_patterns.append(pattern)
-        resources = sorted({route_resource(r) for r in ROUTES if route_allowed(r, cls)})
+        resources = compact_route_resources([route_resource(r) for r in ROUTES if route_allowed(r, cls)])
         cond = {"ArnLike": {"aws:PrincipalArn": pattern}}
-        statements.append({"Sid": f"Allow{_sid(cls)}Routes", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": resources, "Condition": cond})
-        statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": resources, "Condition": cond})
+        statements.append({"Sid": f"Allow{_sid(cls)}Routes", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
+        statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
         # IAM '*' spans '/': an allowed parent-ID read can otherwise include known
         # descendant routes. Deny only disallowed descendants, never their parents.
         allowed_routes = [r for r in ROUTES if route_allowed(r, cls)]
