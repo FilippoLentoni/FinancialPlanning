@@ -19,7 +19,11 @@
         "research_run",
         "market_events",
         "recursive_cycle",
-        "recursive_iteration"
+        "recursive_iteration",
+        "crypto_experiment",
+        "crypto_recommendation",
+        "crypto_history",
+        "research_discovery"
       ]
     },
     "created_at": {

@@ -60,6 +60,12 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     rec = Recorder()
     web, tool, writer, op = rec.wrap(clients.website), rec.wrap(clients.reader), rec.wrap(clients.writer), rec.wrap(clients.operator)
     snap = seed_snapshot(svc, clock)
+    from finplan_platform.core.crypto_hourly import key, hour, stamp
+    crypto = json.loads((load_store().fixtures_dir("api/crypto-dataset-response") / "valid" / "synthetic.json").read_text())
+    crypto.pop("dataset_checksum")
+    crypto.update(as_of=stamp(hour(clock.now())), available_at=stamp(clock.now()))
+    svc.store.put_once("raw", key(hour(clock.now())), json.dumps(crypto).encode())
+    tool.get("/v1/crypto-research/latest")
     _, pf, _ = web.post("/v1/portfolios", {"name": "Contract portfolio", "base_currency": "USD", "idempotency_key": "c-pf"})
     tool.get(f"/v1/portfolios/{pf['portfolio_id']}")
     op.call("PUT", f"/v1/portfolios/{pf['portfolio_id']}/state", {"paper_state": {"positions": [{"instrument_id": "SPY", "quantity": 20.5}], "cash_balance": 1000, "high_watermark": 10000, "as_of": "2026-01-09", "base_currency": "USD", "mode": "paper", "source": "paper_initialization"}, "expected_revision": 0, "idempotency_key": "c-paper-state"})

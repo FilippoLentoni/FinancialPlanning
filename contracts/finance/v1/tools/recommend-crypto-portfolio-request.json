@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/recommend-crypto-portfolio-request.json",
+  "title": "tools/recommend-crypto-portfolio-request",
+  "type": "object",
+  "properties": {
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "algorithm": {
+      "enum": [
+        "min_variance",
+        "mean_variance",
+        "cvar",
+        "ppo",
+        "llm"
+      ]
+    }
+  },
+  "required": [],
+  "additionalProperties": false,
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ]
+}

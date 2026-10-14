@@ -345,8 +345,8 @@ wheels = [
 
 [[package]]
 name = "finplan-contracts"
-version = "1.6.0"
-source = { path = "vendor/finplan-contracts/finplan_contracts-1.6.0-py3-none-any.whl" }
+version = "1.7.0"
+source = { path = "vendor/finplan-contracts/finplan_contracts-1.7.0-py3-none-any.whl" }
 dependencies = [
     { name = "jsonschema" },
     { name = "python-ulid" },
@@ -355,7 +355,7 @@ dependencies = [
     { name = "rfc8785" },
 ]
 wheels = [
-    { filename = "finplan_contracts-1.6.0-py3-none-any.whl", hash = "sha256:d1975fd07907edcab39e9a7609c584141281eaa4498a303f6214df5aa22aab2e" },
+    { filename = "finplan_contracts-1.7.0-py3-none-any.whl", hash = "sha256:6e4bb8e6a2645b851cf77cbef20286f438e69ab4f38ffbec6046db77c0a54981" },
 ]
 
 [package.metadata]
@@ -400,7 +400,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.40" },
     { name = "defusedxml", specifier = ">=0.7.1" },
     { name = "exchange-calendars", marker = "extra == 'providers'", specifier = "==4.13.2" },
-    { name = "finplan-contracts", path = "vendor/finplan-contracts/finplan_contracts-1.6.0-py3-none-any.whl" },
+    { name = "finplan-contracts", path = "vendor/finplan-contracts/finplan_contracts-1.7.0-py3-none-any.whl" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "yfinance", marker = "extra == 'providers'", specifier = "==1.7.0" },
 ]

@@ -43,4 +43,11 @@ listed below (the conformance hygiene check reads this list):
 - `paper-portfolio-state/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `portfolio/invalid/missing-synthetic-flag.json`: the portfolio's own 'synthetic' field is the property under test, so this invalid fixture omits it
 - `tools/recommend-portfolio-invocation-request/valid/saved-default.json`: the empty object deliberately tests saved-default invocation without supplied state
+- `api/crypto-dataset-response/valid/synthetic.json`: generated synthetic OHLCV with explicit market_data_synthetic provenance.
+- `api/crypto-dataset-response/invalid/synthetic.json`: generated synthetic OHLCV with invalid daily granularity.
 <!-- synthetic-exceptions:end -->
+
+Hourly crypto fixtures use `market_data_synthetic: true` because the dataset separates market provenance from simulated holdings:
+
+- `api/crypto-dataset-response/valid/synthetic.json`: generated synthetic OHLCV, no provider observations.
+- `api/crypto-dataset-response/invalid/synthetic.json`: generated synthetic OHLCV with invalid daily granularity.

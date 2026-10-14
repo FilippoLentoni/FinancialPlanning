@@ -94,6 +94,9 @@ def _caller_from_proxy(event: Mapping[str, Any]) -> Caller:
 
 
 def handler(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
+    if isinstance(event, Mapping) and event.get("source") == "finplan.crypto-hourly":
+        from ..core.crypto_hourly import scheduled
+        return scheduled(event)
     if is_scheduler_event(event):
         result = handle_scheduled(event)
         log.info(json.dumps({"trigger": "scheduled", "input_snapshot_id": result.get("input_snapshot_id"), "correlation_id": result.get("correlation_id")}))

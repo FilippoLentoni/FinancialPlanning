@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/list-crypto-history-response.json",
+  "title": "tools/list-crypto-history-response",
+  "type": "object",
+  "properties": {
+    "analysis_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+    },
+    "analysis_kind": {
+      "enum": [
+        "crypto_experiment",
+        "crypto_recommendation",
+        "crypto_history",
+        "research_discovery"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "analysis_ref": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/artifact-ref.json"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 12000
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "const": true
+    },
+    "experiment": {
+      "type": "object"
+    },
+    "recommendation": {
+      "type": "object"
+    },
+    "history": {
+      "type": "array",
+      "maxItems": 24,
+      "items": {
+        "type": "object"
+      }
+    },
+    "discovery": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "analysis_id",
+    "analysis_kind",
+    "created_at",
+    "analysis_ref",
+    "summary",
+    "contract_version",
+    "synthetic"
+  ],
+  "additionalProperties": false
+}

@@ -213,6 +213,19 @@ class IngestionStack(PlatformStack):
             )
             self.universe_schedule.add_metadata("logical-role", "daily-ingest-schedule")
 
+        # Crypto research uses completed hourly UTC bars, independently of equity sessions.
+        if env == "beta":
+            self.crypto_schedule = scheduler.CfnSchedule(self, "HourlyCryptoIngestSchedule",
+                name=resource_name(env, "hourly-crypto-ingest"), description="Hourly completed BTC/ETH research candles; no trading",
+                schedule_expression="cron(5 * * * ? *)", schedule_expression_timezone="UTC", state="ENABLED",
+                end_date="2026-10-21T00:00:00Z",
+                flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"),
+                target=scheduler.CfnSchedule.TargetProperty(arn=self.function.function_arn, role_arn=self.schedule_role.role_arn,
+                    input='{"source":"finplan.crypto-hourly","scheduled_at":"<aws.scheduler.scheduled-time>"}',
+                    retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_event_age_in_seconds=1800, maximum_retry_attempts=2),
+                    dead_letter_config=scheduler.CfnSchedule.DeadLetterConfigProperty(arn=self.dlq.queue_arn)))
+            self.crypto_schedule.add_metadata("logical-role", "daily-ingest-schedule")
+
         self.dlq_alarm = cloudwatch.Alarm(
             self,
             "ScheduleDlqAlarm",
