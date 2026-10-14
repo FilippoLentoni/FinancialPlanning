@@ -160,6 +160,6 @@ def test_hourly_crypto_is_separate_bounded_beta_schedule(templates, env):
         s=schedules[0]
         assert s["ScheduleExpression"]=="cron(5 * * * ? *)"
         assert s["ScheduleExpressionTimezone"]=="UTC"
-        assert s["EndDate"]=="2026-10-21T00:00:00Z"
+        assert s["EndDate"]=="2026-10-21T00:00:00.000Z"
         assert "DeadLetterConfig" in s["Target"]
         assert json.loads(s["Target"]["Input"])["scheduled_at"]=="<aws.scheduler.scheduled-time>"

@@ -218,7 +218,7 @@ class IngestionStack(PlatformStack):
             self.crypto_schedule = scheduler.CfnSchedule(self, "HourlyCryptoIngestSchedule",
                 name=resource_name(env, "hourly-crypto-ingest"), description="Hourly completed BTC/ETH research candles; no trading",
                 schedule_expression="cron(5 * * * ? *)", schedule_expression_timezone="UTC", state="ENABLED",
-                end_date="2026-10-21T00:00:00Z",
+                end_date="2026-10-21T00:00:00.000Z",
                 flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"),
                 target=scheduler.CfnSchedule.TargetProperty(arn=self.function.function_arn, role_arn=self.schedule_role.role_arn,
                     input='{"source":"finplan.crypto-hourly","scheduled_at":"<aws.scheduler.scheduled-time>"}',
