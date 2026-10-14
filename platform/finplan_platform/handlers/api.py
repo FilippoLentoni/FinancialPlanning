@@ -210,7 +210,7 @@ def _observation_query(r: Parts) -> dict[str, Any]:
 
 
 ROUTES: tuple[Route, ...] = (
-    Route("GET", "/v1/crypto-research/latest", "get_crypto_dataset", "finplan_platform.core.crypto_hourly", lambda m,c,s,r: m.latest(c,s), _READERS+FINANCEMODEL_CLASSES, response_schema="api/crypto-dataset-response"),
+    Route("GET", "/v1/crypto-research/latest", "get_crypto_dataset", "finplan_platform.core.crypto_hourly", lambda m,c,s,r: m.latest(c,s), _READERS+("financemodel-job-api",), response_schema="api/crypto-dataset-response"),
     Route("POST", "/v1/portfolios/{portfolio_id}/decisions", "create_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.create_decision(c,s,r.path["portfolio_id"],r.body), ("financemodel-job-api",), status=201, response_schema="api/portfolio-decision-response"),
     Route("GET", "/v1/portfolios/{portfolio_id}/decisions", "list_portfolio_decisions", _LIFECYCLE, lambda m,c,s,r: m.list_decisions(c,s,r.path["portfolio_id"],r.query), _READERS+("financemodel-job-api",), response_schema="api/list-portfolio-decisions-response", query={"page_size":"int","next_token":"str"}),
     Route("GET", "/v1/portfolio-decisions/{decision_id}", "get_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.get_decision(c,s,r.path["decision_id"]), _READERS+("financemodel-job-api",), response_schema="api/portfolio-decision-response"),
