@@ -153,7 +153,7 @@ def test_file_environment_mismatch_rejected(tmp_path: Path) -> None:
 
 def test_shared_config_holds_only_the_ceiling_default() -> None:
     shared = load_shared_config()
-    assert shared["cost_ceiling_usd_default"] == 50
+    assert shared["cost_ceiling_usd_default"] == 100
     assert set(shared) <= {"$comment", "region", "cost_ceiling_usd_default"}
 
 
