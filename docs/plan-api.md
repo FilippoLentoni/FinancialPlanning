@@ -13,7 +13,7 @@ routes; no client writes plan state any other way.
   `platform/finplan_platform/core/{plans,versions,validation,publication,execution,upgrade,contract_io,snapshot_reads}.py`;
   stack in `infra/stacks/api.py`.
 - **Tests:** `tests/unit/test_api_*.py` and `tests/contract/test_api_contract.py` (all offline).
-- **Contract package:** `finplan-contracts` pinned at **1.3.0** (see `contracts-pin.json`). The
+- **Contract package:** `finplan-contracts` pinned at **1.7.0** (see `contracts-pin.json`). The
   current contract major is `1`; major `0` stays served because records written under 0.2.2
   exist in every environment (`ADDITIONAL_SERVED_MAJORS`, contracts D16), so
   `served_contract_majors` is `[0, 1]`.
@@ -69,6 +69,7 @@ result.
 
 | Method and path | Operation | Request schema | Response schema | Idempotency key | `expected_revision` |
 |---|---|---|---|---|---|
+| `GET /v1/crypto-research/latest` | get_crypto_dataset (beta only) | none | `api/crypto-dataset-response` | no | no |
 | `POST /v1/portfolios` | create synthetic portfolio | `api/create-portfolio-request` | `api/create-portfolio-response` | required | n/a |
 | `GET /v1/portfolios/{portfolio_id}` | portfolio read | path | `portfolio` | n/a | n/a |
 | `POST /v1/portfolios/{portfolio_id}/decisions` | beta issued recommendation capture | `api/create-portfolio-decision-request` | `api/portfolio-decision-response` | required | saved holdings revision |
@@ -717,3 +718,7 @@ NotResource. IAM wildcards span path separators. Explicit excluded-descendant an
 operator-only denials remain separate statements. Synthesized policy tests measure
 normal JSON serialization with resolved account/region values against the 8,192-byte
 service limit and retain 512 bytes of reserve.
+
+## Hourly crypto data
+
+`GET /v1/crypto-research/latest` serves fresh completed BTC/ETH hourly candles in beta through the same IAM authorization and environment boundaries. Data is collected separately from daily equities; see [hourly crypto research](hourly-crypto-research.md) for provenance, scheduling and simulated-capital scope.
