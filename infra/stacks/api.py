@@ -98,6 +98,10 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
             "Condition": {"ArnLike": {"aws:PrincipalArn": platform}},
         }
     ]
+    if env == "beta":
+        statements.append({"Sid": "DenyNewsPublisherOtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE,
+            "NotResource": ["execute-api:/*/POST/v1/research-news", "execute-api:/*/GET/v1/research-news/latest"],
+            "Condition": {"ArnLike": {"aws:PrincipalArn": arn_for(f"finplan-{env}-financialplanning-research-news-publisher")}}})
     allowed_patterns = [platform]
     routes = tuple(r for r in ROUTES if cfg.env == "beta" or r.operation not in BETA_LIFECYCLE_OPERATIONS)
     for cls in CONSUMER_CLASSES:
@@ -285,6 +289,15 @@ class ApiStack(PlatformStack):
             policy=iam.PolicyDocument.from_json(resource_policy_document(cfg, role_arn_pattern)),
         )
         tag_role(self.rest_api, "plan-api")
+        if env == "beta":
+            self.news_publisher_role = iam.Role(self, "ResearchNewsPublisherRole",
+                role_name=resource_name(env, "research-news-publisher"),
+                assumed_by=iam.ArnPrincipal(self.format_arn(service="iam", region="", resource="role", resource_name="finplan-devdesktop")),
+                description="Operator paid-news publication only; no payment credentials or brokerage access")
+            self.news_publisher_role.add_to_principal_policy(iam.PolicyStatement(actions=["execute-api:Invoke"],resources=[
+                self.rest_api.arn_for_execute_api("POST", "/v1/research-news", STAGE_NAME),
+                self.rest_api.arn_for_execute_api("GET", "/v1/research-news/latest", STAGE_NAME)]))
+            tag_role(self.news_publisher_role, "research-news-publisher")
         integration = apigw.LambdaIntegration(self.function, proxy=True, allow_test_invoke=False)
         resources: dict[str, apigw.IResource] = {"": self.rest_api.root}
         for route in ROUTES:

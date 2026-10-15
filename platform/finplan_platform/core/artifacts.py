@@ -73,7 +73,8 @@ WRITE_ONCE_PREFIXES: dict[str, tuple[str, ...]] = {
     "plans": ("",),
     "reports": ("",),
     "outputs": ("accepted/",),
-    "raw": ("uploads/excel/",),
+    "raw": ("uploads/excel/", "research-news/v1/"),
+    "curated": ("research-news/v1/",),
 }
 _SHA_PREFIX = "sha256:"
 _META_SHA = "sha256"

@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/research-news-import-request.json",
+  "title": "api/research-news-import-request",
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "symbols": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9.-]{0,9}$"
+      }
+    },
+    "retrieved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "payload_checksum": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "receipt_checksum": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "payment_receipt": {
+      "type": "object",
+      "properties": {
+        "settlement_status": {
+          "const": "success"
+        },
+        "amount_usdc": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10
+        },
+        "transaction_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "settlement_status",
+        "amount_usdc",
+        "transaction_id"
+      ],
+      "additionalProperties": false
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "records": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2048
+              },
+              "published_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "symbols": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 5,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9.-]{0,9}$"
+                }
+              }
+            },
+            "required": [
+              "title",
+              "url",
+              "published_at",
+              "symbols"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "records"
+      ],
+      "additionalProperties": false
+    },
+    "rights": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "unverified",
+            "research_only",
+            "research_and_training",
+            "denied"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "search_metadata",
+            "full_content"
+          ]
+        },
+        "evidence_url": {
+          "type": "string",
+          "maxLength": 2048
+        },
+        "evidence_checksum": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "scope",
+        "evidence_url",
+        "evidence_checksum"
+      ],
+      "additionalProperties": false
+    },
+    "quality_status": {
+      "enum": [
+        "unverified",
+        "validated",
+        "rejected"
+      ]
+    },
+    "contract_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "provider",
+    "query",
+    "symbols",
+    "retrieved_at",
+    "payload_checksum",
+    "receipt_checksum",
+    "payment_receipt",
+    "payload",
+    "rights",
+    "quality_status"
+  ],
+  "additionalProperties": false
+}

@@ -77,6 +77,16 @@ resources:
     logical_roles: [run-staging-area]
     decisions: [D1, D10]
 
+  - id: research-news-publisher
+    resource: Beta operator role restricted to paid research metadata publication and reads
+    owner: financialplanning
+    consumers: [financeagent, research-operator]
+    reference: Same-account finplan-beta-financialplanning-research-news-publisher assumed by finplan-devdesktop
+    scope: environment
+    resource_types: [AWS::IAM::Role, AWS::IAM::Policy]
+    logical_roles: [research-news-publisher]
+    decisions: [D1, D5]
+
   - id: platform-kms-keys
     resource: Platform KMS keys, lifecycle and retention policies
     owner: financialplanning

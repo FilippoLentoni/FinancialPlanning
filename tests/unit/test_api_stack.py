@@ -95,7 +95,7 @@ def test_function_role_output_and_tags(api_synth: dict[str, Any], env: str) -> N
     assert p["Runtime"] == "python3.12" and p["Architectures"] == ["arm64"] and "VpcConfig" not in p
     assert "ReservedConcurrentExecutions" not in p and p["Timeout"] <= 29
     assert p["Environment"]["Variables"]["FINPLAN_ENV"] == env
-    (role,) = resources(t, "AWS::IAM::Role")
+    (role,) = [r for r in resources(t, "AWS::IAM::Role") if r["Properties"]["RoleName"] == f"finplan-{env}-financialplanning-plan-api-handler-role"]
     assert role["Properties"]["RoleName"] == f"finplan-{env}-financialplanning-plan-api-handler-role"
     assert "PermissionsBoundary" in role["Properties"]
     (param,) = resources(t, "AWS::SSM::Parameter")
@@ -241,3 +241,17 @@ def test_shared_beta_allow_is_constrained_by_explicit_consumer_route_denials(api
         principal = Principal.role(name, WORST)
         for resource in ("execute-api:/live/DELETE/v1/portfolios/any", "execute-api:/live/POST/v1/unregistered", "execute-api:/live/PUT/v1/portfolios/any/state"):
             assert not simulate("execute-api:Invoke", resource, principal, resource_policy=policy).allowed
+
+
+def test_news_publisher_has_exact_trust_and_route_permissions(api_synth):
+    t=api_template(api_synth,'beta')
+    (role,)=[r for r in resources(t,'AWS::IAM::Role') if r['Properties']['RoleName']=='finplan-beta-financialplanning-research-news-publisher']
+    assert 'PermissionsBoundary' in role['Properties']
+    trust=json.dumps(role['Properties']['AssumeRolePolicyDocument'])
+    assert 'finplan-devdesktop' in trust and 'lambda.amazonaws.com' not in trust
+    policy=api_synth['policies']['beta'];principal=Principal.role('finplan-beta-financialplanning-research-news-publisher',WORST)
+    for route in ROUTES:
+        allowed=simulate('execute-api:Invoke',invoke_arn(route),principal,resource_policy=policy).allowed
+        assert allowed == (route.operation in ('import_research_news','get_research_news'))
+    for env in ('gamma','prod'):
+        assert not [r for r in resources(api_template(api_synth,env),'AWS::IAM::Role') if 'research-news-publisher' in r['Properties']['RoleName']]

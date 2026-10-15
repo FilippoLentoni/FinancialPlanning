@@ -45,6 +45,16 @@ listed below (the conformance hygiene check reads this list):
 - `tools/recommend-portfolio-invocation-request/valid/saved-default.json`: the empty object deliberately tests saved-default invocation without supplied state
 - `api/crypto-dataset-response/valid/synthetic.json`: generated synthetic OHLCV with explicit market_data_synthetic provenance.
 - `api/crypto-dataset-response/invalid/synthetic.json`: generated synthetic OHLCV with invalid daily granularity.
+- `api/research-news-import-request/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `api/research-news-import-request/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `api/research-news-import-response/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `api/research-news-import-response/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `api/research-news-response/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `api/research-news-response/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `tools/get-etf-research-inputs-request/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `tools/get-etf-research-inputs-request/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `tools/get-etf-research-inputs-response/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
+- `tools/get-etf-research-inputs-response/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
 <!-- synthetic-exceptions:end -->
 
 Hourly crypto fixtures use `market_data_synthetic: true` because the dataset separates market provenance from simulated holdings:

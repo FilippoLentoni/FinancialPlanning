@@ -13,7 +13,7 @@ routes; no client writes plan state any other way.
   `platform/finplan_platform/core/{plans,versions,validation,publication,execution,upgrade,contract_io,snapshot_reads}.py`;
   stack in `infra/stacks/api.py`.
 - **Tests:** `tests/unit/test_api_*.py` and `tests/contract/test_api_contract.py` (all offline).
-- **Contract package:** `finplan-contracts` pinned at **1.7.0** (see `contracts-pin.json`). The
+- **Contract package:** `finplan-contracts` pinned at **1.8.0** (see `contracts-pin.json`). The
   current contract major is `1`; major `0` stays served because records written under 0.2.2
   exist in every environment (`ADDITIONAL_SERVED_MAJORS`, contracts D16), so
   `served_contract_majors` is `[0, 1]`.
@@ -722,3 +722,5 @@ service limit and retain 512 bytes of reserve.
 ## Hourly crypto data
 
 `GET /v1/crypto-research/latest` serves fresh completed BTC/ETH hourly candles in beta through the same IAM authorization and environment boundaries. Data is collected separately from daily equities; see [hourly crypto research](hourly-crypto-research.md) for provenance, scheduling and simulated-capital scope.
+
+Paid ETF metadata beta routes (contracts 1.8.0): `POST /v1/research-news` for an operator-authenticated frozen import and `GET /v1/research-news/latest` for bounded point-in-time metadata. See [research-news-api.md](research-news-api.md).

@@ -66,7 +66,8 @@ WRITE_ONCE: dict[str, tuple[str, ...]] = {
     "plans": ("",),
     "reports": ("",),
     "outputs": ("accepted/",),
-    "raw": ("uploads/excel/",),
+    "raw": ("uploads/excel/", "research-news/v1/"),
+    "curated": ("research-news/v1/",),
 }
 #: buckets where the orphan sweeper may delete orphans (design P3)
 SWEEPABLE = ("snapshots", "plans")
