@@ -114,10 +114,15 @@ def test_write_once_policies_on_immutable_buckets(foundation_synth: dict[str, An
     for name, doc in policies.items():
         sids = {s.get("Sid") for s in doc["Statement"]}
         role = next(r for r, stem in (("raw", "raw"), ("curated", "curated"), ("snapshots", "snapshots"), ("plans", "plans"), ("outputs", "run-staging-area"), ("reports", "reports")) if f"-financialplanning-{stem}-" in name)
+        assert {"DenyPutWithoutIfNoneMatch", "DenyDeleteImmutableArtifacts"} <= sids
         if role == "curated":
-            assert "DenyPutWithoutIfNoneMatch" not in sids
-        else:
-            assert {"DenyPutWithoutIfNoneMatch", "DenyDeleteImmutableArtifacts"} <= sids
+            # News manifests are immutable; unrelated curated market data remains outside this rule.
+            for sid in ("DenyPutWithoutIfNoneMatch", "DenyDeleteImmutableArtifacts"):
+                statement = next(item for item in doc["Statement"] if item.get("Sid") == sid)
+                resources = statement["Resource"]
+                if isinstance(resources, str):
+                    resources = [resources]
+                assert resources == [f"arn:aws:s3:::{name}/research-news/v1/*"]
 
 
 # ------------------------------------------------------------------ STO-06
