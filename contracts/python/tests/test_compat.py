@@ -168,3 +168,15 @@ def test_optional_new_discriminator_constraint_is_proven_additive_only_for_old_c
     prior_conditional=copy.deepcopy(old);prior_conditional["allOf"]=[{"properties":{"input_snapshot_id":{"minLength":1}}}]
     appended=copy.deepcopy(new);appended["allOf"]=prior_conditional["allOf"]+[rule]
     assert {c.kind for c in diff_schema("example",prior_conditional,appended)}=={ADDITIVE}
+
+
+
+def test_new_property_guard_cannot_claim_additive_for_scalars_or_pattern_allowed_fields():
+    import copy
+    old={"type":"object","properties":{"input_snapshot_id":{"type":"string"}},"required":["input_snapshot_id"],"additionalProperties":False}
+    rule={"if":{"required":["native_input_ref"]},"then":{"type":"object","properties":{"native_input_ref":{"type":"object"}}},"else":{"properties":{"input_snapshot_id":old["properties"]["input_snapshot_id"]}}}
+    for previous in ({k:v for k,v in old.items() if k!="type"},
+                     {**old,"type":["object","string"]},
+                     {**old,"patternProperties":{"^native_":{"type":"string"}}}):
+        current=copy.deepcopy(previous);current["properties"]["native_input_ref"]={"type":"object"};current["allOf"]=[rule]
+        assert BREAKING in {c.kind for c in diff_schema("example",previous,current)}
