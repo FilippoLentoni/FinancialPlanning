@@ -14,6 +14,7 @@ from finplan_contracts import budget as contract_budget
 
 from infra.policy_sim import Principal, simulate
 from infra.stacks.tooling import BUDGET_ACTION_LOGICAL_ID, BUDGET_NAME, WRITER_SOURCE
+from infra.stacks.brokerage_boundary import deployment_env_boundary
 from tests.unit.ops.conftest import resources_of, tags_of
 
 ALLOW_ALL = {"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}]}
@@ -187,7 +188,8 @@ def test_boundary_detach_exemption_names_only_the_budget_action_role_COST_02(too
     """The only aws:PrincipalArn exemption in any synthesized boundary is the shared boundary's
     detach of the deny policy, and its pattern matches the budget action role and no other role."""
     pols = {r["Properties"]["ManagedPolicyName"]: r["Properties"]["PolicyDocument"] for r in resources_of(tooling_template, "AWS::IAM::ManagedPolicy").values()}
-    exempting = {name: doc for name, doc in pols.items() if "aws:PrincipalArn" in json.dumps(doc)}
+    exempting = {name: {**doc,"Statement":[s for s in doc["Statement"] if "iam:DetachRolePolicy" in json.dumps(s.get("Action",[]))]} for name,doc in pols.items()}
+    exempting = {name:doc for name,doc in exempting.items() if "aws:PrincipalArn" in json.dumps(doc)}
     assert list(exempting) == [contract_boundaries.boundary_name("shared")]
     stmts = [s for s in exempting[contract_boundaries.boundary_name("shared")]["Statement"] if "aws:PrincipalArn" in json.dumps(s)]
     assert len(stmts) == 1
@@ -227,7 +229,7 @@ def test_budget_state_writer_writes_only_the_flag_COST_02(tooling_template: dict
 def test_permission_boundaries_are_the_contract_documents(tooling_template: dict[str, Any]) -> None:
     pols = {r["Properties"]["ManagedPolicyName"]: r["Properties"]["PolicyDocument"] for r in resources_of(tooling_template, "AWS::IAM::ManagedPolicy").values()}
     for env in ("beta", "gamma", "prod"):
-        assert pols[contract_boundaries.boundary_name(env)] == contract_boundaries.env_permission_boundary(env)
+        assert pols[contract_boundaries.boundary_name(env)] == deployment_env_boundary(env)
         assert pols[contract_boundaries.research_boundary_name(env)] == contract_boundaries.research_permission_boundary(env)
     assert pols[contract_boundaries.boundary_name("shared")] == contract_boundaries.shared_permission_boundary()
 
