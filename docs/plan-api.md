@@ -45,7 +45,7 @@ role-name patterns in `config/<env>.json`.
 | `reader` (FinanceLambdasTool) | `finplan-<env>-financelambdastool-tool-role-reader*` | every `GET` route |
 | `submitter` | `...-tool-role-submitter*` | `GET` routes plus `POST /v1/ingestions` |
 | `plan-writer` | `...-tool-role-plan-writer*` | `GET` routes plus version create, validate and publish |
-| FinanceModel job role | `finplan-<env>-financemodel-job-execution*` (registered key `/finplan/<env>/financemodel/job/job-role-ref`) | `GET /v1/snapshots/*` only |
+| FinanceModel job role | `finplan-<env>-financemodel-job-execution*` (registered key `/finplan/<env>/financemodel/job/job-role-ref`) | Snapshot reads and beta numeric GDELT metadata reads |
 | FinanceModel job-API role | `finplan-<env>-financemodel-job-api-handler*` (registered key `/finplan/<env>/financemodel/job/job-api-role-ref`) | Snapshot, saved-paper-state, plan, plan-version, publication/execution evidence and staged-output reads |
 | anyone else, including every other environment's roles | | nothing (explicit deny) |
 

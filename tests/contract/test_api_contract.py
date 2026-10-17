@@ -69,6 +69,12 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     from tests.unit.test_research_news import body as news_body
     op.post("/v1/research-news", news_body(clock.now()))
     tool.get("/v1/research-news/latest?symbols=SPY")
+    from finplan_platform.core.gdelt_metadata import PREFIX as gdelt_prefix
+    from finplan_platform.providers.gdelt_metadata import canonical as gdelt_canonical, checksum as gdelt_checksum
+    gdelt = json.loads((load_store().fixtures_dir("gdelt-metadata-document") / "valid" / "synthetic.json").read_text())
+    gdelt_body = gdelt_canonical(gdelt)
+    svc.store.put_once("curated", gdelt_prefix + "2026/01/01/" + gdelt_checksum(gdelt_body).split(":")[1] + ".json", gdelt_body)
+    tool.get("/v1/gdelt-metadata?symbols=GOOGL,VOO&start_date=2026-01-01&end_date=2026-01-01")
     _, pf, _ = web.post("/v1/portfolios", {"name": "Contract portfolio", "base_currency": "USD", "idempotency_key": "c-pf"})
     tool.get(f"/v1/portfolios/{pf['portfolio_id']}")
     op.call("PUT", f"/v1/portfolios/{pf['portfolio_id']}/state", {"paper_state": {"positions": [{"instrument_id": "SPY", "quantity": 20.5}], "cash_balance": 1000, "high_watermark": 10000, "as_of": "2026-01-09", "base_currency": "USD", "mode": "paper", "source": "paper_initialization"}, "expected_revision": 0, "idempotency_key": "c-paper-state"})
