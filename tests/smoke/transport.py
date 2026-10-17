@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from typing import Any
@@ -43,7 +44,16 @@ class SigV4Transport:
 
     def _url(self, path: str) -> str:
         base = self.endpoint
-        return base + path if not base.endswith("/v1") else base[: -len("/v1")] + path
+        url = base + path if not base.endswith("/v1") else base[: -len("/v1")] + path
+        parts = urllib.parse.urlsplit(url)
+        # Botocore signs an embedded query as already URI-encoded. Encode before
+        # signing so slashes in dataset IDs match API Gateway's canonical query.
+        query = urllib.parse.urlencode(
+            urllib.parse.parse_qsl(parts.query, keep_blank_values=True),
+            quote_via=urllib.parse.quote,
+            safe="-_.~",
+        )
+        return urllib.parse.urlunsplit(parts._replace(query=query))
 
     def signed_request(self, method: str, path: str, body: Any = None) -> urllib.request.Request:
         from botocore.auth import SigV4Auth

@@ -13,7 +13,7 @@ Validation happens in two layers:
 2. semantic rules that JSON Schema cannot express cleanly, each tagged with the spec
    test it serves:
 
-   * ING-02: ``ingest.schedule_time`` is ``09:00`` or ``09:30`` (schema enum; the build
+   * ING-02: ``ingest.schedule_time`` is ``08:50``, ``09:00`` or ``09:30`` (schema enum; the build
      fails before deployment);
    * ING-10: phase 1 allows only the ``fixture`` provider; phase 2 allows ``fixture`` or
      ``yfinance``;
@@ -67,7 +67,7 @@ REQUIRED_DISCLOSURES = ("hindsight_selection", "survivorship")
 _UNIVERSE_KINDS = ("etf", "equity", "cash")
 
 ENVIRONMENTS = ("beta", "gamma", "prod")
-SCHEDULE_TIMES = ("09:00", "09:30")
+SCHEDULE_TIMES = ("08:50", "09:00", "09:30")
 DEFAULT_SCHEDULE_TIME = "09:00"
 PHASE1_PROVIDERS = ("fixture",)
 PHASE2_PROVIDERS = ("fixture", "yfinance")
@@ -348,7 +348,7 @@ def validate_config(doc: Any, *, env: str | None = None) -> list[ConfigProblem]:
             if worst >= timeout:
                 problems.append(ConfigProblem("/ingest/provider_settings", f"worst-case retry time {worst:.1f}s does not fit inside the function timeout {timeout}s", "ING-17"))
     ret = doc.get("retention") if isinstance(doc.get("retention"), dict) else {}
-    if environment in ("beta", "gamma"):
+    if environment == "gamma":
         for k in _EXPIRING_ROLES:
             if k in ret and ret[k] is None:
                 problems.append(ConfigProblem(f"/retention/{k}", f"{environment} must expire all artifacts; set a retention value", "STO-06"))

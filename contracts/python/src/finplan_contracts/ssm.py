@@ -230,6 +230,11 @@ REGISTERED_KEYS: tuple[RegisteredKey, ...] = (
     RegisteredKey("jev-api-key-secret-ref", SHARED, "financemodel", "secret-ref", "jev-api-key", _B, "secret-name", "Secret NAME of the TypeSafe Jev API key (never the value)", ("D11",)),
     # cross-repo references (D1, D4, D10)
     RegisteredKey("gateway-principal-ref", "<env>", "financeagent", "agent", "gateway-principal-ref", ("pipeline", "bootstrap"), "text", "Per-environment Gateway service role reference", ("D4", "D10")),
+    RegisteredKey("classical-gateway-endpoint-ref", "<env>", "financeagent", "agent", "classical-gateway-endpoint-ref", _P, "text", "Traditional portfolio MCP and analysis service reference", ("D1", "D4")),
+    RegisteredKey("classical-gateway-targets", "<env>", "financeagent", "agent", "classical-gateway-targets", _P, "json", "Traditional portfolio MCP and analysis service reference", ("D1", "D4")),
+    RegisteredKey("classical-policy-digest", "<env>", "financeagent", "agent", "classical-policy-digest", _P, "text", "Traditional portfolio MCP and analysis service reference", ("D1", "D4")),
+    RegisteredKey("classical-gateway-principal-ref", "<env>", "financeagent", "agent", "classical-gateway-principal-ref", _P, "text", "Traditional portfolio MCP and analysis service reference", ("D1", "D4")),
+    RegisteredKey("classical-function-ref", "<env>", "financemodel", "api", "classical-function-ref", _P, "text", "Traditional portfolio MCP and analysis service reference", ("D1", "D4")),
     # FinanceAgent identity provider: one Amazon Cognito user pool per environment (decision 15a, 2026-10-07)
     RegisteredKey("user-pool-ref", "<env>", "financeagent", "agent", "user-pool-ref", _P, "text", "Per-environment Cognito user pool reference (the OIDC identity provider)", ("D1", "D4", "D13")),
     RegisteredKey("authorizer-metadata-ref", "<env>", "financeagent", "agent", "authorizer-metadata-ref", _P, "text", "OIDC authorizer metadata (discovery URL) reference of the user pool", ("D1", "D4", "D13")),

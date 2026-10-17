@@ -1,0 +1,28 @@
+{
+  "analysis_id": "ca_11111111111111111111111111111111",
+  "analysis_kind": "recursive_cycle",
+  "created_at": "2026-01-09T16:00:00Z",
+  "analysis_ref": {
+    "artifact_id": "ca_11111111111111111111111111111111",
+    "owner": "financemodel",
+    "kind": "classical_analysis",
+    "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "content_type": "application/json"
+  },
+  "summary": "Synthetic classical optimization evidence.",
+  "contract_version": "1.6.0",
+  "synthetic": true,
+  "evidence": [],
+  "proposed_experiment": {
+    "job_type": "recursive_evaluate",
+    "reason": "Synthetic objective-aligned investigation"
+  },
+  "activation": {
+    "status": "automatically_promoted"
+  },
+  "cycle_id": "ca_11111111111111111111111111111111",
+  "state": "awaiting_experiment_approval",
+  "iteration": 0,
+  "max_iterations": 3,
+  "lineage": []
+}

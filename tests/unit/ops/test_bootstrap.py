@@ -147,7 +147,7 @@ def test_root_session_bootstraps_the_tooling_stacks_only_PIPE_07(ops_assembly: P
     assert sorted(stacks) == sorted(bootstrap.BOOTSTRAP_STACKS)
     # connection reference, ceiling and default allocation written; source dry run enabled the stages
     assert ssm.get_parameter(Name="/finplan/shared/financialplanning/config/codeconnection-ref")["Parameter"]["Value"] == "<codeconnection-arn>"
-    assert float(ssm.get_parameter(Name=CEILING_PARAMETER)["Parameter"]["Value"]) == 50
+    assert float(ssm.get_parameter(Name=CEILING_PARAMETER)["Parameter"]["Value"]) == 100
     assert json.loads(ssm.get_parameter(Name=ALLOCATION_PARAMETER)["Parameter"]["Value"]) == DEFAULT_ALLOCATION
     assert [c[0] for c in pipeline.calls] == ["disable", "start", "enable"]
     assert json.loads((tmp_path / "dry-run.json").read_text())["deploy_stages_enabled"] is True

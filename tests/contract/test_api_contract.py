@@ -21,6 +21,7 @@ from finplan_contracts.validate import validate
 from finplan_platform.core import upgrade
 from finplan_platform.core.contract_io import validate_document
 from finplan_platform.core.repository import PutNew
+from finplan_platform.core.snapshot_reads import load_payloads
 from finplan_platform.handlers.api import ROUTES, match_route
 
 from tests.api_support import *
@@ -59,8 +60,32 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     rec = Recorder()
     web, tool, writer, op = rec.wrap(clients.website), rec.wrap(clients.reader), rec.wrap(clients.writer), rec.wrap(clients.operator)
     snap = seed_snapshot(svc, clock)
+    from finplan_platform.core.crypto_hourly import key, hour, stamp
+    crypto = json.loads((load_store().fixtures_dir("api/crypto-dataset-response") / "valid" / "synthetic.json").read_text())
+    crypto.pop("dataset_checksum")
+    crypto.update(as_of=stamp(hour(clock.now())), available_at=stamp(clock.now()))
+    svc.store.put_once("raw", key(hour(clock.now())), json.dumps(crypto).encode())
+    tool.get("/v1/crypto-research/latest")
+    from tests.unit.test_research_news import body as news_body
+    op.post("/v1/research-news", news_body(clock.now()))
+    tool.get("/v1/research-news/latest?symbols=SPY")
+    from finplan_platform.core.gdelt_metadata import PREFIX as gdelt_prefix
+    from finplan_platform.providers.gdelt_metadata import canonical as gdelt_canonical, checksum as gdelt_checksum
+    gdelt = json.loads((load_store().fixtures_dir("gdelt-metadata-document") / "valid" / "synthetic.json").read_text())
+    gdelt_body = gdelt_canonical(gdelt)
+    svc.store.put_once("curated", gdelt_prefix + "2026/01/01/" + gdelt_checksum(gdelt_body).split(":")[1] + ".json", gdelt_body)
+    tool.get("/v1/gdelt-metadata?symbols=GOOGL,VOO&start_date=2026-01-01&end_date=2026-01-01")
+    from finplan_platform.core.gdelt_intraday import PREFIX as INTRADAY_PREFIX
+    intraday = json.loads((load_store().fixtures_dir("gdelt-intraday-document") / "valid" / "synthetic.json").read_text())
+    body = gdelt_canonical(intraday)
+    svc.store.put_once("curated", INTRADAY_PREFIX + "2026/01/02/" + gdelt_checksum(body).split(":")[1] + ".json", body)
+    tool.get("/v1/gdelt-intraday-metadata?symbols=GOOGL,VOO&start_date=2026-01-02&end_date=2026-01-02")
     _, pf, _ = web.post("/v1/portfolios", {"name": "Contract portfolio", "base_currency": "USD", "idempotency_key": "c-pf"})
     tool.get(f"/v1/portfolios/{pf['portfolio_id']}")
+    op.call("PUT", f"/v1/portfolios/{pf['portfolio_id']}/state", {"paper_state": {"positions": [{"instrument_id": "SPY", "quantity": 20.5}], "cash_balance": 1000, "high_watermark": 10000, "as_of": "2026-01-09", "base_currency": "USD", "mode": "paper", "source": "paper_initialization"}, "expected_revision": 0, "idempotency_key": "c-paper-state"})
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/state")
+    dataset_id = svc.repo.require("snapshot_catalog", snap).doc["dataset"]["dataset_id"]
+    tool.get(f"/v1/snapshots/latest?dataset_id={dataset_id}")
     _, plan, _ = web.post(f"/v1/portfolios/{pf['portfolio_id']}/plans", {"name": "Contract plan", "expected_revision": 1, "idempotency_key": "c-pl"})
     pid = plan["plan_id"]
     _, root, _ = web.post(f"/v1/plans/{pid}/versions", flow.root_body(snap, expected_revision=1, key="c-root"))
@@ -73,10 +98,33 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     tool.get(f"/v1/plans/{pid}/versions?page_size=1")
     _, pub, _ = writer.post(f"/v1/plans/{pid}/publications", {"plan_version_id": child["plan_version_id"], "expected_revision": 1, "idempotency_key": "c-pub"})
     tool.get(f"/v1/publications/{pub['publication_id']}")
+    tool.get(f"/v1/plans/{pid}/publications")
+    tool.get(f"/v1/publications/{pub['publication_id']}/executions")
     _, exe, _ = op.post(f"/v1/publications/{pub['publication_id']}/executions", {"mode": "paper", "idempotency_key": "c-exe"})
     tool.get(f"/v1/executions/{exe['execution_id']}")
     tool.get(f"/v1/snapshots/{snap}")
     tool.get(f"/v1/snapshots/{snap}/observations?instrument_id=SPY&start_date=2025-12-31&end_date=2026-01-06")
+    # The issued-decision lifecycle uses the same stored snapshot and book, and
+    # every new route is validated with the installed contract package.
+    model = rec.wrap(clients.fm_job_api)
+    observations = load_payloads(svc, svc.repo.require("snapshot_catalog", snap))[0]["observations"]
+    observation = max(observations, key=lambda item: item["session_date"])
+    proposal = {"portfolio_id": pf["portfolio_id"], "algorithm_family": "optimization", "algorithm": "min_variance",
+                "input_snapshot_id": snap, "portfolio_revision": 1,
+                "recommendation": {"target_weights": {"SPY": 0.6, "USD_CASH": 0.4}}, "provenance": {"model_version": "fixed-solver"},
+                "execution": {"reference_date": observation["session_date"], "reference_prices": {"SPY": observation["close"]},
+                              "target_weights": {"SPY": 0.6, "USD_CASH": 0.4}, "transaction_cost_bps": 2}, "idempotency_key": "c-decision"}
+    _, issued, _ = model.post(f"/v1/portfolios/{pf['portfolio_id']}/decisions", proposal)
+    decision_id = issued["decision"]["decision_id"]
+    tool.get(f"/v1/portfolio-decisions/{decision_id}")
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/decisions")
+    op.post(f"/v1/portfolio-decisions/{decision_id}/resolution", {"action": "accept", "expected_revision": 1, "confirmed_by_user": True, "idempotency_key": "c-resolution"})
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/history")
+    tool.get(f"/v1/portfolios/{pf['portfolio_id']}/history/2")
+    tool.get(f"/v1/snapshots?dataset_id={dataset_id}")
+    tool.post("/v1/activity-events", {"event_kind": "contract_test", "portfolio_id": pf["portfolio_id"], "session_id": "contract-session",
+                                    "correlation_id": "cor_contract_receipt", "payload": {"decision_id": decision_id}, "idempotency_key": "c-activity"}, headers={"X-Correlation-Id": "cor_contract_receipt"})
+    tool.get(f"/v1/activity-events?portfolio_id={pf['portfolio_id']}")
     # error paths
     writer.post(f"/v1/plans/{pid}/publications", {"plan_version_id": child["plan_version_id"], "expected_revision": 1, "idempotency_key": "c-pub2"})  # CONFLICT
     op.post(f"/v1/publications/{pub['publication_id']}/executions", {"mode": "live", "idempotency_key": "c-live"})

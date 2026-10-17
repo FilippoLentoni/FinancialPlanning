@@ -54,6 +54,11 @@ def record_execution(ctx: OperationContext, svc: Services, publication_id: str, 
             "requested_at": ctx.now_ts(),
             "synthetic": bool(pub.doc.get("synthetic", True)),
         }
+        if req.get("ledger") is not None:
+            require_valid(req["ledger"],"domain-envelope")
+            if req["ledger"].get("domain") != "finance" or req["ledger"].get("payload_kind") != "execution_ledger":
+                raise PlatformError.validation("a finance execution ledger is required",pointer="/ledger")
+            doc["ledger"] = dict(req["ledger"])
         if req.get("note"):
             doc["note"] = req["note"]
         require_valid(doc, "execution")
@@ -78,3 +83,13 @@ def record_execution(ctx: OperationContext, svc: Services, publication_id: str, 
 def get_execution(ctx: OperationContext, svc: Services, execution_id: str) -> dict[str, Any]:
     require_valid({"execution_id": execution_id}, GET_BY_ID_REQUEST("execution_id"))
     return serve(svc.repo.require("execution", execution_id))
+
+
+def list_executions(ctx, svc, publication_id, *, page_size=None, next_token=None):
+    from .repository import decode_page_token
+    require_valid({"publication_id":publication_id, **({"page_size":page_size} if page_size is not None else {}), **({"next_token":next_token} if next_token else {})}, "tools/list-executions-request")
+    svc.repo.require("publication",publication_id)
+    if next_token and (decode_page_token(next_token).get("publication_id") or {}).get("S") != publication_id:
+        raise PlatformError.validation("page token belongs to another publication",pointer="/next_token")
+    rows,token=svc.repo.query_index("execution","publication-index",publication_id,limit=min(int(page_size or 100),100),page_token=next_token)
+    return {"executions":[serve(r) for r in rows],"next_token":token}

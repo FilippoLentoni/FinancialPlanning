@@ -1,0 +1,27 @@
+{
+  "portfolio_id": "pf_01JA2B3C4D5E6F7G8H9JKMNPQR",
+  "algorithm_family": "optimization",
+  "algorithm": "min_variance",
+  "input_snapshot_id": "snap_01JA2B3C4D5E6F7G8H9JKMNPQR",
+  "portfolio_revision": 1,
+  "recommendation": {
+    "synthetic": true
+  },
+  "provenance": {
+    "source": "synthetic_fixture"
+  },
+  "execution": {
+    "reference_date": "2026-01-09",
+    "reference_prices": {
+      "SPY": 100
+    },
+    "target_weights": {
+      "SPY": 0.9,
+      "USD_CASH": 0.1
+    },
+    "transaction_cost_bps": 2
+  },
+  "idempotency_key": "synthetic-proposal",
+  "synthetic": true,
+  "contract_version": "1.5.0"
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/portfolio-history-response.json",
+  "title": "api/portfolio-history-response",
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/finance/v1/portfolio-history-entry.json"
+      },
+      "maxItems": 100
+    },
+    "next_token": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "portfolio_id",
+    "history",
+    "next_token",
+    "synthetic",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

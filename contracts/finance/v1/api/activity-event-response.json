@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/activity-event-response.json",
+  "title": "api/activity-event-response",
+  "type": "object",
+  "properties": {
+    "activity_event_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/activity_event_id"
+    },
+    "recorded_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "activity_event_id",
+    "recorded_at",
+    "checksum",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

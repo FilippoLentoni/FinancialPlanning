@@ -52,6 +52,13 @@
     },
     "synthetic": {
       "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    },
+    "policy_source_run_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/run_id"
+    },
+    "policy_strategy_id": {
+      "type": "string",
+      "enum": ["ppo", "sac", "cash", "buy_and_hold", "equal_weight", "min_variance", "mean_variance", "scenario_cvar"]
     }
   },
   "required": [

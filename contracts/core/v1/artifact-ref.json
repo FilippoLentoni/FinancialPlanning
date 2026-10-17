@@ -65,7 +65,8 @@
         "import_report",
         "research_dataset",
         "run_artifact",
-        "explanation_evidence"
+        "explanation_evidence",
+        "classical_analysis"
       ],
       "description": "Open enum: unknown values from later minors are informational."
     }

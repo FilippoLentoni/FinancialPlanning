@@ -1,5 +1,9 @@
 # Plan lifecycle API
 
+For confirmed recommendation acceptance/rejection, immutable holdings revisions,
+snapshot history and durable activity in beta, see
+[Versioned paper-portfolio lifecycle](paper-portfolio-lifecycle.md).
+
 The single plan API of the FinancialPlanning platform (OpenSpec change `add-platform-foundation`,
 tasks 4.1 to 4.8 and 5.1 to 5.4; requirements in `specs/plan-lifecycle-api/spec.md`). The
 website, Excel import, scheduled workflows and the FinanceLambdasTool MCP adapters all call these
@@ -9,7 +13,7 @@ routes; no client writes plan state any other way.
   `platform/finplan_platform/core/{plans,versions,validation,publication,execution,upgrade,contract_io,snapshot_reads}.py`;
   stack in `infra/stacks/api.py`.
 - **Tests:** `tests/unit/test_api_*.py` and `tests/contract/test_api_contract.py` (all offline).
-- **Contract package:** `finplan-contracts` pinned at **1.0.0** (see `contracts-pin.json`). The
+- **Contract package:** `finplan-contracts` pinned at **1.8.0** (see `contracts-pin.json`). The
   current contract major is `1`; major `0` stays served because records written under 0.2.2
   exist in every environment (`ADDITIONAL_SERVED_MAJORS`, contracts D16), so
   `served_contract_majors` is `[0, 1]`.
@@ -37,12 +41,12 @@ role-name patterns in `config/<env>.json`.
 
 | Role class | Principals (pattern in config) | Routes |
 |---|---|---|
-| platform, website, operator | `finplan-<env>-financialplanning-*` (website-path role `...-website*`, operator `...-operator*`) | every route |
+| platform, website, operator | `finplan-<env>-financialplanning-*` (website-path role `...-website*`, operator `...-operator*`) | every route; website excludes paper-state writes |
 | `reader` (FinanceLambdasTool) | `finplan-<env>-financelambdastool-tool-role-reader*` | every `GET` route |
 | `submitter` | `...-tool-role-submitter*` | `GET` routes plus `POST /v1/ingestions` |
 | `plan-writer` | `...-tool-role-plan-writer*` | `GET` routes plus version create, validate and publish |
-| FinanceModel job role | `finplan-<env>-financemodel-job-execution*` (registered key `/finplan/<env>/financemodel/job/job-role-ref`) | `GET /v1/snapshots/*` only |
-| FinanceModel job-API role | `finplan-<env>-financemodel-job-api-handler*` (registered key `/finplan/<env>/financemodel/job/job-api-role-ref`) | `GET /v1/snapshots/*` and `GET /v1/staged-outputs/*` |
+| FinanceModel job role | `finplan-<env>-financemodel-job-execution*` (registered key `/finplan/<env>/financemodel/job/job-role-ref`) | Snapshot reads and beta numeric GDELT metadata reads |
+| FinanceModel job-API role | `finplan-<env>-financemodel-job-api-handler*` (registered key `/finplan/<env>/financemodel/job/job-api-role-ref`) | Snapshot, saved-paper-state, plan, plan-version, publication/execution evidence and staged-output reads |
 | anyone else, including every other environment's roles | | nothing (explicit deny) |
 
 No tool role may call the execution, Excel import/export or staged-output accept routes in
@@ -65,8 +69,18 @@ result.
 
 | Method and path | Operation | Request schema | Response schema | Idempotency key | `expected_revision` |
 |---|---|---|---|---|---|
+| `GET /v1/crypto-research/latest` | get_crypto_dataset (beta only) | none | `api/crypto-dataset-response` | no | no |
 | `POST /v1/portfolios` | create synthetic portfolio | `api/create-portfolio-request` | `api/create-portfolio-response` | required | n/a |
-| `GET /v1/portfolios/{portfolio_id}` | portfolio read | path | `portfolio` | n/a | n/a |
+| `GET /v1/portfolios/{portfolio_id}` | portfolio read, including model API profile metadata | path | `portfolio` | n/a | n/a |
+| `POST /v1/portfolios/{portfolio_id}/decisions` | beta issued recommendation capture | `api/create-portfolio-decision-request` | `api/portfolio-decision-response` | required | saved holdings revision |
+| `GET /v1/portfolios/{portfolio_id}/decisions` | beta issued decision history | path/query | `api/list-portfolio-decisions-response` | n/a | n/a |
+| `GET /v1/portfolio-decisions/{decision_id}` | beta decision evidence | path | `api/portfolio-decision-response` | n/a | n/a |
+| `POST /v1/portfolio-decisions/{decision_id}/resolution` | beta confirmed paper accept/reject | `api/resolve-portfolio-decision-request` | `api/resolve-portfolio-decision-response` | required | saved holdings revision |
+| `GET /v1/portfolios/{portfolio_id}/history` | beta saved holdings history | path/query | `api/portfolio-history-response` | n/a | n/a |
+| `GET /v1/portfolios/{portfolio_id}/history/{revision}` | beta saved holdings revision | path | `api/portfolio-history-entry-response` | n/a | n/a |
+| `GET /v1/snapshots` | beta approved market snapshot history | query | `api/list-market-snapshots-response` | n/a | n/a |
+| `POST /v1/activity-events` | beta sanitized durable activity | `api/activity-event-request` | `api/activity-event-response` | required | n/a |
+| `GET /v1/activity-events` | beta session or portfolio activity history | query | `api/list-activity-events-response` | n/a | n/a |
 | `POST /v1/portfolios/{portfolio_id}/plans` | create plan | `api/create-plan-request` | `api/create-plan-response` | required | portfolio revision |
 | `GET /v1/plans/{plan_id}` | plan head | `tools/get-plan-request` | `tools/get-plan-response` | n/a | n/a |
 | `GET /v1/plans/{plan_id}/versions` | version list (`page_size`, `next_token`) | `tools/list-plan-versions-request` | `tools/list-plan-versions-response` | n/a | n/a |
@@ -615,3 +629,119 @@ Error envelopes:
 - **Ownership matrix.** Resolved in contracts 0.2.0: the `plan-lifecycle-api` row lists the
   API's child resources, handler role and log group, and the endpoint parameter, and the
   ownership gate passes with no accepted problem.
+
+## Publication and execution history reads (contracts 1.2.0)
+
+`GET /v1/plans/{plan_id}/publications` (`list_publications`) and
+`GET /v1/publications/{publication_id}/executions` (`list_executions`) accept bounded
+`page_size` and opaque `next_token` pagination. Execution history is read-only for tools.
+The FinanceModel job-API role can read an exact published version, publication and its execution
+records for deterministic evidence. Its numerical strategy-inference role remains limited to
+approved snapshots through its narrower identity policy. Recorded executions may include the
+optional finance execution-ledger envelope; an execution intent alone is not an account statement.
+
+## Saved paper portfolio state (contracts 1.3)
+
+`GET /v1/portfolios/{portfolio_id}/state` returns a saved hypothetical book, with
+an independent `revision` and `paper_state` containing fractional share positions,
+USD cash, highest recorded portfolio value, state date and initialization provenance.
+Missing state is `PRECONDITION_FAILED` with reason `portfolio_state_missing`.
+Tool readers and FinanceModel's inference role can read this route. Model training
+jobs cannot read portfolio state.
+
+`PUT /v1/portfolios/{portfolio_id}/state` is restricted to operator and platform
+service principals. Website, tool and FinanceModel principals cannot write it.
+The body contains `paper_state`, `expected_revision` and `idempotency_key`. Revision
+zero initializes a legacy portfolio with no saved state; subsequent changes compare
+against the last read state revision. One transaction persists state, idempotency and
+an audit event with the complete prior/new paper book. The portfolio's plan revision
+and immutable identity document are unchanged. Invalid, duplicate or negative
+positions are rejected. This route records a hypothetical state, never a broker trade.
+
+<!-- schema: api/put-portfolio-state-request -->
+```json
+{
+  "paper_state": {
+    "positions": [{"instrument_id": "SPY", "quantity": 20.5}],
+    "cash_balance": 1000,
+    "high_watermark": 10000,
+    "as_of": "2026-01-09",
+    "base_currency": "USD",
+    "mode": "paper",
+    "source": "paper_initialization"
+  },
+  "expected_revision": 0,
+  "idempotency_key": "synthetic-paper-initialization"
+}
+```
+
+`GET /v1/snapshots/latest` requires the `dataset_id` query parameter and returns
+`{"snapshot": ...}` for the newest readable approved snapshot of that dataset.
+Committed and expired entries are skipped; absence returns `NOT_FOUND` with reason
+`approved_snapshot_missing`. The static route is matched before snapshot identifiers.
+Snapshot discovery and recommendations do not refresh data, initialize a book or
+mutate positions.
+
+### Initialize the approved beta paper book once
+
+The user-approved initial book is **$10,000 hypothetical capital allocated using the
+existing published research plan**, at one approved completed daily close. This is an
+explicit paper initialization; a published plan by itself is never interpreted as an
+executed holding. Fractional shares are supported; close prices are unadjusted prices
+for share sizing, with their snapshot/date stored as provenance.
+
+Run with a beta platform operator's AWS credentials from the repository:
+
+```bash
+uv run --frozen python -m scripts.initialize_paper_portfolio --env beta
+uv run --frozen python -m scripts.initialize_paper_portfolio --env beta --apply
+```
+
+The first command previews the exact expected-revision-zero write. The second applies
+it. Both return existing state unchanged if already initialized. The script accepts
+beta only, reads the research plan reference from SSM, requires the published USD
+allocation and positive completed close prices, and fails if lineage or prices are
+missing. It does not run a policy, create executions or call a brokerage. Later
+recommendation requests load this book through a read-only MCP tool and leave it
+unchanged until an explicit operator state update records hypothetical fills or other
+paper-state changes.
+
+The existing explicit `tools/recommend-portfolio-request` remains unchanged. New consumers
+use `tools/recommend-portfolio-invocation-request`, which accepts `{}` for the saved
+default portfolio, an optional `portfolio_id`, or the complete explicit holdings mode.
+Snapshot and date overrides must be paired; supplied holdings and a saved portfolio ID
+cannot be mixed. The response adds optional state valuation and fractional share fields.
+
+The API Gateway resource policy removes redundant resource entries already covered
+by an existing terminal wildcard, using the identical resource union for Allow and
+NotResource. IAM wildcards span path separators. Explicit excluded-descendant and
+operator-only denials remain separate statements. Synthesized policy tests measure
+normal JSON serialization with resolved account/region values against the 8,192-byte
+service limit and retain 512 bytes of reserve.
+
+## Hourly crypto data
+
+`GET /v1/crypto-research/latest` serves fresh completed BTC/ETH hourly candles in beta through the same IAM authorization and environment boundaries. Data is collected separately from daily equities; see [hourly crypto research](hourly-crypto-research.md) for provenance, scheduling and simulated-capital scope.
+
+Paid ETF metadata beta routes (contracts 1.8.0): `POST /v1/research-news` for an operator-authenticated frozen import and `GET /v1/research-news/latest` for bounded point-in-time metadata. See [research-news-api.md](research-news-api.md).
+
+Numeric GDELT metadata (contracts 1.10.0, beta): `GET /v1/gdelt-metadata`
+accepts `symbols`, required `start_date` and `end_date`, optional `decision_at`
+and `availability_mode`. It returns at most thirty-one source days with full
+immutable documents and their checksums, explicit missing-day coverage, and
+actual central availability. Reader and model roles can read this route. The
+default `platform` mode enforces central availability; explicitly requested
+`historical_source_proxy` mode enforces the disclosed conservative archive
+availability proxy. These numeric derivatives have a distinct feature version
+and do not confer access to article text. See [gdelt-metadata.md](gdelt-metadata.md).
+
+
+Same-day premarket numeric GKG2 metadata (contracts1.11, beta): `GET /v1/gdelt-intraday-metadata`.
+Query bounds and explicit platform/historical-source-proxy modes match the daily numeric route.
+The distinct feature version freezes four batches07:45–08:30 America/New_York with conservative
+availability through08:45, before09:00 state formation. Numeric zero matches and missing
+archives have separate semantics: `captured_batches / expected_batches` measures source
+coverage; partial counts are observed lower bounds; wholly absent counts and tone are null.
+The original ZIPs, terms, HTTP attempts, actual retrieval and central availability remain
+immutable. Historical archive missingness is reconstructed today and never labeled original
+platform availability. Live inference fails closed when every batch is absent.

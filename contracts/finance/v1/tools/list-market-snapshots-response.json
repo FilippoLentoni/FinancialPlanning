@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/list-market-snapshots-response.json",
+  "title": "tools/list-market-snapshots-response",
+  "$ref": "https://contracts.finplan.invalid/finance/v1/api/list-market-snapshots-response.json"
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/activity-event-request.json",
+  "title": "api/activity-event-request",
+  "type": "object",
+  "properties": {
+    "event_kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "payload": {
+      "type": "object"
+    },
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "decision_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "event_kind",
+    "correlation_id",
+    "payload",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

@@ -69,5 +69,7 @@ def handle_scheduled(event: Mapping[str, Any], *, deps: IngestionDeps | None = N
         trigger="scheduled",
     )
     request = {"dataset_id": event.get("dataset_id") or deps.config.dataset_id, "scheduled_time": event.get("scheduled_time")}
+    if event.get("capture_phase") is not None:
+        request["capture_phase"] = event["capture_phase"]
     response = run_ingestion(ctx, request, deps=deps)
     return {"correlation_id": ctx.correlation_id, **response}

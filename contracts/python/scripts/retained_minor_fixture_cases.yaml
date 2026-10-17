@@ -1,0 +1,1030 @@
+cases:
+- fixture: api/crypto-dataset-response/valid/synthetic.json
+  schema: api/crypto-dataset-response
+  expect: valid
+  document:
+    dataset_id: coinbase-crypto-hourly-v1
+    as_of: '2026-01-02T00:00:00Z'
+    available_at: '2026-01-02T00:05:00Z'
+    granularity_seconds: 3600
+    market_data_synthetic: true
+    products:
+    - BTC-USD
+    - ETH-USD
+    bars:
+      BTC-USD:
+      - start: '2026-01-01T00:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T01:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T02:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T03:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T04:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T05:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T06:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T07:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T08:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T09:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T10:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T11:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T12:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T13:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T14:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T15:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T16:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T17:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T18:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T19:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T20:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T21:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T22:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T23:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      ETH-USD:
+      - start: '2026-01-01T00:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T01:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T02:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T03:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T04:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T05:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T06:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T07:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T08:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T09:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T10:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T11:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T12:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T13:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T14:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T15:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T16:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T17:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T18:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T19:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T20:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T21:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T22:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T23:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+    sources: []
+    dataset_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    contract_version: 1.7.0
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: api/crypto-dataset-response/invalid/synthetic.json
+  schema: api/crypto-dataset-response
+  expect: invalid
+  document:
+    dataset_id: coinbase-crypto-hourly-v1
+    as_of: '2026-01-02T00:00:00Z'
+    available_at: '2026-01-02T00:05:00Z'
+    granularity_seconds: 86400
+    market_data_synthetic: true
+    products:
+    - BTC-USD
+    - ETH-USD
+    bars:
+      BTC-USD:
+      - start: '2026-01-01T00:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T01:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T02:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T03:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T04:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T05:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T06:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T07:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T08:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T09:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T10:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T11:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T12:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T13:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T14:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T15:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T16:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T17:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T18:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T19:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T20:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T21:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T22:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T23:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      ETH-USD:
+      - start: '2026-01-01T00:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T01:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T02:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T03:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T04:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T05:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T06:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T07:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T08:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T09:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T10:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T11:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T12:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T13:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T14:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T15:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T16:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T17:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T18:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T19:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T20:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T21:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T22:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+      - start: '2026-01-01T23:00:00Z'
+        open: 100
+        close: 101
+        low: 99
+        high: 102
+        volume: 10
+    sources: []
+    dataset_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    contract_version: 1.7.0
+  code: VALIDATION_FAILED
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: api/research-news-import-request/valid/synthetic.json
+  schema: api/research-news-import-request
+  expect: valid
+  document:
+    provider: synthetic-provider
+    query: synthetic ETF metadata
+    symbols:
+    - SPY
+    - VOO
+    retrieved_at: '2026-01-02T13:00:00Z'
+    payload_checksum: sha256:e4ab349dbffd20013209024354ad5effacf8c8f1a799c2dd485df988db533ceb
+    receipt_checksum: sha256:0bb8313c871a759cbb07babdf28d51b6756ef4eddfbaf137cb8608dc2eb65e74
+    payment_receipt:
+      settlement_status: success
+      amount_usdc: 0.011
+      transaction_id: synthetic-transaction
+    payload:
+      records:
+      - title: Synthetic ETF growth warning
+        url: https://example.invalid/synthetic-etf
+        published_at: '2026-01-02T12:00:00Z'
+        symbols:
+        - SPY
+        - VOO
+    rights:
+      status: research_only
+      scope: search_metadata
+      evidence_url: https://example.invalid/synthetic-terms
+      evidence_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    quality_status: validated
+    contract_version: 1.8.0
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: api/research-news-import-request/invalid/synthetic.json
+  schema: api/research-news-import-request
+  expect: invalid
+  document:
+    provider: synthetic-provider
+    query: synthetic ETF metadata
+    symbols:
+    - SPY
+    - VOO
+    retrieved_at: '2026-01-02T13:00:00Z'
+    payload_checksum: bad
+    receipt_checksum: sha256:0bb8313c871a759cbb07babdf28d51b6756ef4eddfbaf137cb8608dc2eb65e74
+    payment_receipt:
+      settlement_status: success
+      amount_usdc: 0.011
+      transaction_id: synthetic-transaction
+    payload:
+      records:
+      - title: Synthetic ETF growth warning
+        url: https://example.invalid/synthetic-etf
+        published_at: '2026-01-02T12:00:00Z'
+        symbols:
+        - SPY
+        - VOO
+    rights:
+      status: research_only
+      scope: search_metadata
+      evidence_url: https://example.invalid/synthetic-terms
+      evidence_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    quality_status: validated
+    contract_version: 1.8.0
+  code: VALIDATION_FAILED
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: api/research-news-import-response/valid/synthetic.json
+  schema: api/research-news-import-response
+  expect: valid
+  document:
+    manifest:
+      record_id: sha256:198eb9a38f25892b4a74afdbf8d09bbcd3c79d19bf015601d11b0e996243adcf
+      provider: synthetic-provider
+      query: synthetic ETF metadata
+      symbols:
+      - SPY
+      - VOO
+      retrieved_at: '2026-01-02T13:00:00Z'
+      available_at: '2026-01-02T13:01:00Z'
+      payload_checksum: sha256:e4ab349dbffd20013209024354ad5effacf8c8f1a799c2dd485df988db533ceb
+      receipt_checksum: sha256:0bb8313c871a759cbb07babdf28d51b6756ef4eddfbaf137cb8608dc2eb65e74
+      rights:
+        status: research_only
+        scope: search_metadata
+        evidence_url: https://example.invalid/synthetic-terms
+        evidence_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      quality_status: validated
+      eligible: true
+      exclusion_reasons: []
+      records:
+      - title: Synthetic ETF growth warning
+        url: https://example.invalid/synthetic-etf
+        published_at: '2026-01-02T12:00:00Z'
+        symbols:
+        - SPY
+        - VOO
+    contract_version: 1.8.0
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: api/research-news-import-response/invalid/synthetic.json
+  schema: api/research-news-import-response
+  expect: invalid
+  document:
+    manifest: {}
+    contract_version: 1.8.0
+  code: VALIDATION_FAILED
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: api/research-news-response/valid/synthetic.json
+  schema: api/research-news-response
+  expect: valid
+  document:
+    decision_at: '2026-01-02T14:00:00Z'
+    symbols:
+    - SPY
+    - VOO
+    deliveries:
+    - record_id: sha256:198eb9a38f25892b4a74afdbf8d09bbcd3c79d19bf015601d11b0e996243adcf
+      provider: synthetic-provider
+      query: synthetic ETF metadata
+      symbols:
+      - SPY
+      - VOO
+      retrieved_at: '2026-01-02T13:00:00Z'
+      available_at: '2026-01-02T13:01:00Z'
+      payload_checksum: sha256:e4ab349dbffd20013209024354ad5effacf8c8f1a799c2dd485df988db533ceb
+      receipt_checksum: sha256:0bb8313c871a759cbb07babdf28d51b6756ef4eddfbaf137cb8608dc2eb65e74
+      rights:
+        status: research_only
+        scope: search_metadata
+        evidence_url: https://example.invalid/synthetic-terms
+        evidence_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      quality_status: validated
+      eligible: true
+      exclusion_reasons: []
+      records:
+      - title: Synthetic ETF growth warning
+        url: https://example.invalid/synthetic-etf
+        published_at: '2026-01-02T12:00:00Z'
+        symbols:
+        - SPY
+        - VOO
+    historical_coverage: forward_collection_only
+    contract_version: 1.8.0
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: api/research-news-response/invalid/synthetic.json
+  schema: api/research-news-response
+  expect: invalid
+  document:
+    decision_at: '2026-01-02T14:00:00Z'
+    symbols:
+    - SPY
+    - VOO
+    deliveries:
+    - record_id: sha256:198eb9a38f25892b4a74afdbf8d09bbcd3c79d19bf015601d11b0e996243adcf
+      provider: synthetic-provider
+      query: synthetic ETF metadata
+      symbols:
+      - SPY
+      - VOO
+      retrieved_at: '2026-01-02T13:00:00Z'
+      available_at: '2026-01-02T13:01:00Z'
+      payload_checksum: sha256:e4ab349dbffd20013209024354ad5effacf8c8f1a799c2dd485df988db533ceb
+      receipt_checksum: sha256:0bb8313c871a759cbb07babdf28d51b6756ef4eddfbaf137cb8608dc2eb65e74
+      rights:
+        status: research_only
+        scope: search_metadata
+        evidence_url: https://example.invalid/synthetic-terms
+        evidence_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      quality_status: validated
+      eligible: true
+      exclusion_reasons: []
+      records:
+      - title: Synthetic ETF growth warning
+        url: https://example.invalid/synthetic-etf
+        published_at: '2026-01-02T12:00:00Z'
+        symbols:
+        - SPY
+        - VOO
+    historical_coverage: complete_backtest
+    contract_version: 1.8.0
+  code: VALIDATION_FAILED
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: tools/get-crypto-experiment-request/valid/synthetic.json
+  schema: tools/get-crypto-experiment-request
+  expect: valid
+  document:
+    synthetic: true
+- fixture: tools/get-crypto-experiment-request/invalid/synthetic.json
+  schema: tools/get-crypto-experiment-request
+  expect: invalid
+  document:
+    execution_mode: live
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/get-crypto-experiment-response/valid/synthetic.json
+  schema: tools/get-crypto-experiment-response
+  expect: valid
+  document:
+    analysis_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    analysis_kind: crypto_experiment
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    experiment: {}
+- fixture: tools/get-crypto-experiment-response/invalid/synthetic.json
+  schema: tools/get-crypto-experiment-response
+  expect: invalid
+  document:
+    analysis_id: invalid
+    analysis_kind: crypto_experiment
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    experiment: {}
+  code: INVALID_IDENTIFIER
+- fixture: tools/recommend-crypto-portfolio-request/valid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-request
+  expect: valid
+  document:
+    synthetic: true
+- fixture: tools/recommend-crypto-portfolio-request/invalid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-request
+  expect: invalid
+  document:
+    execution_mode: live
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-crypto-portfolio-response/valid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-response
+  expect: valid
+  document:
+    analysis_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    analysis_kind: crypto_recommendation
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    recommendation: {}
+- fixture: tools/recommend-crypto-portfolio-response/invalid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-response
+  expect: invalid
+  document:
+    analysis_id: invalid
+    analysis_kind: crypto_recommendation
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    recommendation: {}
+  code: INVALID_IDENTIFIER
+- fixture: tools/list-crypto-history-request/valid/synthetic.json
+  schema: tools/list-crypto-history-request
+  expect: valid
+  document:
+    synthetic: true
+- fixture: tools/list-crypto-history-request/invalid/synthetic.json
+  schema: tools/list-crypto-history-request
+  expect: invalid
+  document:
+    execution_mode: live
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/list-crypto-history-response/valid/synthetic.json
+  schema: tools/list-crypto-history-response
+  expect: valid
+  document:
+    analysis_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    analysis_kind: crypto_history
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    history: []
+- fixture: tools/list-crypto-history-response/invalid/synthetic.json
+  schema: tools/list-crypto-history-response
+  expect: invalid
+  document:
+    analysis_id: invalid
+    analysis_kind: crypto_history
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    history: []
+  code: INVALID_IDENTIFIER
+- fixture: tools/discover-research-data-request/valid/synthetic.json
+  schema: tools/discover-research-data-request
+  expect: valid
+  document:
+    synthetic: true
+- fixture: tools/discover-research-data-request/invalid/synthetic.json
+  schema: tools/discover-research-data-request
+  expect: invalid
+  document:
+    execution_mode: live
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/discover-research-data-response/valid/synthetic.json
+  schema: tools/discover-research-data-response
+  expect: valid
+  document:
+    analysis_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    analysis_kind: research_discovery
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    discovery: {}
+- fixture: tools/discover-research-data-response/invalid/synthetic.json
+  schema: tools/discover-research-data-response
+  expect: invalid
+  document:
+    analysis_id: invalid
+    analysis_kind: research_discovery
+    created_at: '2026-01-02T00:10:00Z'
+    summary: Synthetic contract fixture only.
+    contract_version: 1.7.0
+    synthetic: true
+    analysis_ref:
+      artifact_id: ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    discovery: {}
+  code: INVALID_IDENTIFIER
+- fixture: tools/get-etf-research-inputs-request/valid/synthetic.json
+  schema: tools/get-etf-research-inputs-request
+  expect: valid
+  document:
+    symbols:
+    - SPY
+    - VOO
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: tools/get-etf-research-inputs-request/invalid/synthetic.json
+  schema: tools/get-etf-research-inputs-request
+  expect: invalid
+  document:
+    symbols: []
+  code: VALIDATION_FAILED
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: tools/get-etf-research-inputs-response/valid/synthetic.json
+  schema: tools/get-etf-research-inputs-response
+  expect: valid
+  document:
+    decision_at: '2026-01-02T14:00:00Z'
+    symbols:
+    - SPY
+    - VOO
+    feature_protocol: etf-search-metadata/1
+    features: {}
+    models: {}
+    provenance: []
+    limitations:
+    - synthetic_fixture
+    contract_version: 1.8.0
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- fixture: tools/get-etf-research-inputs-response/invalid/synthetic.json
+  schema: tools/get-etf-research-inputs-response
+  expect: invalid
+  document:
+    decision_at: '2026-01-02T14:00:00Z'
+    symbols: []
+    feature_protocol: etf-search-metadata/1
+    features: {}
+    models: {}
+    provenance: []
+    limitations:
+    - synthetic_fixture
+    contract_version: 1.8.0
+  code: VALIDATION_FAILED
+  exception: Legacy finance API schema excludes the synthetic fixture marker; values are made up.

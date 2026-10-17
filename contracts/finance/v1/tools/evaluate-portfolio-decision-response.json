@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/evaluate-portfolio-decision-response.json",
+  "title": "tools/evaluate-portfolio-decision-response",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+    },
+    {
+      "properties": {
+        "horizon_evaluation": {
+          "type": "object",
+          "required": [
+            "version",
+            "status",
+            "full_policy_replay",
+            "protocol_status",
+            "available_forward_sessions",
+            "primary_horizon_mature",
+            "protocol",
+            "evidence_assessment",
+            "source",
+            "limitations"
+          ],
+          "properties": {
+            "version": {
+              "const": "finplan-decision-horizon/1"
+            },
+            "status": {
+              "enum": [
+                "available",
+                "not_available"
+              ]
+            },
+            "full_policy_replay": {
+              "type": "boolean"
+            },
+            "protocol_status": {
+              "enum": [
+                "predeclared_at_issuance",
+                "retrospective_legacy_protocol",
+                "retrospective_historical_request"
+              ]
+            },
+            "available_forward_sessions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "primary_horizon_mature": {
+              "type": "boolean"
+            },
+            "protocol": {
+              "type": "object"
+            },
+            "evidence_assessment": {
+              "type": "object"
+            },
+            "source": {
+              "type": "object"
+            },
+            "limitations": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "windows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "horizon_sessions": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "observed_sessions": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "status": {
+                    "enum": [
+                      "partial",
+                      "mature"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

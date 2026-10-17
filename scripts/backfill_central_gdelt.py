@@ -1,0 +1,75 @@
+"""Invoke the authorized producer for bounded historical numeric-source capture.
+
+The operator never writes authoritative buckets. Each producer invocation checks
+the project budget, retrieves the approved fixed origin, and verifies the local
+archive checksum when one exists. No automatic retry of a failed invocation.
+"""
+import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, date, datetime, timedelta
+import json
+from pathlib import Path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--start", type=date.fromisoformat, required=True)
+    parser.add_argument("--end", type=date.fromisoformat, required=True)
+    parser.add_argument("--local-corpus", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--sessions-only", action="store_true", help="Prioritize actual XNYS decision sessions; daily live capture still runs every calendar day")
+    parser.add_argument("--source-kind", choices=("daily", "intraday"), default="daily")
+    parser.add_argument("--workers", type=int, choices=(1, 2), default=2)
+    args = parser.parse_args()
+    if not 0 <= (args.end - args.start).days <= (1095 if args.source_kind == "intraday" else 365) or args.end >= datetime.now(UTC).date():
+        parser.error("capture requires 1..366 prior UTC archive days")
+    import boto3
+    from botocore.config import Config
+    client = boto3.Session(region_name="us-east-2").client("lambda", config=Config(read_timeout=330, retries={"total_max_attempts": 1}))
+    days = [args.start + timedelta(days=i) for i in range((args.end-args.start).days+1)]
+    if args.sessions_only:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "platform"))
+        from finplan_platform.core.calendar import xnys_calendar
+        calendar = xnys_calendar()
+        days = [day for day in days if calendar.status(day) in ("regular", "early_close")]
+    rows, failures = [], []
+    def invoke(day):
+        event = {"source": "finplan.gdelt-intraday" if args.source_kind == "intraday" else "finplan.gdelt-metadata", "source_day": str(day)}
+        frozen = args.local_corpus / day.strftime("%Y/%m/%d/source.json")
+        if frozen.exists():
+            event["expected_archive_checksum"] = json.loads(frozen.read_text())["archive_checksum"]
+        if args.source_kind == "intraday":
+            window = args.local_corpus / day.strftime("%Y/%m/%d/gdelt-gkg-v2-premarket-organization-tone-v1.json")
+            if window.exists():
+                event["expected_sources"] = {s["batch_at"]: s["archive_checksum"] for s in json.loads(window.read_text())["lineage"]["sources"]}
+        result = client.invoke(FunctionName="finplan-beta-financialplanning-ingestion-handler", InvocationType="RequestResponse", Payload=json.dumps(event).encode())
+        body = json.loads(result["Payload"].read())
+        if result.get("FunctionError") or body.get("status") not in ("captured", "already_frozen"):
+            return {"source_day": str(day), "status": "failed", "error_type": body.get("errorType", "unexpected_producer_result")}
+        return body
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        pending = {executor.submit(invoke, day): day for day in days}
+        for future in as_completed(pending):
+            day = pending[future]
+            try:
+                result = future.result()
+            except Exception as exc:
+                result = {"source_day": str(day), "status": "failed", "error_type": type(exc).__name__}
+            (failures if result["status"] == "failed" else rows).append(result)
+            print(json.dumps(result), flush=True)
+    args.output.mkdir(parents=True, exist_ok=True, mode=0o700)
+    report = {"captured_at": datetime.now(UTC).isoformat(), "start_date": str(args.start), "end_date": str(args.end),
+              "expected_days": len(days), "captured_days": len(rows), "complete": not failures,
+              "workers": args.workers, "sessions_only": args.sessions_only,
+              "concurrency_basis": "hardmax2 preserves headroom within the verified regional Lambda quota10 for nested agent/tool/model/platform calls",
+              "captures": sorted(rows, key=lambda r: r["source_day"]), "failures": sorted(failures, key=lambda r: r["source_day"])}
+    path = args.output / ("central-capture-"+datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")+".json")
+    with path.open("x") as stream:
+        json.dump(report, stream, indent=2)
+    print(json.dumps({"report": str(path), "complete": not failures, "captured_days": len(rows), "expected_days": len(days)}))
+    return 0 if not failures else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

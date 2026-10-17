@@ -1,0 +1,15 @@
+{
+  "analysis_id": "ca_11111111111111111111111111111111",
+  "analysis_kind": "feedback",
+  "created_at": "2026-01-09T16:00:00Z",
+  "analysis_ref": {
+    "artifact_id": "ca_11111111111111111111111111111111",
+    "owner": "financemodel",
+    "kind": "classical_analysis",
+    "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "content_type": "application/json"
+  },
+  "summary": "Synthetic classical optimization evidence.",
+  "contract_version": "1.4.0",
+  "synthetic": true
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Capture public GDELT daily metadata with source availability provenance
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/FinancialPlanning
+ExecStart=%h/projects/FinancialPlanning/.venv/bin/python %h/projects/FinancialPlanning/scripts/collect_daily_gdelt.py
+UMask=0077
+TimeoutStartSec=600
+NoNewPrivileges=true

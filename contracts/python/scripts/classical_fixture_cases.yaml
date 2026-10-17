@@ -1,0 +1,579 @@
+cases:
+- fixture: classical-analysis/valid/evidence.json
+  schema: classical-analysis
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recommendation
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: &id001
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    recommendation:
+      mode: advisory_paper
+      strategy: min_variance
+      as_of: '2026-01-09'
+      input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: Synthetic fixture supplies no forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      target_weights:
+      - instrument_id: SYNTH
+        weight: 0.8
+      cash_weight: 0.2
+      decisions:
+      - instrument_id: SYNTH
+        action: buy
+        delta_weight: 0.3
+        indicative_notional: 300.0
+        current_quantity: 5.0
+        target_quantity: 8.0
+        delta_quantity: 3.0
+        reference_price: 100.0
+        price_as_of: '2026-01-09'
+      constraint_outcome:
+        action: accepted
+        violations: []
+    explanation:
+      objective_gain: 1.0
+      shapley:
+        method: exact_shapley
+        groups:
+        - SYNTH
+        baseline: 0.0
+        final: 1.0
+        contributions:
+        - group: SYNTH
+          value: 1.0
+        reconciliation_residual: 0.0
+        coalition_count: 2
+        tolerance: 1.0e-08
+      force_keep: []
+- fixture: classical-analysis/invalid/missing-checksum.json
+  schema: classical-analysis
+  expect: invalid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recommendation
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      content_type: application/json
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-request/valid/synthetic.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: valid
+  document:
+    synthetic: true
+- fixture: tools/recommend-classical-portfolio-request/invalid/unknown-field.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  document:
+    synthetic: true
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-response/valid/synthetic.json
+  schema: tools/recommend-classical-portfolio-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recommendation
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    recommendation:
+      mode: advisory_paper
+      strategy: min_variance
+      as_of: '2026-01-09'
+      input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: Synthetic fixture supplies no forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      target_weights:
+      - instrument_id: SYNTH
+        weight: 0.8
+      cash_weight: 0.2
+      decisions:
+      - instrument_id: SYNTH
+        action: buy
+        delta_weight: 0.3
+        indicative_notional: 300.0
+        current_quantity: 5.0
+        target_quantity: 8.0
+        delta_quantity: 3.0
+        reference_price: 100.0
+        price_as_of: '2026-01-09'
+      constraint_outcome:
+        action: accepted
+        violations: []
+    explanation:
+      objective_gain: 1.0
+      shapley:
+        method: exact_shapley
+        groups:
+        - SYNTH
+        baseline: 0.0
+        final: 1.0
+        contributions:
+        - group: SYNTH
+          value: 1.0
+        reconciliation_residual: 0.0
+        coalition_count: 2
+        tolerance: 1.0e-08
+      force_keep: []
+- fixture: tools/recommend-classical-portfolio-response/invalid/missing-required.json
+  schema: tools/recommend-classical-portfolio-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/explain-classical-recommendation-request/valid/synthetic.json
+  schema: tools/explain-classical-recommendation-request
+  expect: valid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+- fixture: tools/explain-classical-recommendation-request/invalid/unknown-field.json
+  schema: tools/explain-classical-recommendation-request
+  expect: invalid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/explain-classical-recommendation-response/valid/synthetic.json
+  schema: tools/explain-classical-recommendation-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: explanation
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    source_analysis_id: ca_11111111111111111111111111111111
+    source_analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    explanation:
+      objective_gain: 1.0
+      shapley:
+        method: exact_shapley
+        groups:
+        - SYNTH
+        baseline: 0.0
+        final: 1.0
+        contributions:
+        - group: SYNTH
+          value: 1.0
+        reconciliation_residual: 0.0
+        coalition_count: 2
+        tolerance: 1.0e-08
+      force_keep: []
+- fixture: tools/explain-classical-recommendation-response/invalid/missing-required.json
+  schema: tools/explain-classical-recommendation-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/compare-classical-plans-request/valid/synthetic.json
+  schema: tools/compare-classical-plans-request
+  expect: valid
+  document:
+    synthetic: true
+    previous_analysis_id: ca_11111111111111111111111111111111
+    current_analysis_id: ca_11111111111111111111111111111111
+- fixture: tools/compare-classical-plans-request/invalid/unknown-field.json
+  schema: tools/compare-classical-plans-request
+  expect: invalid
+  document:
+    synthetic: true
+    previous_analysis_id: ca_11111111111111111111111111111111
+    current_analysis_id: ca_11111111111111111111111111111111
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/compare-classical-plans-response/valid/synthetic.json
+  schema: tools/compare-classical-plans-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: comparison
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    previous_analysis_id: ca_11111111111111111111111111111111
+    current_analysis_id: ca_11111111111111111111111111111111
+    previous_analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    current_analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    alignment: {}
+    shapley:
+      method: exact_shapley
+      groups:
+      - SYNTH
+      baseline: 0.0
+      final: 1.0
+      contributions:
+      - group: SYNTH
+        value: 1.0
+      reconciliation_residual: 0.0
+      coalition_count: 2
+      tolerance: 1.0e-08
+    changes: []
+    status: available
+- fixture: tools/compare-classical-plans-response/invalid/missing-required.json
+  schema: tools/compare-classical-plans-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/evaluate-classical-performance-request/valid/synthetic.json
+  schema: tools/evaluate-classical-performance-request
+  expect: valid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+- fixture: tools/evaluate-classical-performance-request/invalid/unknown-field.json
+  schema: tools/evaluate-classical-performance-request
+  expect: invalid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/evaluate-classical-performance-response/valid/synthetic.json
+  schema: tools/evaluate-classical-performance-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: performance
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    source_analysis_id: ca_11111111111111111111111111111111
+    source_analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    status: not_available
+    trend: not_available
+    actual_source: saved_paper
+- fixture: tools/evaluate-classical-performance-response/invalid/missing-required.json
+  schema: tools/evaluate-classical-performance-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/get-classical-analysis-request/valid/synthetic.json
+  schema: tools/get-classical-analysis-request
+  expect: valid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+- fixture: tools/get-classical-analysis-request/invalid/unknown-field.json
+  schema: tools/get-classical-analysis-request
+  expect: invalid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/get-classical-analysis-response/valid/synthetic.json
+  schema: tools/get-classical-analysis-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recommendation
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+- fixture: tools/get-classical-analysis-response/invalid/missing-required.json
+  schema: tools/get-classical-analysis-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/list-classical-analyses-request/valid/synthetic.json
+  schema: tools/list-classical-analyses-request
+  expect: valid
+  document:
+    synthetic: true
+- fixture: tools/list-classical-analyses-request/invalid/unknown-field.json
+  schema: tools/list-classical-analyses-request
+  expect: invalid
+  document:
+    synthetic: true
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/list-classical-analyses-response/valid/synthetic.json
+  schema: tools/list-classical-analyses-response
+  expect: valid
+  document:
+    analyses: []
+    contract_version: 1.4.0
+    synthetic: true
+- fixture: tools/list-classical-analyses-response/invalid/missing-required.json
+  schema: tools/list-classical-analyses-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/research-portfolio-models-request/valid/synthetic.json
+  schema: tools/research-portfolio-models-request
+  expect: valid
+  document:
+    synthetic: true
+- fixture: tools/research-portfolio-models-request/invalid/unknown-field.json
+  schema: tools/research-portfolio-models-request
+  expect: invalid
+  document:
+    synthetic: true
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/research-portfolio-models-response/valid/synthetic.json
+  schema: tools/research-portfolio-models-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: research
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    sources: []
+    literature:
+      status: not_available
+    evidence: []
+    proposed_experiment: {}
+    activation:
+      status: proposal_only
+- fixture: tools/research-portfolio-models-response/invalid/missing-required.json
+  schema: tools/research-portfolio-models-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/run-portfolio-research-request/valid/synthetic.json
+  schema: tools/run-portfolio-research-request
+  expect: valid
+  document:
+    synthetic: true
+    review_id: ca_11111111111111111111111111111111
+    dry_run: true
+- fixture: tools/run-portfolio-research-request/invalid/unknown-field.json
+  schema: tools/run-portfolio-research-request
+  expect: invalid
+  document:
+    synthetic: true
+    review_id: ca_11111111111111111111111111111111
+    dry_run: true
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/run-portfolio-research-response/valid/synthetic.json
+  schema: tools/run-portfolio-research-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: research_run
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    review_id: ca_11111111111111111111111111111111
+    dry_run: true
+    cost_estimate:
+      estimated_usd_upper_bound: 0.25
+      budget_category: cpu_research
+      remaining_allocation_usd: 1.0
+      price_retrieved_at: '2026-01-09T16:00:00Z'
+    activation: proposal_only
+- fixture: tools/run-portfolio-research-response/invalid/missing-required.json
+  schema: tools/run-portfolio-research-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/submit-portfolio-feedback-request/valid/synthetic.json
+  schema: tools/submit-portfolio-feedback-request
+  expect: valid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+    text: Explain the risk and cost assumptions.
+    idempotency_key: synthetic-feedback-1
+- fixture: tools/submit-portfolio-feedback-request/invalid/unknown-field.json
+  schema: tools/submit-portfolio-feedback-request
+  expect: invalid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+    text: Explain the risk and cost assumptions.
+    idempotency_key: synthetic-feedback-1
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/submit-portfolio-feedback-response/valid/synthetic.json
+  schema: tools/submit-portfolio-feedback-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: feedback
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+- fixture: tools/submit-portfolio-feedback-response/invalid/missing-required.json
+  schema: tools/submit-portfolio-feedback-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/research-market-events-request/valid/synthetic.json
+  schema: tools/research-market-events-request
+  expect: valid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+- fixture: tools/research-market-events-request/invalid/unknown-field.json
+  schema: tools/research-market-events-request
+  expect: invalid
+  document:
+    synthetic: true
+    analysis_id: ca_11111111111111111111111111111111
+    unknown_field: true
+  code: VALIDATION_FAILED
+- fixture: tools/research-market-events-response/valid/synthetic.json
+  schema: tools/research-market-events-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: market_events
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref: *id001
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    source_analysis_id: ca_11111111111111111111111111111111
+    status: not_available
+    sources: []
+    window:
+      start: '2026-01-02'
+      end: '2026-01-09'
+    causal_conclusion:
+      status: not_available
+- fixture: tools/research-market-events-response/invalid/missing-required.json
+  schema: tools/research-market-events-response
+  expect: invalid
+  document:
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/explain-classical-recommendation-request/invalid/wrong-analysis-id.json
+  schema: tools/explain-classical-recommendation-request
+  expect: invalid
+  document:
+    analysis_id: pv_01JA2B3C4D5E6F7G8H9JKMNPQR
+    synthetic: true
+  code: INVALID_IDENTIFIER
+- fixture: tools/run-portfolio-research-request/invalid/unconfirmed-paid-run.json
+  schema: tools/run-portfolio-research-request
+  expect: invalid
+  document:
+    review_id: ca_11111111111111111111111111111111
+    dry_run: false
+    idempotency_key: test-run
+    confirmed_by_user: false
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-request/invalid/unbounded-settings.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  document:
+    settings:
+      lookback_days: 5000
+    synthetic: true
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-classical-portfolio-request/valid/explicit-historical.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: valid
+  document:
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    as_of: '2026-01-09'
+    holdings:
+      weights:
+      - instrument_id: SYNTH
+        weight: 0.5
+      cash_weight: 0.5
+      portfolio_value: 10000
+      high_watermark: 10000
+    synthetic: true
+- fixture: tools/recommend-classical-portfolio-request/invalid/holdings-without-snapshot.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    holdings:
+      weights: []
+      cash_weight: 1
+      portfolio_value: 10000
+      high_watermark: 10000
+    synthetic: true
+- fixture: tools/recommend-classical-portfolio-request/invalid/holdings-with-portfolio-id.json
+  schema: tools/recommend-classical-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    as_of: '2026-01-09'
+    holdings:
+      weights: []
+      cash_weight: 1
+      portfolio_value: 10000
+      high_watermark: 10000
+    synthetic: true

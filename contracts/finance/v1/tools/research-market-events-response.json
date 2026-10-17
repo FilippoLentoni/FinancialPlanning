@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/research-market-events-response.json",
+  "title": "tools/research-market-events-response",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+    },
+    {
+      "properties": {
+        "analysis_kind": {
+          "const": "market_events"
+        }
+      }
+    },
+    {
+      "required": [
+        "source_analysis_id",
+        "status",
+        "sources",
+        "window",
+        "causal_conclusion"
+      ],
+      "properties": {
+        "source_analysis_id": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "not_available"
+          ]
+        },
+        "window": {
+          "type": "object"
+        },
+        "causal_conclusion": {
+          "type": "object"
+        }
+      }
+    }
+  ]
+}

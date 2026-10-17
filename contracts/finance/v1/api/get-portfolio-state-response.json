@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/get-portfolio-state-response.json",
+  "title": "get-portfolio-state-response",
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "paper_state": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/paper-portfolio-state.json"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "synthetic": {
+      "const": true
+    }
+  },
+  "required": [
+    "portfolio_id",
+    "paper_state",
+    "revision",
+    "synthetic",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

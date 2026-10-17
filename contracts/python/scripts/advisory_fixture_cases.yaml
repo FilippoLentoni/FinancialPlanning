@@ -1,0 +1,522 @@
+# Declarative synthetic fixtures for policy serving and saved paper state.
+cases:
+- fixture: api/get-portfolio-state-response/invalid/paper.json
+  schema: api/get-portfolio-state-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 20
+      cash_balance: 1000
+      high_watermark: 10000
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_initialization
+    revision: 0
+    synthetic: true
+- fixture: api/get-portfolio-state-response/valid/paper.json
+  schema: api/get-portfolio-state-response
+  expect: valid
+  document:
+    portfolio_id: pf_01KDVDNAZ83BAMMYCEGWF33DPM
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 20
+      cash_balance: 1000
+      high_watermark: 10000
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_initialization
+    revision: 1
+    synthetic: true
+    contract_version: 1.3.0
+- fixture: api/latest-snapshot-request/invalid/paper.json
+  schema: api/latest-snapshot-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    dataset_id: bad
+  exception: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- fixture: api/latest-snapshot-request/valid/paper.json
+  schema: api/latest-snapshot-request
+  expect: valid
+  document:
+    dataset_id: finance/research-universe/daily
+  exception: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- fixture: api/put-portfolio-state-request/invalid/paper.json
+  schema: api/put-portfolio-state-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 20
+      cash_balance: 1000
+      high_watermark: 10000
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: live
+      source: paper_initialization
+    expected_revision: 0
+    idempotency_key: paper-init
+  exception: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- fixture: api/put-portfolio-state-request/valid/paper.json
+  schema: api/put-portfolio-state-request
+  expect: valid
+  document:
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 20
+      cash_balance: 1000
+      high_watermark: 10000
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_initialization
+    expected_revision: 0
+    idempotency_key: paper-init
+  exception: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- fixture: execution-ledger/invalid/advisory.json
+  schema: execution-ledger
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: execution-ledger/valid/advisory.json
+  schema: execution-ledger
+  expect: valid
+  document:
+    window:
+      start: '2026-01-05'
+      end: '2026-01-06'
+    start_value: 1000
+    end_value: 1010
+    cash_flows: 0
+    realized_pnl: 0
+    unrealized_pnl: 11
+    fees: 1
+    synthetic: true
+- fixture: experiment-config/invalid/export-unknown.json
+  schema: experiment-config
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    strategy: prepare_policy
+    universe:
+    - VOO
+    policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+    policy_strategy_id: unknown
+    synthetic: true
+- fixture: experiment-config/valid/export-min-variance.json
+  schema: experiment-config
+  expect: valid
+  document:
+    strategy: prepare_policy
+    universe:
+    - VOO
+    policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+    policy_strategy_id: min_variance
+    synthetic: true
+- fixture: experiment-config/valid/export-ppo.json
+  schema: experiment-config
+  expect: valid
+  document:
+    strategy: prepare_policy
+    universe:
+    - VOO
+    policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+    policy_strategy_id: ppo
+    synthetic: true
+- fixture: paper-portfolio-state/invalid/paper.json
+  schema: paper-portfolio-state
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    positions:
+    - instrument_id: SPY
+      quantity: 20
+    cash_balance: -1
+    high_watermark: 10000
+    as_of: '2026-01-09'
+    base_currency: USD
+    mode: paper
+    source: paper_initialization
+  exception: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- fixture: paper-portfolio-state/valid/paper.json
+  schema: paper-portfolio-state
+  expect: valid
+  document:
+    positions:
+    - instrument_id: SPY
+      quantity: 20
+    cash_balance: 1000
+    high_watermark: 10000
+    as_of: '2026-01-09'
+    base_currency: USD
+    mode: paper
+    source: paper_initialization
+  exception: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- fixture: tools/get-performance-evidence-request/invalid/advisory.json
+  schema: tools/get-performance-evidence-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/get-performance-evidence-request/valid/advisory.json
+  schema: tools/get-performance-evidence-request
+  expect: valid
+  document:
+    publication_id: pub_01JABCDEFGHJKMNPQRSTVWXY01
+    realized_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+    window:
+      start: '2026-01-05'
+      end: '2026-01-06'
+    actual_source: paper
+    synthetic: true
+- fixture: tools/get-performance-evidence-response/invalid/advisory.json
+  schema: tools/get-performance-evidence-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/get-performance-evidence-response/valid/advisory.json
+  schema: tools/get-performance-evidence-response
+  expect: valid
+  document:
+    evidence:
+      evidence_kind: performance_decomposition
+    evidence_ref:
+      artifact_id: evidence_synthetic_001
+      owner: financemodel
+      kind: explanation_evidence
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+      synthetic: true
+    synthetic: true
+- fixture: tools/get-publication-request/invalid/advisory.json
+  schema: tools/get-publication-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/get-publication-request/valid/advisory.json
+  schema: tools/get-publication-request
+  expect: valid
+  document:
+    publication_id: pub_01JABCDEFGHJKMNPQRSTVWXY01
+    synthetic: true
+- fixture: tools/get-publication-response/invalid/advisory.json
+  schema: tools/get-publication-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/get-publication-response/valid/advisory.json
+  schema: tools/get-publication-response
+  expect: valid
+  document:
+    publication:
+      publication_id: pub_01JABCDEFGHJKMNPQRSTVWXY01
+      plan_id: pl_01JABCDEFGHJKMNPQRSTVWXY01
+      plan_version_id: pv_01JABCDEFGHJKMNPQRSTVWXY01
+      plan_version_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      published_at: '2026-01-05T22:00:00Z'
+      synthetic: true
+    synthetic: true
+- fixture: tools/list-executions-request/invalid/advisory.json
+  schema: tools/list-executions-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/list-executions-request/valid/advisory.json
+  schema: tools/list-executions-request
+  expect: valid
+  document:
+    publication_id: pub_01JABCDEFGHJKMNPQRSTVWXY01
+    synthetic: true
+- fixture: tools/list-executions-response/invalid/advisory.json
+  schema: tools/list-executions-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/list-executions-response/valid/advisory.json
+  schema: tools/list-executions-response
+  expect: valid
+  document:
+    executions: []
+    synthetic: true
+- fixture: tools/list-publications-request/invalid/advisory.json
+  schema: tools/list-publications-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/list-publications-request/valid/advisory.json
+  schema: tools/list-publications-request
+  expect: valid
+  document:
+    plan_id: pl_01JABCDEFGHJKMNPQRSTVWXY01
+    synthetic: true
+- fixture: tools/list-publications-response/invalid/advisory.json
+  schema: tools/list-publications-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/list-publications-response/valid/advisory.json
+  schema: tools/list-publications-response
+  expect: valid
+  document:
+    publications:
+    - publication_id: pub_01JABCDEFGHJKMNPQRSTVWXY01
+      plan_id: pl_01JABCDEFGHJKMNPQRSTVWXY01
+      plan_version_id: pv_01JABCDEFGHJKMNPQRSTVWXY01
+      plan_version_checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      published_at: '2026-01-05T22:00:00Z'
+      synthetic: true
+    synthetic: true
+- fixture: tools/recommend-portfolio-invocation-request/invalid/advisory.json
+  schema: tools/recommend-portfolio-invocation-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    portfolio_id: pf_01KDVDNAZ83BAMMYCEGWF33DPM
+    holdings: {}
+    synthetic: true
+- fixture: tools/recommend-portfolio-invocation-request/invalid/date-without-snapshot.json
+  schema: tools/recommend-portfolio-invocation-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    as_of: '2026-01-09'
+    synthetic: true
+- fixture: tools/recommend-portfolio-invocation-request/invalid/holdings-without-snapshot.json
+  schema: tools/recommend-portfolio-invocation-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    holdings:
+      weights: []
+      cash_weight: 1
+      portfolio_value: 10000
+      high_watermark: 10000
+    synthetic: true
+- fixture: tools/recommend-portfolio-invocation-request/invalid/snapshot-without-date.json
+  schema: tools/recommend-portfolio-invocation-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    input_snapshot_id: snap_01KDVDNAZ83BAMMYCEGWF33DPM
+    synthetic: true
+- fixture: tools/recommend-portfolio-invocation-request/valid/advisory.json
+  schema: tools/recommend-portfolio-invocation-request
+  expect: valid
+  document:
+    input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+    as_of: '2026-01-06'
+    holdings:
+      weights:
+      - instrument_id: SYNTH
+        weight: 0.5
+      cash_weight: 0.5
+      portfolio_value: 1000
+      high_watermark: 1000
+    synthetic: true
+- fixture: tools/recommend-portfolio-invocation-request/valid/saved-default.json
+  schema: tools/recommend-portfolio-invocation-request
+  expect: valid
+  document: {}
+  exception: the empty object deliberately tests saved-default invocation without supplied state
+- fixture: tools/recommend-portfolio-invocation-request/valid/saved-identified.json
+  schema: tools/recommend-portfolio-invocation-request
+  expect: valid
+  document:
+    portfolio_id: pf_01KDVDNAZ83BAMMYCEGWF33DPM
+    synthetic: true
+- fixture: tools/recommend-portfolio-request/invalid/advisory.json
+  schema: tools/recommend-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/recommend-portfolio-request/valid/advisory.json
+  schema: tools/recommend-portfolio-request
+  expect: valid
+  document:
+    input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+    as_of: '2026-01-06'
+    holdings:
+      weights:
+      - instrument_id: SYNTH
+        weight: 0.5
+      cash_weight: 0.5
+      portfolio_value: 1000
+      high_watermark: 1000
+    synthetic: true
+- fixture: tools/recommend-portfolio-response/invalid/advisory.json
+  schema: tools/recommend-portfolio-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/recommend-portfolio-response/invalid/missing-provenance.json
+  schema: tools/recommend-portfolio-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    recommendation:
+      mode: advisory_paper
+      strategy: ppo
+      policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      export_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      configuration_id: cfg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+      as_of: '2026-10-08'
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      policy_seeds:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      aggregation: mean_target_weights
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: The policy does not publish a calibrated return forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      cash_weight: 0.2
+      target_weights:
+      - instrument_id: VOO
+        weight: 0.8
+      estimated_turnover: 0.8
+      decisions:
+      - instrument_id: VOO
+        action: buy
+        delta_weight: 0.8
+        indicative_notional: 800
+      constraint_outcome:
+        action: accepted
+        violations: []
+      solution_status: feasible
+      diagnostics: {}
+    synthetic: true
+- fixture: tools/recommend-portfolio-response/valid/advisory.json
+  schema: tools/recommend-portfolio-response
+  expect: valid
+  document:
+    recommendation:
+      mode: advisory_paper
+      strategy: ppo
+      policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      export_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      configuration_id: cfg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+      as_of: '2026-10-08'
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      policy_artifact_checksum: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      policy_seeds:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      aggregation: mean_target_weights
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: The policy does not publish a calibrated return forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      cash_weight: 0.2
+      target_weights:
+      - instrument_id: VOO
+        weight: 0.8
+      estimated_turnover: 0.8
+      decisions:
+      - instrument_id: VOO
+        action: buy
+        delta_weight: 0.8
+        indicative_notional: 800
+      constraint_outcome:
+        action: accepted
+        violations: []
+      solution_status: feasible
+      diagnostics: {}
+    synthetic: true
+- fixture: tools/recommend-portfolio-response/valid/saved-paper.json
+  schema: tools/recommend-portfolio-response
+  expect: valid
+  document:
+    recommendation:
+      mode: advisory_paper
+      strategy: ppo
+      policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      export_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      configuration_id: cfg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+      as_of: '2026-10-08'
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      policy_artifact_checksum: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+      policy_seeds:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      aggregation: mean_target_weights
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: The policy does not publish a calibrated return forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      cash_weight: 0.2
+      target_weights:
+      - instrument_id: VOO
+        weight: 0.8
+      estimated_turnover: 0.8
+      decisions:
+      - instrument_id: VOO
+        action: buy
+        delta_weight: 0.8
+        indicative_notional: 800
+        current_quantity: 20
+        target_quantity: 10
+        delta_quantity: -10
+        reference_price: 450
+        price_as_of: '2026-01-09'
+      constraint_outcome:
+        action: accepted
+        violations: []
+      solution_status: feasible
+      diagnostics: {}
+      portfolio_state:
+        source: saved_paper
+        portfolio_id: pf_01KDVDNAZ83BAMMYCEGWF33DPM
+        revision: 1
+        as_of: '2026-01-09'
+        valuation_as_of: '2026-01-09'
+        base_currency: USD
+        portfolio_value: 10000
+        high_watermark: 10000
+        current_cash: 1000
+        positions:
+        - instrument_id: SPY
+          quantity: 20
+          reference_price: 450
+          price_as_of: '2026-01-09'
+    synthetic: true

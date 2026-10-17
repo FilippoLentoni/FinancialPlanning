@@ -26,6 +26,9 @@
     },
     "synthetic": {
       "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/synthetic"
+    },
+    "ledger": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/domain-envelope.json"
     }
   },
   "required": [

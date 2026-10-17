@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/list-market-snapshots-response.json",
+  "title": "api/list-market-snapshots-response",
+  "type": "object",
+  "properties": {
+    "snapshots": {
+      "type": "array",
+      "items": {
+        "$ref": "https://contracts.finplan.invalid/core/v1/input-snapshot.json"
+      },
+      "maxItems": 100
+    },
+    "next_token": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "snapshots",
+    "next_token",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

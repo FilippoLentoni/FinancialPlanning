@@ -33,9 +33,10 @@ PLATFORM_PREFIXES: dict[str, str] = {
     "input_snapshot_id": "snap",
     "publication_id": "pub",
     "execution_id": "exe",
+    "decision_id": "pd",
 }
 #: Platform-internal identifiers (not contract identifier fields).
-INTERNAL_PREFIXES: dict[str, str] = {"artifact_id": "art", "audit_event_id": "aud", "import_id": "imp", "correlation_id": "cor"}
+INTERNAL_PREFIXES: dict[str, str] = {"artifact_id": "art", "audit_event_id": "aud", "import_id": "imp", "correlation_id": "cor", "activity_event_id": "act", "resolution_id": "res"}
 
 _ALL = {**PLATFORM_PREFIXES, **INTERNAL_PREFIXES}
 

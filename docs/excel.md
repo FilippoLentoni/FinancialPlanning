@@ -2,7 +2,7 @@
 
 How a plan version becomes an `.xlsx` workbook and back (OpenSpec change `add-platform-foundation`, spec `excel-plan-import`, tasks 8.1 to 8.5, design P8). Code: `platform/finplan_platform/excel/`. Tests: `tests/unit/test_excel_package.py`, `tests/unit/test_excel_import.py`.
 
-The logical template is the contract schema `finance/v1/excel-plan-template.json`, and the import outcome is the contract `core/v1/import-report.json`. Both come from the pinned `finplan-contracts` package, currently **1.0.0**; see [platform-core.md](platform-core.md). This page describes the physical workbook that carries the logical template.
+The logical template is the contract schema `finance/v1/excel-plan-template.json`, and the import outcome is the contract `core/v1/import-report.json`. Both come from the pinned `finplan-contracts` package, currently **1.3.0**; see [platform-core.md](platform-core.md). This page describes the physical workbook that carries the logical template.
 
 ## Routes
 

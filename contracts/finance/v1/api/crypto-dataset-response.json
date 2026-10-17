@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/crypto-dataset-response.json",
+  "title": "api/crypto-dataset-response",
+  "type": "object",
+  "properties": {
+    "dataset_id": {
+      "const": "coinbase-crypto-hourly-v1"
+    },
+    "as_of": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "available_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "granularity_seconds": {
+      "const": 3600
+    },
+    "market_data_synthetic": {
+      "type": "boolean"
+    },
+    "products": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "BTC-USD",
+          "ETH-USD"
+        ]
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true
+    },
+    "bars": {
+      "type": "object",
+      "properties": {
+        "BTC-USD": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "open": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "close": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "low": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "high": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "volume": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "start",
+              "open",
+              "close",
+              "low",
+              "high",
+              "volume"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 24,
+          "maxItems": 168
+        },
+        "ETH-USD": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "open": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "close": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "low": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "high": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "volume": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "start",
+              "open",
+              "close",
+              "low",
+              "high",
+              "volume"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 24,
+          "maxItems": 168
+        }
+      },
+      "required": [
+        "BTC-USD",
+        "ETH-USD"
+      ],
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "maxItems": 2
+    },
+    "dataset_checksum": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "as_of",
+    "available_at",
+    "granularity_seconds",
+    "products",
+    "bars",
+    "sources",
+    "dataset_checksum",
+    "market_data_synthetic",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

@@ -37,7 +37,7 @@ def test_committed_configs_are_valid() -> None:
         # decision 26: every environment runs the same real-data configuration; the phase is the
         # only switch (yfinance in phase 2, promoted beta -> gamma -> prod by the UNI-06 gate)
         assert cfg.env == env and cfg.region == "us-east-2" and cfg.phase in (1, 2)
-        assert cfg.provider == ("yfinance" if cfg.phase == 2 else "fixture") and cfg.schedule_time == "09:00"
+        assert cfg.provider == ("yfinance" if cfg.phase == 2 else "fixture") and cfg.schedule_time == ("08:50" if env == "beta" else "09:00")
         assert cfg.dataset_id == "finance/etf-daily/SPY"
         assert cfg.metadata["idempotency_ttl_days"] >= 7 and cfg.metadata["orphan_grace_hours"] >= 24
 
@@ -86,11 +86,11 @@ def test_only_etf_daily_dataset_enabled_ING_13() -> None:
     assert ("/ingest/dataset/kind", "ING-13") in _problems(doc)
 
 
-def test_beta_and_gamma_must_expire_but_prod_may_leave_unset_STO_06() -> None:
-    for env in ("beta", "gamma"):
-        doc = _doc(env)
-        doc["retention"]["plans_days"] = None
-        assert ("/retention/plans_days", "STO-06") in _problems(doc)
+def test_beta_and_prod_retain_history_while_gamma_expires_STO_06() -> None:
+    doc = _doc("gamma")
+    doc["retention"]["plans_days"] = None
+    assert ("/retention/plans_days", "STO-06") in _problems(doc)
+    assert load_config("beta").retention_days("plans") is None
     prod = load_config("prod")
     assert prod.retention_days("plans") is None and prod.retention_days("snapshots") is None
     assert prod.retention["staging_window_days"] == 7
@@ -153,7 +153,7 @@ def test_file_environment_mismatch_rejected(tmp_path: Path) -> None:
 
 def test_shared_config_holds_only_the_ceiling_default() -> None:
     shared = load_shared_config()
-    assert shared["cost_ceiling_usd_default"] == 50
+    assert shared["cost_ceiling_usd_default"] == 100
     assert set(shared) <= {"$comment", "region", "cost_ceiling_usd_default"}
 
 

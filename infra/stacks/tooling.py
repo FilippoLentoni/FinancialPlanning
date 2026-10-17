@@ -96,6 +96,7 @@ from finplan_contracts import budget as contract_budget
 from finplan_contracts import iam as contract_iam
 from finplan_contracts import registry as contract_registry
 from finplan_contracts import ssm as contract_ssm
+from .brokerage_boundary import deployment_env_boundary
 
 __all__ = [
     "ASSET_PREFIX",
@@ -334,7 +335,7 @@ class ToolingStack(cdk.Stack):
             self.boundary_policies[env] = self._managed_policy(
                 f"{cap}PermissionBoundary",
                 contract_boundaries.boundary_name(env),
-                contract_boundaries.env_permission_boundary(env),
+                deployment_env_boundary(env),
                 "permission-boundary",
                 f"Permission boundary of every {env} role a finplan pipeline creates (contracts D5).",
             )

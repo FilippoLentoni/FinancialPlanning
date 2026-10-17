@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/run-portfolio-research-request.json",
+  "title": "tools/run-portfolio-research-request",
+  "type": "object",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "properties": {
+    "review_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+    },
+    "dry_run": {
+      "type": "boolean",
+      "default": true
+    },
+    "confirmed_by_user": {
+      "type": "boolean"
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "review_id"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "dry_run": {
+            "const": false
+          }
+        },
+        "required": [
+          "dry_run"
+        ]
+      },
+      "then": {
+        "required": [
+          "idempotency_key",
+          "confirmed_by_user"
+        ],
+        "properties": {
+          "confirmed_by_user": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

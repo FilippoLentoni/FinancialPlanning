@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/gdelt-metadata-request.json",
+  "title": "api/gdelt-metadata-request",
+  "type": "object",
+  "properties": {
+    "symbols": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9.-]{0,9}$"
+      }
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "decision_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "availability_mode": {
+      "enum": [
+        "platform",
+        "historical_source_proxy"
+      ]
+    },
+    "contract_version": {
+      "type": "string"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "symbols",
+    "start_date",
+    "end_date"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/discover-research-data-request.json",
+  "title": "tools/discover-research-data-request",
+  "type": "object",
+  "properties": {
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "query": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    }
+  },
+  "required": [],
+  "additionalProperties": false,
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ]
+}

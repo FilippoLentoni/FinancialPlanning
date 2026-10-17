@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/recommend-classical-portfolio-request.json",
+  "title": "tools/recommend-classical-portfolio-request",
+  "type": "object",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "properties": {
+    "algorithm": {
+      "enum": [
+        "min_variance",
+        "mean_variance",
+        "cvar"
+      ],
+      "default": "min_variance"
+    },
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "as_of": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "lookback_days": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 252
+        },
+        "risk_aversion": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        },
+        "cvar_alpha": {
+          "type": "number",
+          "minimum": 0.8,
+          "maximum": 0.99
+        },
+        "max_weight": {
+          "type": "number",
+          "minimum": 0.2,
+          "maximum": 1
+        },
+        "cash_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 0.5
+        },
+        "horizon_sessions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 63
+        },
+        "turnover_penalty": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "idempotency_key": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/idempotency.json#/$defs/idempotency_key"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "holdings": {
+      "type": "object",
+      "properties": {
+        "weights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "instrument_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "instrument_id",
+              "weight"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
+        "cash_weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "portfolio_value": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "high_watermark": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "weights",
+        "cash_weight",
+        "portfolio_value",
+        "high_watermark"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [],
+  "additionalProperties": false,
+  "dependentRequired": {
+    "input_snapshot_id": [
+      "as_of"
+    ],
+    "as_of": [
+      "input_snapshot_id"
+    ],
+    "holdings": [
+      "input_snapshot_id",
+      "as_of"
+    ]
+  },
+  "not": {
+    "required": [
+      "portfolio_id",
+      "holdings"
+    ]
+  }
+}

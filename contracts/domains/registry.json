@@ -13,7 +13,8 @@
         "snapshot": "https://contracts.finplan.invalid/finance/v1/snapshot-payload.json",
         "run_result": "https://contracts.finplan.invalid/finance/v1/run-result-payload.json",
         "staged_output": "https://contracts.finplan.invalid/finance/v1/staged-output-payload.json",
-        "explanation_evidence": "https://contracts.finplan.invalid/finance/v1/explanation-evidence.json"
+        "explanation_evidence": "https://contracts.finplan.invalid/finance/v1/explanation-evidence.json",
+        "execution_ledger": "https://contracts.finplan.invalid/finance/v1/execution-ledger.json"
       },
       "neutrality_deny_terms": [
         "adj_close",

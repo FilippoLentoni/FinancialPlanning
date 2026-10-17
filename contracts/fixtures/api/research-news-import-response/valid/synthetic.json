@@ -1,0 +1,36 @@
+{
+  "manifest": {
+    "record_id": "sha256:198eb9a38f25892b4a74afdbf8d09bbcd3c79d19bf015601d11b0e996243adcf",
+    "provider": "synthetic-provider",
+    "query": "synthetic ETF metadata",
+    "symbols": [
+      "SPY",
+      "VOO"
+    ],
+    "retrieved_at": "2026-01-02T13:00:00Z",
+    "available_at": "2026-01-02T13:01:00Z",
+    "payload_checksum": "sha256:e4ab349dbffd20013209024354ad5effacf8c8f1a799c2dd485df988db533ceb",
+    "receipt_checksum": "sha256:0bb8313c871a759cbb07babdf28d51b6756ef4eddfbaf137cb8608dc2eb65e74",
+    "rights": {
+      "status": "research_only",
+      "scope": "search_metadata",
+      "evidence_url": "https://example.invalid/synthetic-terms",
+      "evidence_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "quality_status": "validated",
+    "eligible": true,
+    "exclusion_reasons": [],
+    "records": [
+      {
+        "title": "Synthetic ETF growth warning",
+        "url": "https://example.invalid/synthetic-etf",
+        "published_at": "2026-01-02T12:00:00Z",
+        "symbols": [
+          "SPY",
+          "VOO"
+        ]
+      }
+    ]
+  },
+  "contract_version": "1.8.0"
+}

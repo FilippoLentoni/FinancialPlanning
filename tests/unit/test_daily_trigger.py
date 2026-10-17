@@ -247,3 +247,14 @@ def test_fake_plan_api_matches_the_contract_get_plan_response():
     fake = StubPlanApi()
     status, doc = fake.get_plan("pl_01KDVDNAZ83BAMMYCEGWF33DPM")
     assert status == 200 and "revision" in doc["plan"]["head"]
+
+
+def test_friday_retention_does_not_submit_another_daily_recommendation():
+    from finplan_platform.core.daily_trigger import check_snapshot
+    class NoCalls:
+        config=load_config('beta')
+        class plan_api:
+            @staticmethod
+            def get_snapshot(*args):pytest.fail('retention phase must not read or submit models')
+    state={'capture_phase':'post_close','dataset_id':UNIVERSE,'input_snapshot_id':SNAP,'trigger':'scheduled'}
+    assert check_snapshot(state,NoCalls())['reason']=='post_close_retention_only'

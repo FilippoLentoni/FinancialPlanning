@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/compare-portfolio-decisions-request.json",
+  "title": "tools/compare-portfolio-decisions-request",
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "previous_decision_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
+    },
+    "current_decision_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "previous_decision_id",
+    "current_decision_id"
+  ],
+  "additionalProperties": false,
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ]
+}

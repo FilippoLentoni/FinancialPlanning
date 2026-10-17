@@ -121,6 +121,7 @@ def start_input(event: Mapping[str, Any], env: str) -> dict[str, Any]:
             "input_snapshot_id": resp.get("input_snapshot_id"),
             "dataset_id": (snap.get("dataset") or {}).get("dataset_id") or req.get("dataset_id"),
             "trigger": resp.get("trigger") or req.get("trigger"),
+            "capture_phase": req.get("capture_phase"),
             "session_date": (resp.get("requested_range") or {}).get("end"),
             "ingestion_flags": list(resp.get("quality_flags") or snap.get("quality_flags") or []),
             "new_snapshot": bool(resp.get("new_snapshot")),
@@ -147,6 +148,8 @@ def _done(state: dict[str, Any], outcome: str, **extra: Any) -> dict[str, Any]:
 def check_snapshot(state: dict[str, Any], deps: TriggerDeps) -> dict[str, Any]:
     """DLY-01: only an approved scheduled universe snapshot continues; otherwise no FinanceModel call."""
     u = deps.config.universe
+    if state.get("capture_phase") == "post_close":
+        return _done(state, "skipped_snapshot", reason="post_close_retention_only")
     if "no_session" in state.get("ingestion_flags", []) and not state.get("new_snapshot"):
         return _done(state, "no_session")
     sid = state.get("input_snapshot_id")

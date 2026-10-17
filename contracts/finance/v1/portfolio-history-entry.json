@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/portfolio-history-entry.json",
+  "title": "portfolio-history-entry",
+  "type": "object",
+  "properties": {
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    },
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "paper_state": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/paper-portfolio-state.json"
+    },
+    "recorded_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "decision_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "resolution": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "portfolio_id",
+    "revision",
+    "paper_state",
+    "recorded_at",
+    "reason",
+    "checksum",
+    "synthetic"
+  ],
+  "additionalProperties": false
+}

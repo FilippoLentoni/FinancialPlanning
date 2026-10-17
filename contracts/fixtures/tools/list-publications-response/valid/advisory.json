@@ -1,0 +1,13 @@
+{
+  "publications": [
+    {
+      "publication_id": "pub_01JABCDEFGHJKMNPQRSTVWXY01",
+      "plan_id": "pl_01JABCDEFGHJKMNPQRSTVWXY01",
+      "plan_version_id": "pv_01JABCDEFGHJKMNPQRSTVWXY01",
+      "plan_version_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "published_at": "2026-01-05T22:00:00Z",
+      "synthetic": true
+    }
+  ],
+  "synthetic": true
+}

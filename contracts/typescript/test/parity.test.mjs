@@ -24,7 +24,8 @@ test("TypeScript and Python validators agree on fixtures and mutations", { skip,
     const out = join(dir, "reference.json");
     const r = spawnSync(python, ["-I", join(PKG_DIR, "test", "parity", "py_reference.py"), "--root", CONTRACTS, "--out", out], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" },
+      env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "",
+        ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}) },
     });
     assert.equal(r.status, 0, r.stderr);
     const ref = JSON.parse(readFileSync(out, "utf8"));

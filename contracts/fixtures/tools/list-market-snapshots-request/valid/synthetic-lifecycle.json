@@ -1,0 +1,6 @@
+{
+  "dataset_id": "finance/equity-etf-daily/research-universe",
+  "limit": 3,
+  "synthetic": true,
+  "contract_version": "1.5.0"
+}

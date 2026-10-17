@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/list-activity-events-response.json",
+  "title": "api/list-activity-events-response",
+  "type": "object",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "event_kind": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "session_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "correlation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "payload": {
+            "type": "object"
+          },
+          "portfolio_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+          },
+          "decision_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/decision_id"
+          },
+          "input_snapshot_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+          },
+          "activity_event_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/activity_event_id"
+          },
+          "recorded_at": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+          },
+          "checksum": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+          },
+          "caller": {
+            "type": "object"
+          },
+          "contract_version": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+          },
+          "synthetic": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "activity_event_id",
+          "event_kind",
+          "correlation_id",
+          "payload",
+          "recorded_at",
+          "checksum",
+          "caller",
+          "contract_version"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 100
+    },
+    "next_token": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "events",
+    "next_token",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

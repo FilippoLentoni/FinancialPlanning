@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/portfolio-decision-response.json",
+  "title": "api/portfolio-decision-response",
+  "type": "object",
+  "properties": {
+    "decision": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/portfolio-decision.json"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "decision",
+    "synthetic",
+    "contract_version"
+  ],
+  "additionalProperties": false
+}

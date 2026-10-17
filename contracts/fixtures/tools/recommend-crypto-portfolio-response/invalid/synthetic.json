@@ -1,0 +1,16 @@
+{
+  "analysis_id": "invalid",
+  "analysis_kind": "crypto_recommendation",
+  "created_at": "2026-01-02T00:10:00Z",
+  "summary": "Synthetic contract fixture only.",
+  "contract_version": "1.7.0",
+  "synthetic": true,
+  "analysis_ref": {
+    "artifact_id": "ca_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "owner": "financemodel",
+    "kind": "classical_analysis",
+    "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "content_type": "application/json"
+  },
+  "recommendation": {}
+}

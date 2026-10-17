@@ -66,7 +66,8 @@ WRITE_ONCE: dict[str, tuple[str, ...]] = {
     "plans": ("",),
     "reports": ("",),
     "outputs": ("accepted/",),
-    "raw": ("uploads/excel/",),
+    "raw": ("uploads/excel/", "research-news/v1/"),
+    "curated": ("research-news/v1/",),
 }
 #: buckets where the orphan sweeper may delete orphans (design P3)
 SWEEPABLE = ("snapshots", "plans")
@@ -280,7 +281,7 @@ def table_policy_statements(*, env: str, logical: str, table_arn: str, arn_for: 
             "Condition": {"ArnNotLike": {"aws:PrincipalArn": [arn_for(_platform(env))]}},
         }
     ]
-    if logical == "audit_event":
+    if logical in ("audit_event", "portfolio_history", "activity_event"):
         st.append({"Sid": "DenyAuditMutation", "Effect": "Deny", "Principal": "*", "Action": list(AUDIT_MUTATION_ACTIONS), "Resource": resources})
     return st
 

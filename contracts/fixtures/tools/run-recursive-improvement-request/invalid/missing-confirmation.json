@@ -1,0 +1,6 @@
+{
+  "cycle_id": "ca_11111111111111111111111111111111",
+  "dry_run": false,
+  "idempotency_key": "synthetic-cycle-launch",
+  "synthetic": true
+}

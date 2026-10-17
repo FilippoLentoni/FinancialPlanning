@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/api/create-portfolio-decision-request.json",
+  "title": "api/create-portfolio-decision-request",
+  "type": "object",
+  "properties": {
+    "portfolio_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/portfolio_id"
+    },
+    "algorithm_family": {
+      "enum": [
+        "reinforcement_learning",
+        "optimization"
+      ]
+    },
+    "algorithm": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "input_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "portfolio_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "recommendation": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "source_analysis_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "reference_date": {
+          "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+        },
+        "reference_prices": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 100,
+          "additionalProperties": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "target_weights": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 101,
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "transaction_cost_bps": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "reference_date",
+        "reference_prices",
+        "target_weights",
+        "transaction_cost_bps"
+      ],
+      "additionalProperties": false
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,128}$"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "portfolio_id",
+    "algorithm_family",
+    "algorithm",
+    "input_snapshot_id",
+    "portfolio_revision",
+    "recommendation",
+    "provenance",
+    "execution",
+    "idempotency_key"
+  ],
+  "additionalProperties": false
+}

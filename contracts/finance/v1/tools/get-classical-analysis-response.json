@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/get-classical-analysis-response.json",
+  "title": "tools/get-classical-analysis-response",
+  "allOf": [
+    {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/classical-analysis.json"
+    }
+  ]
+}

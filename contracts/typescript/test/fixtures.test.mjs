@@ -1,7 +1,7 @@
 // CS-10 (TypeScript side): every package fixture behaves as recorded, with the same
 // error code the Python validator produces (conformance/cases.yaml).
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
@@ -20,6 +20,7 @@ import { CONTRACTS } from "./helpers.mjs";
 const store = embeddedStore();
 const cases = loadCases(CONTRACTS);
 const fx = join(CONTRACTS, "fixtures");
+const exercised = new Set();
 
 test("embedded store holds every schema of the source checkout", () => {
   const disk = loadStore(CONTRACTS);
@@ -38,18 +39,23 @@ for (const name of store.names()) {
     }
     for (const file of files) {
       const rel = `${name}/${outcome}/${file}`;
+      exercised.add(rel);
       test(`fixture ${rel}`, () => {
         const doc = JSON.parse(readFileSync(join(fx, rel), "utf8"));
         const c = cases.get(rel);
-        assert.ok(c, `${rel} is listed in conformance/cases.yaml`);
-        assert.equal(c.expect, outcome);
-        const res = validate(doc, name, { context: c.context });
+        // Match both conformance runners: directory placement defines the outcome;
+        // cases.yaml optionally supplies semantic context and a specific error code.
+        if (c) {
+          assert.equal(c.expect, outcome);
+          assert.equal(c.schema, name);
+        }
+        const res = validate(doc, name, { context: c?.context });
         if (outcome === "valid") assert.ok(res.valid, res.issues.map((i) => i.message).join("; "));
         else {
           assert.equal(res.valid, false, "invalid fixture must fail");
-          assert.equal(res.code, c.code);
+          if (c?.code) assert.equal(res.code, c.code);
           const env = res.toErrorEnvelope("corr-0001");
-          assert.equal(env.code, c.code);
+          assert.equal(env.code, c?.code ?? res.code);
           assert.equal(env.retryable, false);
           assert.equal(env.contract_version, store.version);
           assert.ok(!/s3:\/\/|arn:/i.test(env.message));
@@ -59,8 +65,12 @@ for (const name of store.names()) {
   }
 }
 
-test("every fixture directory file was exercised (cases.yaml covers the tree)", () => {
-  assert.equal(cases.size, [...cases.keys()].filter((k) => !k.startsWith("vectors/")).length);
+test("every recorded case is exercised while unlisted schema fixtures retain directory outcomes", () => {
+  for (const rel of cases.keys()) {
+    assert.ok(existsSync(join(fx, rel)), `recorded fixture ${rel} exists`);
+    assert.ok(exercised.has(rel), `recorded fixture ${rel} was exercised`);
+  }
+  assert.ok(exercised.size >= cases.size);
   assert.ok(cases.size >= 300);
 });
 

@@ -1,0 +1,12 @@
+{
+  "decision_at": "2026-01-02T14:00:00Z",
+  "symbols": [],
+  "feature_protocol": "etf-search-metadata/1",
+  "features": {},
+  "models": {},
+  "provenance": [],
+  "limitations": [
+    "synthetic_fixture"
+  ],
+  "contract_version": "1.8.0"
+}

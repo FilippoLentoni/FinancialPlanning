@@ -394,6 +394,12 @@ def check_no_storage_locations(ctx: CheckContext) -> list[ValidationIssue]:
     for path, s in iter_strings(ctx.document):
         if s.startswith(ID_BASE):
             continue  # contract $ids are identifiers, never fetched
+        # Public research citations are archived evidence, never caller-selected
+        # storage destinations. Private storage references remain forbidden.
+        if (ctx.info.name == "tools/record-agent-activity-request"
+                and path and path[0] == "payload"
+                and s.startswith("https://") and not _STORAGE_URI.search(s)):
+            continue
         if _STORAGE_URI.search(s) or _PATH_LIKE.search(s):
             p = pointer_of(path)
             out.append(_fail(p, "storage locations, URIs, ARNs and path-like values are not accepted; use a trusted artifact reference", field=next((str(x) for x in reversed(path) if isinstance(x, str)), None), keyword="x-finplan-no-storage-locations"))

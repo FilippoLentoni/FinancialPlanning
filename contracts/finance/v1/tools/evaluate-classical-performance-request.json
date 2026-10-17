@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/tools/evaluate-classical-performance-request.json",
+  "title": "tools/evaluate-classical-performance-request",
+  "type": "object",
+  "x-finplan-checks": [
+    "no_storage_locations"
+  ],
+  "properties": {
+    "analysis_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/analysis_id"
+    },
+    "observed_snapshot_id": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+    },
+    "end_date": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/date"
+    },
+    "contract_version": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/contract_version"
+    },
+    "synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "analysis_id"
+  ],
+  "additionalProperties": false
+}

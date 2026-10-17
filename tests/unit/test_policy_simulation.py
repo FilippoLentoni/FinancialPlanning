@@ -121,7 +121,7 @@ def test_model_job_writes_only_under_staging_run_prefix_STG_01(policies: dict[st
 
 
 # ------------------------------------------------------------------ STO-04 write-once
-@pytest.mark.parametrize("stem,key", [("snapshots", "snap_A/manifest.json"), ("plans", "pl_A/pv_A/content.json"), ("reports", "r/a"), ("run-staging-area", "accepted/run_A/x"), ("raw", "uploads/excel/abc.xlsx")])
+@pytest.mark.parametrize("stem,key", [("snapshots", "snap_A/manifest.json"), ("plans", "pl_A/pv_A/content.json"), ("reports", "r/a"), ("run-staging-area", "accepted/run_A/x"), ("raw", "uploads/excel/abc.xlsx"), ("raw", "research-news/v1/deliveries/a.json"), ("curated", "research-news/v1/manifests/a.json")])
 def test_application_role_cannot_delete_or_overwrite(policies: dict[str, Any], stem: str, key: str) -> None:
     api = platform("beta", "plan-api-handler")
     deny = s3sim(policies, "s3:DeleteObject", "beta", stem, key, api)

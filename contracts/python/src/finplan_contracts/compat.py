@@ -241,6 +241,19 @@ def diff_schema(name: str, old: Any, new: Any, root_new: dict[str, Any] | None =
                 for v in nv:
                     if v not in ov:
                         add(here, ADDITIVE if _is_open_enum(n) else BREAKING, f"known value {json.dumps(v)} registered" + ("" if _is_open_enum(n) else " on a closed enum"))
+            elif key == "x-finplan-minted-by" and isinstance(ov, dict) and isinstance(nv, dict):
+                # Registering a new optional identifier issuer is additive; changing an existing one is not.
+                for identifier in sorted(set(ov) | set(nv)):
+                    if identifier not in nv or (identifier in ov and ov[identifier] != nv[identifier]):
+                        add(here + [identifier], BREAKING, f"identifier issuer '{identifier}' changed or removed")
+                    elif identifier not in ov:
+                        additive = (
+                            identifier not in (o.get("$defs") or {})
+                            and identifier in (n.get("$defs") or {})
+                            and identifier in (n.get("properties") or {})
+                            and identifier not in required_new
+                        )
+                        add(here + [identifier], ADDITIVE if additive else BREAKING, f"identifier issuer '{identifier}' registered")
             elif key == "x-finplan-error-codes" and isinstance(ov, dict) and isinstance(nv, dict):
                 for code in sorted(set(ov) | set(nv)):
                     if code not in nv:
@@ -304,7 +317,7 @@ def _materialize(path: Path, tmp: Path) -> Path:
         try:
             tf.extractall(tmp, filter="data")
         except TypeError:  # pragma: no cover - Python without extraction filters
-            tf.extractall(tmp)  # noqa: S202
+            tf.extractall(tmp)
     for candidate in [tmp, *sorted(p for p in tmp.iterdir() if p.is_dir())]:
         if (candidate / "VERSION").is_file() and (candidate / "core").is_dir():
             return candidate

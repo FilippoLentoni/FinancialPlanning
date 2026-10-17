@@ -100,12 +100,13 @@ Snapshots, plan versions, accepted outputs, reports and Excel source files are w
 
 ## Retention and lifecycle
 
-Values come from `config/<env>.json` (`retention`). They are the proposed P2 defaults and are
-**not user-approved (PQ-3, open)**.
+Values come from `config/<env>.json` (`retention`). Beta preserves linked evidence
+for the user-requested longitudinal paper-portfolio lifecycle. Gamma/prod retain
+their existing settings.
 
 | | beta | gamma | prod |
 |---|---|---|---|
-| raw, curated, snapshots, plans, outputs, reports | expire 14 d | expire 30 d | no expiry (unset) |
+| raw, curated, snapshots, plans, outputs, reports | no expiry (unset) | expire 30 d | no expiry (unset) |
 | `outputs/staging/` (uncommitted staged output) | 7 d | 7 d | 7 d |
 | `raw/uploads/incoming/` (unclaimed uploads) | 1 d | 1 d | 1 d |
 | noncurrent versions | 1 d | 7 d | 30 d |
@@ -113,7 +114,12 @@ Values come from `config/<env>.json` (`retention`). They are the proposed P2 def
 
 There are no storage-class transitions in phase 1 (tiny objects; transitions carry per-request
 charges). Prod buckets and the prod key are retained when a stack is deleted; beta and gamma are
-deleted once lifecycle expiry has emptied them.
+can be deleted only once they are empty; automatic current-object expiry no longer
+empties beta financial evidence.
+
+Beta's issued decisions, accepted/rejected resolutions, holdings revisions and
+sanitized activity use dedicated immutable prefixes in `reports` with dedicated
+DynamoDB indexes. See [paper-portfolio lifecycle](paper-portfolio-lifecycle.md).
 
 **Expired snapshots.** The daily sweeper marks a catalog row `expired` (audited conditional
 transition, `expired_at` recorded) when the snapshot is past the `snapshots` retention or its
