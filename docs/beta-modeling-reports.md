@@ -246,3 +246,12 @@ fills. Old `carried_closed` quotes remain stale and never become closing marks.
 Forecast alignment also requires persisted `value_as_of` at/after the target:
 a 17:05 retrieval of an actual 16:00 close cannot realize a 16:30 forecast. Older
 observations without this field retain their original `observed_at` alignment rule.
+
+A successful recommendation may later be superseded before any eligible execution.
+Its separate verified immutable `execution_disposition_ref`/`execution_disposition`
+retains the replacement decision and reason. This is `superseded_not_executed`, not
+an accepted ledger receipt: there is no simulated fill, fill timestamp, portfolio
+revision/history or `paper_execution` event. Original inference inputs, recommendation,
+forecast and model cost remain intact. Trade costs continue to come only from actual
+execution-day events; a supersession cannot double-count fills or fees. A late
+disposition produces a new report revision and cutoff without backdating evidence.
