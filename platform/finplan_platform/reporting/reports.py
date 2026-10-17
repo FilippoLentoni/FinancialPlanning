@@ -253,7 +253,7 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
                       "observed_sessions": len({timestamp(o["observed_at"]).astimezone(EASTERN).date() for o in valid}),
                       "window_start": valid[0]["observed_at"] if valid else None, "window_end": valid[-1]["observed_at"] if valid else None,
                       "comparison_policy_id": policy, "cohort_id": cohort, "observation_window": list(observation_key),
-                      "ranking_blockers": reasons, "rank": None})
+                      "ranking_blockers": reasons, "rank": None, "return_tied": False})
     # Rank only within an identical declared cohort, capital, policy and valuation
     # window; missing models do not get a fabricated zero or an equivalent rank.
     groups: dict[tuple, list[dict]] = {}
@@ -271,6 +271,7 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
         members.sort(key=lambda b: (-b["net_return"], b["max_drawdown"], b["approach_id"]))
         for index, book in enumerate(members, 1):
             book["rank"] = index
+            book["return_tied"] = any(other is not book and math.isclose(other["net_return"], book["net_return"], rel_tol=1e-10, abs_tol=1e-12) for other in members)
     return sorted(books, key=lambda b: (b["rank"] is None, b["rank"] or 0, b["approach_id"]))
 
 
