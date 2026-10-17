@@ -430,3 +430,30 @@ def test_earliest_execution_before_value_keeps_opening_fill_fee_in_observed_retu
     assert rule["opening_value"] == 100 and rule["current_value"] == 101.5
     assert rule["net_return"] == .015 and rule["execution_cost"] == .5
     assert rule["opening_execution_event_id"] == "opening_execution"
+
+
+def test_large_captured_input_portable_encoding_preserves_original_bytes_and_explicit_preview():
+    from finplan_platform.reporting.reports import captured_input_bytes
+    reader = Reader()
+    original = reader.inputs['input_rule_0']
+    original['payload']['numeric']['prepared']['complete_history'] = list(range(12000))
+    original['payload']['numeric']['prepared']['original_text'] = 'permitted public text ' * 3000
+    # Preserve original noncanonical whitespace: a later JSON serialization is not
+    # an acceptable substitute for the captured download.
+    raw = json.dumps(original['payload'], indent=1).encode()
+    original['raw_bytes'] = raw
+    original['metadata']['checksum'] = checksum(raw)
+    result = report(reader)
+    captured = result['inputs']['run_rule_0']
+    assert 'raw_base64' not in captured
+    assert captured['artifact_encoding'] == 'original-byte-gzip-chunks/1'
+    assert captured['preview_is_complete'] is False
+    assert len(captured['payload']['numeric']['prepared']['complete_history']) == 40
+    assert {item['kind'] for item in captured['preview_truncations']} == {'text', 'array'}
+    assert captured_input_bytes(result, captured) == raw
+    assert json.loads(captured_input_bytes(result, captured)) == original['payload']
+    assert captured['metadata']['input_id'] == 'input_rule_0'
+    damaged = copy.deepcopy(result)
+    damaged['artifact_chunks'][captured['raw_chunks'][0]]['data'] = base64.b64encode(b'corrupt').decode()
+    with pytest.raises(EvidenceError, match='compressed input chunk checksum'):
+        captured_input_bytes(damaged, captured)

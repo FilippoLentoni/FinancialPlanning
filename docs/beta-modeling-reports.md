@@ -226,3 +226,14 @@ A nominal query covering seven dates is not automatically a mature week. Finaliz
 weekly comparison additionally requires a persisted experiment start on/before the
 first reporting date, an actual cutoff at/after the final reporting date, and no
 missing expected slots. Newly initialized or unproven windows remain incomplete.
+
+Large exact input artifacts use lossless deterministic gzip transport above 32 KiB.
+The JSON export's `artifact_chunks` holds original-byte compressed content keyed by
+SHA-256; each input's `raw_chunks` references it. The inline `payload` is an explicitly
+bounded preview with `preview_truncations`, never a replacement inference artifact.
+The self-contained HTML decodes only the selected original input, verifies its
+original checksum, displays its full structured content with labeled table previews,
+and downloads the original bytes. Changing selections during decompression cannot
+replace a newer selection. Current browsers supporting `DecompressionStream` work
+from `file://`; Python export consumers can use `captured_input_bytes(report,input)`.
+Small inputs retain the compatible `raw_base64` original-byte representation.

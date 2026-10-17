@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import csv
 import hashlib
+import gzip
 import io
 import json
 import math
@@ -106,7 +107,66 @@ def _actual_bytes(captured: dict) -> bytes:
     return canonical(captured["payload"])
 
 
-def _input_for_run(reader: EvidenceReader, run: dict) -> dict:
+
+def _preview_content(value: Any, path: str, omitted: list[dict]) -> Any:
+    if isinstance(value, dict):
+        return {k: _preview_content(v, path+"/"+k, omitted) for k,v in value.items()}
+    if isinstance(value, list):
+        if len(value) > 40:
+            omitted.append({"path": path, "original_length": len(value), "preview_length": 40, "kind": "array"})
+        return [_preview_content(v, path+"/"+str(i), omitted) for i,v in enumerate(value[:40])]
+    if isinstance(value, str) and len(value) > 8192:
+        omitted.append({"path": path, "original_length": len(value), "preview_length": 8192, "kind": "text"})
+        return value[:8192]
+    return value
+
+
+def _portable_capture(metadata: dict, payload: dict, raw: bytes, chunks: dict | None) -> dict:
+    """Lossless transport of ORIGINAL bytes; previews never replace the artifact.
+
+    Small inputs retain the backward-compatible inline encoding. Large inputs use
+    content-addressed deterministic gzip chunks and bounded inline previews. The
+    browser expands only its selected original artifact, preventing full-day/week
+    history from becoming simultaneous parsed input objects in server/browser RAM.
+    """
+    news = payload.get("news") or {}
+    items = news.get("items", []) if isinstance(news, dict) else None
+    result = {"metadata": metadata, "checksum": checksum(raw), "size_bytes": len(raw),
+              "content_summary": {"news_items": len(items) if isinstance(items, list) else None}}
+    if chunks is None or len(raw) <= 32768:
+        return {**result, "payload": payload, "raw_base64": base64.b64encode(raw).decode()}
+    cid = checksum(raw)
+    compressed = gzip.compress(raw, compresslevel=6, mtime=0)
+    chunks.setdefault(cid, {"encoding": "gzip+base64", "checksum": cid, "size_bytes": len(raw),
+                            "compressed_checksum": checksum(compressed), "data": base64.b64encode(compressed).decode()})
+    omissions = []
+    preview = _preview_content(payload, "", omissions)
+    return {**result, "payload": preview, "raw_chunks": [cid], "artifact_encoding": "original-byte-gzip-chunks/1",
+            "preview_truncations": omissions, "preview_is_complete": not omissions}
+
+
+def captured_input_bytes(report: dict, captured: dict) -> bytes:
+    """Recover exact portable input bytes for CLI verification/export consumers."""
+    if captured.get("raw_base64") is not None:
+        raw = base64.b64decode(captured["raw_base64"])
+    else:
+        parts = []
+        for cid in captured["raw_chunks"]:
+            chunk = report["artifact_chunks"][cid]
+            compressed = base64.b64decode(chunk["data"])
+            if checksum(compressed) != chunk["compressed_checksum"]:
+                raise EvidenceError("Portable compressed input chunk checksum mismatch")
+            part = gzip.decompress(compressed)
+            if checksum(part) != cid or len(part) != chunk["size_bytes"]:
+                raise EvidenceError("Portable original input chunk checksum mismatch")
+            parts.append(part)
+        raw = b"".join(parts)
+    if checksum(raw) != captured["checksum"] or len(raw) != captured["size_bytes"]:
+        raise EvidenceError("Portable input differs from original captured bytes")
+    return raw
+
+
+def _input_for_run(reader: EvidenceReader, run: dict, chunks: dict | None = None) -> dict:
     input_id = run.get("input_id")
     if not input_id:
         raise EvidenceError("Run has no captured model-specific input_id")
@@ -153,8 +213,7 @@ def _input_for_run(reader: EvidenceReader, run: dict) -> dict:
     news = payload.get("news") or {}
     if isinstance(news, dict) and news.get("consumed") is False and news.get("prepared_context"):
         raise EvidenceError("Prepared news context falsely labeled News not consumed")
-    return {"metadata": metadata, "payload": payload, "checksum": expected,
-            "raw_base64": base64.b64encode(raw).decode(), "size_bytes": len(raw)}
+    return _portable_capture(metadata, payload, raw, chunks)
 
 
 def _value(obs: dict) -> float | None:
@@ -422,6 +481,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             if key not in {"experiment_id", "approach_id", "portfolio_id", "observation_id", "observed_at"}:
                 observation[key] = value
     inputs: dict[str, dict] = {}
+    artifact_chunks: dict[str, dict] = {}
     additional_inputs: dict[str, list[dict]] = {}
     known = {r["approach_id"]: r for r in registry}
     slots: set[tuple[str, str]] = set()
@@ -440,7 +500,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         if timestamp(run["decision_time"]) > timestamp(generated_at):
             raise EvidenceError("Decision follows report data cutoff")
         try:
-            inputs[run["run_id"]] = _input_for_run(reader, run)
+            inputs[run["run_id"]] = _input_for_run(reader, run, artifact_chunks)
             captured = inputs[run["run_id"]]
             if known[aid].get("non_trading"):
                 run.update(non_trading=True, purpose="interim_research_no_primary_execution",
@@ -484,9 +544,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                     if payload.get(field) != run.get(field):
                         raise EvidenceError(f"Graph sub-boundary {field} mismatch")
                 _safe_content(payload)
-                additional_inputs[run["run_id"]] = [{"kind": "graph_sub_boundary_inputs", "metadata": graph_ref,
-                    "payload": payload, "checksum": graph_ref["checksum"], "size_bytes": len(raw),
-                    "raw_base64": base64.b64encode(raw).decode()}]
+                additional_inputs[run["run_id"]] = [{"kind": "graph_sub_boundary_inputs", **_portable_capture(graph_ref, payload, raw, artifact_chunks)}]
             except (EvidenceError, PlatformError, KeyError, ValueError) as error:
                 run["evidence_error"] = str(error)
         if output.get("usage") and run.get("model_cost") is None:
@@ -653,7 +711,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "renderer_checksum": checksum((Path(__file__).parent / "template.html").read_bytes() + (Path(__file__).parent / "report.js").read_bytes()),
               "ranking_rule": "Net realized return after common execution costs; then lower drawdown; then approach ID. Identical policy/universe/capital/observation windows only. Observed winner is not universal optimality.",
               "registry": registry, "runs": sorted(runs, key=lambda r: (r["decision_time"], r["approach_id"])),
-              "inputs": inputs, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "forecasts": forecasts,
+              "inputs": inputs, "artifact_chunks": artifact_chunks, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "forecasts": forecasts,
               "leaderboard": leaderboard, "missing_slots": missing,
               "evidence_failures": [{"run_id": r["run_id"], "error": r["evidence_error"]} for r in runs if r.get("evidence_error")],
               "next_daily_generation": next_eod.isoformat(),
@@ -718,7 +776,7 @@ def consolidate(reports: list[dict]) -> dict:
         return reports[0]
     combined = dict(reports[0])
     combined.update(registry=[], runs=[], observations=[], forecasts=[], missing_slots=[], evidence_failures=[],
-                    inputs={}, additional_inputs={}, ancillary_evidence=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
+                    inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
                     experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
                                   "expected_slot_manifest_available": r["expected_slot_manifest_available"]} for r in reports])
     book_ids, run_ids = set(), set()
@@ -740,6 +798,7 @@ def consolidate(reports: list[dict]) -> dict:
                     run_ids.add(row["run_id"])
                 combined[key].append(row)
         combined["inputs"].update(report["inputs"])
+        combined["artifact_chunks"].update(report.get("artifact_chunks", {}))
         combined["additional_inputs"].update(report.get("additional_inputs", {}))
         combined["evidence_failures"].extend(report["evidence_failures"])
         combined["ancillary_evidence"].extend(report.get("ancillary_evidence", []))
