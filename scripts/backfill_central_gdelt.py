@@ -17,8 +17,9 @@ def main():
     parser.add_argument("--end", type=date.fromisoformat, required=True)
     parser.add_argument("--local-corpus", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--sessions-only", action="store_true", help="Prioritize actual XNYS decision sessions; daily live capture still runs every calendar day")
     parser.add_argument("--source-kind", choices=("daily", "intraday"), default="daily")
-    parser.add_argument("--workers", type=int, choices=range(1, 9), default=4)
+    parser.add_argument("--workers", type=int, choices=(1, 2), default=2)
     args = parser.parse_args()
     if not 0 <= (args.end - args.start).days <= (1095 if args.source_kind == "intraday" else 365) or args.end >= datetime.now(UTC).date():
         parser.error("capture requires 1..366 prior UTC archive days")
@@ -26,6 +27,12 @@ def main():
     from botocore.config import Config
     client = boto3.Session(region_name="us-east-2").client("lambda", config=Config(read_timeout=330, retries={"total_max_attempts": 1}))
     days = [args.start + timedelta(days=i) for i in range((args.end-args.start).days+1)]
+    if args.sessions_only:
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "platform"))
+        from finplan_platform.core.calendar import xnys_calendar
+        calendar = xnys_calendar()
+        days = [day for day in days if calendar.status(day) in ("regular", "early_close")]
     rows, failures = [], []
     def invoke(day):
         event = {"source": "finplan.gdelt-intraday" if args.source_kind == "intraday" else "finplan.gdelt-metadata", "source_day": str(day)}
@@ -54,6 +61,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True, mode=0o700)
     report = {"captured_at": datetime.now(UTC).isoformat(), "start_date": str(args.start), "end_date": str(args.end),
               "expected_days": len(days), "captured_days": len(rows), "complete": not failures,
+              "workers": args.workers, "sessions_only": args.sessions_only,
+              "concurrency_basis": "hardmax2 preserves headroom within the verified regional Lambda quota10 for nested agent/tool/model/platform calls",
               "captures": sorted(rows, key=lambda r: r["source_day"]), "failures": sorted(failures, key=lambda r: r["source_day"])}
     path = args.output / ("central-capture-"+datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")+".json")
     with path.open("x") as stream:

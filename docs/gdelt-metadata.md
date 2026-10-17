@@ -83,3 +83,13 @@ not exhaustive multilingual or article-level financial sentiment.
 
 For GKG2, `cluster_count` equals the number of unique document identifiers. It does
 not represent independently clustered financial events or calibrated asset sentiment.
+
+
+The central operator backfill CLI defaults to two workers and rejects more than two.
+The verified regional Lambda concurrency quota is ten. Nested Agent, Tools, Model and
+Platform calls require the remaining headroom; eight simultaneous backfill invocations
+caused observed Platform API throttles. Local public-HTTP archive capture can use eight
+workers because it consumes no Lambda concurrency. Use `--sessions-only` to prioritize
+actual XNYS decision-session dates for intraday model training; every-calendar-day live
+capture remains required for weekend reports. Uncaptured weekend archives remain explicit
+API coverage gaps until a later full historical capture, and cannot be claimed complete.
