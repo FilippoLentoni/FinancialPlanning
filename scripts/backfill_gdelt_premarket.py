@@ -27,7 +27,7 @@ def main():
             day=futures[future]
             try:
                 doc=future.result()
-                row={'source_day':str(day),'quality_status':doc['quality_status'],'captured_batches':doc['captured_batches'],'archive_bytes':sum(s['archive_bytes'] for s in doc['lineage']['sources'])}
+                row={'source_day':str(day),'quality_status':doc['quality_status'],'captured_batches':doc['captured_batches'],'rejected_rows':doc['rejected_rows'],'archive_bytes':sum(s['archive_bytes'] for s in doc['lineage']['sources'])}
                 rows.append(row);print(json.dumps(row),flush=True)
             except Exception as e:
                 row={'source_day':str(day),'error_type':type(e).__name__,'detail':str(e)[:250]}

@@ -14,9 +14,9 @@ def zip_body(batch,tone=2,org=b'google',identifier=b'https://synthetic.invalid/a
     with ZipFile(data,'w') as z:z.writestr(name+'.gkg.csv',b'\t'.join(fields)+b'\n')
     return data.getvalue()
 
-def opener(day,missing=()):
+def opener(day,missing=(),tone=2):
     batches=[window(day)[0]+timedelta(minutes=i) for i in (0,15,30,45)]
-    bodies={b.astimezone(UTC).strftime('%Y%m%d%H%M%S'):zip_body(b) for b in batches}
+    bodies={b.astimezone(UTC).strftime('%Y%m%d%H%M%S'):zip_body(b,tone=tone) for b in batches}
     class Response(io.BytesIO):
         headers={'Last-Modified':'Thu, 02 Jan 2025 12:30:00 GMT','ETag':'synthetic'}
         def __init__(self,body,url):super().__init__(body);self.url=url
@@ -55,7 +55,9 @@ def test_conservative_batch_availability_and_dst(tmp_path):
 
 def test_invalid_numeric_source_cannot_be_imputed_to_zero():
     batch=window(date(2025,1,2))[0]
-    with pytest.raises(ValueError,match='tone'):aggregate(zip_body(batch,float('nan')),batch)
+    records,rows,web_rows,rejected=aggregate(zip_body(batch,float('nan')),batch)
+    assert not records and rows==1 and web_rows==0
+    assert rejected[0]['reason']=='tone_not_finite_or_out_of_range'
 
 def test_budget_denies_intraday_before_any_provider_call(make_deps,monkeypatch):
     from finplan_platform.core import gdelt_intraday
@@ -86,3 +88,37 @@ def test_central_intraday_retains_sources_and_immutable_retry_audit(make_deps,mo
     monkeypatch.setattr(producer,'freeze_day',lambda *a,**k:pytest.fail('duplicate provider call'))
     assert producer.capture({'source_day':str(day)},deps=deps,clock=FrozenClock(now))['status']=='already_frozen'
     assert len(deps.repo.audit_events(result['feature_checksum']))==1
+
+
+def test_malformed_fragments_preserve_valid_rows_and_raw_quarantine(tmp_path):
+    day=date(2025,1,2);rights(tmp_path)
+    fetch=opener(day)
+    def malformed(request,**kwargs):
+        response=fetch(request,**kwargs)
+        original=response.getvalue();output=io.BytesIO()
+        with ZipFile(io.BytesIO(original)) as source,ZipFile(output,'w') as target:
+            item=source.infolist()[0]
+            target.writestr(item.filename,source.read(item)+b'</UNUSED_XML>\n')
+        response.seek(0);response.truncate(0);response.write(output.getvalue());response.seek(0)
+        return response
+    doc=freeze_day(day,tmp_path,opener=malformed,now=datetime(2026,10,17,tzinfo=UTC))
+    assert doc['captured_batches']==4 and doc['quality_status']=='partial'
+    assert doc['row_count']==8 and doc['rejected_rows']==4
+    assert doc['features'][0]['article_count']==1 and doc['features'][0]['tone']==2
+    assert all(f['missing'] for f in doc['features'])
+    sidecars=list((tmp_path/'2025/01/02').glob('*.quality.json'))
+    assert len(sidecars)==4
+    for path in sidecars:
+        q=json.loads(path.read_text())
+        assert q['row_count']==2 and q['rejected_rows']==1
+        assert q['rejections'][0]['line_number']==2
+        assert q['rejections'][0]['reason']=='schema_field_count'
+        assert q['rejections'][0]['raw_line_checksum'].startswith('sha256:')
+
+
+def test_four_captured_but_wholly_invalid_archives_are_unknown_not_zero_news(tmp_path):
+    day=date(2025,1,2);rights(tmp_path)
+    doc=freeze_day(day,tmp_path,opener=opener(day,tone=float('nan')),now=datetime(2026,10,17,tzinfo=UTC))
+    assert doc['captured_batches']==4 and doc['row_count']==doc['rejected_rows']==4
+    assert doc['quality_status']=='unavailable'
+    assert all(f['article_count'] is None and f['tone'] is None and f['missing'] for f in doc['features'])

@@ -54,11 +54,14 @@ def capture(event,*,deps=None,clock=None):
         for source in doc['lineage']['sources']:
             name=datetime.fromisoformat(source['batch_at'].replace('Z','+00:00')).strftime('%Y%m%d%H%M%S')
             deps.store.put_once_or_verify('raw',prefix+source['archive_checksum'].split(':')[1]+'.zip',(base/(name+'.zip')).read_bytes(),'application/zip')
+            quarantine=base/(name+'.quality.json')
+            if quarantine.exists():
+                deps.store.put_once_or_verify('raw',prefix+source['archive_checksum'].split(':')[1]+'.quality.json',quarantine.read_bytes())
         deps.store.put_once_or_verify('raw',PREFIX+'rights/'+rights['evidence_checksum'].split(':')[1]+'.html',(root/'rights-evidence.html').read_bytes(),'text/html')
         doc['lineage']['central_available_at']=stamp(clock.now());body=canonical(doc);digest=checksum(body)
         deps.store.put_once_or_verify('curated',prefix+digest.split(':')[1]+'.json',body)
         _audit(ctx,deps,doc)
-    return {'status':'captured','source_day':str(day),'quality_status':doc['quality_status'],'archives_fetched':doc['captured_batches'],'feature_version':FEATURE_VERSION,'feature_checksum':digest,'archive_bytes':sum(s['archive_bytes'] for s in doc['lineage']['sources']),'source_available_at':doc['lineage']['source_available_at'],'central_available_at':doc['lineage']['central_available_at']}
+    return {'status':'captured','source_day':str(day),'quality_status':doc['quality_status'],'row_count':doc['row_count'],'rejected_rows':doc['rejected_rows'],'archives_fetched':doc['captured_batches'],'feature_version':FEATURE_VERSION,'feature_checksum':digest,'archive_bytes':sum(s['archive_bytes'] for s in doc['lineage']['sources']),'source_available_at':doc['lineage']['source_available_at'],'central_available_at':doc['lineage']['central_available_at']}
 
 def read(ctx,svc,query):
     from .gdelt_metadata import read as read_numeric

@@ -76,3 +76,14 @@ Historical missingness SHALL be identified as a current archive audit, not platf
 Beta weekday price ingestion SHALL run08:50 America/New_York before09:00 formation.
 A separate Friday17:05 capture SHALL ingest the completed session with an independent
 idempotency key and SHALL NOT submit an additional daily model recommendation.
+
+
+#### Scenario: Malformed row within a captured source archive
+- GIVEN a valid source archive contains malformed physical TSV fragments
+- WHEN numeric features are derived
+- THEN valid records remain usable and the original archive plus each rejected line's
+  number, checksum and reason are retained in a quarantine manifest
+- AND total raw and rejected row counts remain explicit, quality becomes partial,
+  counts remain observed lower bounds, and tone remains a potentially biased subset mean
+- AND effective source coverage combines archive capture fraction and accepted row fraction
+- AND wholly unusable source input produces unknown null counts and fails closed for live use

@@ -93,3 +93,16 @@ workers because it consumes no Lambda concurrency. Use `--sessions-only` to prio
 actual XNYS decision-session dates for intraday model training; every-calendar-day live
 capture remains required for weekend reports. Uncaptured weekend archives remain explicit
 API coverage gaps until a later full historical capture, and cannot be claimed complete.
+
+
+Malformed physical TSV lines are quarantined individually without discarding valid
+records in the same archive. Original ZIPs and per-archive quarantine manifests
+retain each rejected line's number, checksum and reason without copying article text
+into logs. `row_count` counts all physical raw lines; `rejected_rows` is the invalid
+subset. Four captured archives with rejected lines have partial quality and missing
+flags. Counts describe accepted records and remain lower bounds; tone is an observed
+subset mean and may be biased, rather than a directional lower bound. Effective model
+source coverage is `(captured_batches / 4) * (row_count - rejected_rows) / row_count`;
+zero usable rows produce null counts, unavailable quality and zero coverage. Live
+recommendations fail closed when no usable source input remains. Existing complete
+zero-rejection documents retain their original bytes.
