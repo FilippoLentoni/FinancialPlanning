@@ -443,10 +443,25 @@ cases:
 - fixture: api/resolve-portfolio-decision-request/valid/synthetic-lifecycle.json
   schema: api/resolve-portfolio-decision-request
   expect: valid
+- fixture: api/resolve-portfolio-decision-response/invalid/native-without-isolated-policy.json
+  schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/resolve-portfolio-decision-response/invalid/null-snapshot-without-native.json
+  schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  code: INVALID_IDENTIFIER
 - fixture: api/resolve-portfolio-decision-response/invalid/unexpected-field.json
   schema: api/resolve-portfolio-decision-response
   expect: invalid
   code: VALIDATION_FAILED
+- fixture: api/resolve-portfolio-decision-response/invalid/unsupported-native-source.json
+  schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/resolve-portfolio-decision-response/valid/native-crypto-input.json
+  schema: api/resolve-portfolio-decision-response
+  expect: valid
 - fixture: api/resolve-portfolio-decision-response/valid/synthetic-lifecycle.json
   schema: api/resolve-portfolio-decision-response
   expect: valid
@@ -1823,6 +1838,17 @@ cases:
   expect: valid
   covers:
   - CS-11
+- fixture: native-input-ref/invalid/wrong-native-universe.json
+  schema: native-input-ref
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: native-input-ref/invalid/wrong-source-kind.json
+  schema: native-input-ref
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: native-input-ref/valid/native-crypto.json
+  schema: native-input-ref
+  expect: valid
 - fixture: observation/invalid/missing-close.json
   schema: observation
   expect: invalid
@@ -2013,17 +2039,47 @@ cases:
   covers:
   - ID-08
   - ID-11
+- fixture: portfolio-decision/invalid/native-without-isolated-policy.json
+  schema: portfolio-decision
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: portfolio-decision/invalid/null-snapshot-without-native.json
+  schema: portfolio-decision
+  expect: invalid
+  code: INVALID_IDENTIFIER
 - fixture: portfolio-decision/invalid/unexpected-field.json
   schema: portfolio-decision
   expect: invalid
   code: VALIDATION_FAILED
+- fixture: portfolio-decision/invalid/unsupported-native-source.json
+  schema: portfolio-decision
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: portfolio-decision/valid/native-crypto-input.json
+  schema: portfolio-decision
+  expect: valid
 - fixture: portfolio-decision/valid/synthetic-lifecycle.json
   schema: portfolio-decision
   expect: valid
+- fixture: portfolio-history-entry/invalid/native-without-isolated-policy.json
+  schema: portfolio-history-entry
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: portfolio-history-entry/invalid/null-snapshot-without-native.json
+  schema: portfolio-history-entry
+  expect: invalid
+  code: INVALID_IDENTIFIER
 - fixture: portfolio-history-entry/invalid/unexpected-field.json
   schema: portfolio-history-entry
   expect: invalid
   code: VALIDATION_FAILED
+- fixture: portfolio-history-entry/invalid/unsupported-native-source.json
+  schema: portfolio-history-entry
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: portfolio-history-entry/valid/native-crypto-input.json
+  schema: portfolio-history-entry
+  expect: valid
 - fixture: portfolio-history-entry/valid/synthetic-lifecycle.json
   schema: portfolio-history-entry
   expect: valid

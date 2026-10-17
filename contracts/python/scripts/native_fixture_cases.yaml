@@ -1,0 +1,558 @@
+cases:
+- schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  fixture: api/resolve-portfolio-decision-response/invalid/null-snapshot-without-native.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    status: accepted
+    before_revision: 1
+    after_revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    simulated_fills:
+    - instrument_id: SPY
+      side: sell
+      quantity: 1
+      reference_price: 100
+      notional: 100
+      transaction_cost: 0.02
+    transaction_cost: 0.02
+    paper_execution: true
+    recorded_at: '2026-01-09T15:00:00Z'
+    reference_date: '2026-01-09'
+    reference_prices:
+      SPY: 100
+    input_snapshot_id: null
+    confirmed_by_user: false
+    synthetic: true
+    contract_version: 1.13.0
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: INVALID_IDENTIFIER
+- schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  fixture: api/resolve-portfolio-decision-response/invalid/native-without-isolated-policy.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    status: accepted
+    before_revision: 1
+    after_revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    simulated_fills:
+    - instrument_id: SPY
+      side: sell
+      quantity: 1
+      reference_price: 100
+      notional: 100
+      transaction_cost: 0.02
+    transaction_cost: 0.02
+    paper_execution: true
+    recorded_at: '2026-01-09T15:00:00Z'
+    reference_date: '2026-01-09'
+    reference_prices:
+      SPY: 100
+    input_snapshot_id: null
+    confirmed_by_user: false
+    synthetic: true
+    contract_version: 1.13.0
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: coinbase-crypto-hourly-v1
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: VALIDATION_FAILED
+- schema: api/resolve-portfolio-decision-response
+  expect: invalid
+  fixture: api/resolve-portfolio-decision-response/invalid/unsupported-native-source.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    status: accepted
+    before_revision: 1
+    after_revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    simulated_fills:
+    - instrument_id: SPY
+      side: sell
+      quantity: 1
+      reference_price: 100
+      notional: 100
+      transaction_cost: 0.02
+    transaction_cost: 0.02
+    paper_execution: true
+    recorded_at: '2026-01-09T15:00:00Z'
+    reference_date: '2026-01-09'
+    reference_prices:
+      SPY: 100
+    input_snapshot_id: null
+    confirmed_by_user: false
+    synthetic: true
+    contract_version: 1.13.0
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: unknown-native-dataset
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: VALIDATION_FAILED
+- schema: api/resolve-portfolio-decision-response
+  expect: valid
+  fixture: api/resolve-portfolio-decision-response/valid/native-crypto-input.json
+  document:
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    action: accept
+    status: accepted
+    before_revision: 1
+    after_revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    simulated_fills:
+    - instrument_id: SPY
+      side: sell
+      quantity: 1
+      reference_price: 100
+      notional: 100
+      transaction_cost: 0.02
+    transaction_cost: 0.02
+    paper_execution: true
+    recorded_at: '2026-01-09T15:00:00Z'
+    reference_date: '2026-01-09'
+    reference_prices:
+      SPY: 100
+    input_snapshot_id: null
+    confirmed_by_user: false
+    synthetic: true
+    contract_version: 1.13.0
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: coinbase-crypto-hourly-v1
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+- schema: portfolio-decision
+  expect: invalid
+  fixture: portfolio-decision/invalid/null-snapshot-without-native.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    algorithm_family: optimization
+    algorithm: min_variance
+    input_snapshot_id: null
+    portfolio_revision: 1
+    recommendation:
+      synthetic: true
+    provenance:
+      source: synthetic_fixture
+    execution:
+      reference_date: '2026-01-09'
+      reference_prices:
+        SPY: 100
+      target_weights:
+        SPY: 0.9
+        USD_CASH: 0.1
+      transaction_cost_bps: 2
+    synthetic: true
+    contract_version: 1.13.0
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    status: proposed
+    created_at: '2026-01-09T15:00:00Z'
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: INVALID_IDENTIFIER
+- schema: portfolio-decision
+  expect: invalid
+  fixture: portfolio-decision/invalid/native-without-isolated-policy.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    algorithm_family: optimization
+    algorithm: min_variance
+    input_snapshot_id: null
+    portfolio_revision: 1
+    recommendation:
+      synthetic: true
+    provenance:
+      source: synthetic_fixture
+    execution:
+      reference_date: '2026-01-09'
+      reference_prices:
+        SPY: 100
+      target_weights:
+        SPY: 0.9
+        USD_CASH: 0.1
+      transaction_cost_bps: 2
+    synthetic: true
+    contract_version: 1.13.0
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    status: proposed
+    created_at: '2026-01-09T15:00:00Z'
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: coinbase-crypto-hourly-v1
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: VALIDATION_FAILED
+- schema: portfolio-decision
+  expect: invalid
+  fixture: portfolio-decision/invalid/unsupported-native-source.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    algorithm_family: optimization
+    algorithm: min_variance
+    input_snapshot_id: null
+    portfolio_revision: 1
+    recommendation:
+      synthetic: true
+    provenance:
+      source: synthetic_fixture
+    execution:
+      reference_date: '2026-01-09'
+      reference_prices:
+        SPY: 100
+      target_weights:
+        SPY: 0.9
+        USD_CASH: 0.1
+      transaction_cost_bps: 2
+    synthetic: true
+    contract_version: 1.13.0
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    status: proposed
+    created_at: '2026-01-09T15:00:00Z'
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: unknown-native-dataset
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: VALIDATION_FAILED
+- schema: portfolio-decision
+  expect: valid
+  fixture: portfolio-decision/valid/native-crypto-input.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    algorithm_family: optimization
+    algorithm: min_variance
+    input_snapshot_id: null
+    portfolio_revision: 1
+    recommendation:
+      synthetic: true
+    provenance:
+      source: synthetic_fixture
+    execution:
+      reference_date: '2026-01-09'
+      reference_prices:
+        SPY: 100
+      target_weights:
+        SPY: 0.9
+        USD_CASH: 0.1
+      transaction_cost_bps: 2
+    synthetic: true
+    contract_version: 1.13.0
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    status: proposed
+    created_at: '2026-01-09T15:00:00Z'
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: coinbase-crypto-hourly-v1
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+- schema: portfolio-history-entry
+  expect: invalid
+  fixture: portfolio-history-entry/invalid/null-snapshot-without-native.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    recorded_at: '2026-01-09T15:00:00Z'
+    reason: accepted_paper_decision
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    input_snapshot_id: null
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    synthetic: true
+    contract_version: 1.13.0
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: INVALID_IDENTIFIER
+- schema: portfolio-history-entry
+  expect: invalid
+  fixture: portfolio-history-entry/invalid/native-without-isolated-policy.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    recorded_at: '2026-01-09T15:00:00Z'
+    reason: accepted_paper_decision
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    input_snapshot_id: null
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    synthetic: true
+    contract_version: 1.13.0
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: coinbase-crypto-hourly-v1
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: VALIDATION_FAILED
+- schema: portfolio-history-entry
+  expect: invalid
+  fixture: portfolio-history-entry/invalid/unsupported-native-source.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    recorded_at: '2026-01-09T15:00:00Z'
+    reason: accepted_paper_decision
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    input_snapshot_id: null
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    synthetic: true
+    contract_version: 1.13.0
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: unknown-native-dataset
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+  code: VALIDATION_FAILED
+- schema: portfolio-history-entry
+  expect: valid
+  fixture: portfolio-history-entry/valid/native-crypto-input.json
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    revision: 2
+    paper_state:
+      positions:
+      - instrument_id: SPY
+        quantity: 10
+      cash_balance: 100
+      high_watermark: 1100
+      as_of: '2026-01-09'
+      base_currency: USD
+      mode: paper
+      source: paper_rebalance
+    recorded_at: '2026-01-09T15:00:00Z'
+    reason: accepted_paper_decision
+    decision_id: pd_01JA2B3C4D5E6F7G8H9JKMNPQR
+    input_snapshot_id: null
+    checksum: sha256:abcdefababcdefababcdefababcdefababcdefababcdefababcdefababcdefab
+    synthetic: true
+    contract_version: 1.13.0
+    native_input_ref:
+      input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+      checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+      source_type: platform_crypto_hourly
+      dataset_id: coinbase-crypto-hourly-v1
+      dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+      as_of: '2026-01-17T12:00:00Z'
+      available_at: '2026-01-17T12:05:00Z'
+      granularity_seconds: 3600
+      universe:
+      - BTC-USD
+      - ETH-USD
+      market_data_synthetic: true
+    automatic_experiment_policy: true
+    run_id: controlled_native_run
+    input_id: mi_bcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcdebcde
+- schema: native-input-ref
+  expect: valid
+  fixture: native-input-ref/valid/native-crypto.json
+  document:
+    input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+    checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+    source_type: platform_crypto_hourly
+    dataset_id: coinbase-crypto-hourly-v1
+    dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+    as_of: '2026-01-17T12:00:00Z'
+    available_at: '2026-01-17T12:05:00Z'
+    granularity_seconds: 3600
+    universe: &id001
+    - BTC-USD
+    - ETH-USD
+    market_data_synthetic: true
+  exception: Reference-only source identity; market_data_synthetic=true explicitly labels these controlled fixtures and the referenced enclosing portfolio record carries synthetic=true.
+- schema: native-input-ref
+  expect: invalid
+  fixture: native-input-ref/invalid/wrong-source-kind.json
+  document:
+    input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+    checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+    source_type: unknown
+    dataset_id: coinbase-crypto-hourly-v1
+    dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+    as_of: '2026-01-17T12:00:00Z'
+    available_at: '2026-01-17T12:05:00Z'
+    granularity_seconds: 3600
+    universe: *id001
+    market_data_synthetic: true
+  code: VALIDATION_FAILED
+  exception: Reference-only source identity; market_data_synthetic=true explicitly labels these controlled fixtures and the referenced enclosing portfolio record carries synthetic=true.
+- schema: native-input-ref
+  expect: invalid
+  fixture: native-input-ref/invalid/wrong-native-universe.json
+  document:
+    input_id: mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd
+    checksum: sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef
+    source_type: platform_crypto_hourly
+    dataset_id: coinbase-crypto-hourly-v1
+    dataset_checksum: sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab
+    as_of: '2026-01-17T12:00:00Z'
+    available_at: '2026-01-17T12:05:00Z'
+    granularity_seconds: 3600
+    universe:
+    - SPY
+    market_data_synthetic: true
+  code: VALIDATION_FAILED
+  exception: Reference-only source identity; market_data_synthetic=true explicitly labels these controlled fixtures and the referenced enclosing portfolio record carries synthetic=true.

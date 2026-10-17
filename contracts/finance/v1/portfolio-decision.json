@@ -22,7 +22,14 @@
       "maxLength": 128
     },
     "input_snapshot_id": {
-      "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+      "anyOf": [
+        {
+          "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "portfolio_revision": {
       "type": "integer",
@@ -109,6 +116,9 @@
     },
     "input_id": {
       "type": "string"
+    },
+    "native_input_ref": {
+      "$ref": "https://contracts.finplan.invalid/finance/v1/native-input-ref.json"
     }
   },
   "required": [
@@ -127,5 +137,41 @@
     "synthetic",
     "contract_version"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "native_input_ref"
+        ]
+      },
+      "then": {
+        "properties": {
+          "input_snapshot_id": {
+            "type": "null"
+          },
+          "automatic_experiment_policy": {
+            "const": true
+          },
+          "synthetic": {
+            "const": true
+          }
+        },
+        "required": [
+          "input_snapshot_id",
+          "automatic_experiment_policy",
+          "synthetic",
+          "run_id",
+          "input_id"
+        ]
+      },
+      "else": {
+        "properties": {
+          "input_snapshot_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+          }
+        }
+      }
+    }
+  ]
 }

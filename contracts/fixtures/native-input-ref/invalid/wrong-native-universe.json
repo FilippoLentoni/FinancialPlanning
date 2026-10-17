@@ -1,0 +1,14 @@
+{
+  "input_id": "mi_abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+  "checksum": "sha256:cdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdefcdef",
+  "source_type": "platform_crypto_hourly",
+  "dataset_id": "coinbase-crypto-hourly-v1",
+  "dataset_checksum": "sha256:efabefabefabefabefabefabefabefabefabefabefabefabefabefabefabefab",
+  "as_of": "2026-01-17T12:00:00Z",
+  "available_at": "2026-01-17T12:05:00Z",
+  "granularity_seconds": 3600,
+  "universe": [
+    "SPY"
+  ],
+  "market_data_synthetic": true
+}
