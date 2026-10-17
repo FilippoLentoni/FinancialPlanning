@@ -27,10 +27,18 @@ Every fixture carries `"synthetic": true` at the top level, except the fixtures
 listed below (the conformance hygiene check reads this list):
 
 <!-- synthetic-exceptions:start -->
+- `api/crypto-dataset-response/invalid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `api/crypto-dataset-response/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
 - `api/latest-snapshot-request/invalid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `api/latest-snapshot-request/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `api/put-portfolio-state-request/invalid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `api/put-portfolio-state-request/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
+- `api/research-news-import-request/invalid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `api/research-news-import-request/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `api/research-news-import-response/invalid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `api/research-news-import-response/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `api/research-news-response/invalid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `api/research-news-response/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
 - `budget-allocation/invalid/defaults-above-lowered-ceiling.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/invalid/empty.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/invalid/negative-amount.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
@@ -42,22 +50,9 @@ listed below (the conformance hygiene check reads this list):
 - `paper-portfolio-state/invalid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `paper-portfolio-state/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `portfolio/invalid/missing-synthetic-flag.json`: the portfolio's own 'synthetic' field is the property under test, so this invalid fixture omits it
+- `tools/get-etf-research-inputs-request/invalid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `tools/get-etf-research-inputs-request/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `tools/get-etf-research-inputs-response/invalid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
+- `tools/get-etf-research-inputs-response/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
 - `tools/recommend-portfolio-invocation-request/valid/saved-default.json`: the empty object deliberately tests saved-default invocation without supplied state
-- `api/crypto-dataset-response/valid/synthetic.json`: generated synthetic OHLCV with explicit market_data_synthetic provenance.
-- `api/crypto-dataset-response/invalid/synthetic.json`: generated synthetic OHLCV with invalid daily granularity.
-- `api/research-news-import-request/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `api/research-news-import-request/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `api/research-news-import-response/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `api/research-news-import-response/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `api/research-news-response/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `api/research-news-response/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `tools/get-etf-research-inputs-request/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `tools/get-etf-research-inputs-request/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `tools/get-etf-research-inputs-response/valid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
-- `tools/get-etf-research-inputs-response/invalid/synthetic.json`: strict research-evidence schema; values are synthetic and sources use example.invalid
 <!-- synthetic-exceptions:end -->
-
-Hourly crypto fixtures use `market_data_synthetic: true` because the dataset separates market provenance from simulated holdings:
-
-- `api/crypto-dataset-response/valid/synthetic.json`: generated synthetic OHLCV, no provider observations.
-- `api/crypto-dataset-response/invalid/synthetic.json`: generated synthetic OHLCV with invalid daily granularity.

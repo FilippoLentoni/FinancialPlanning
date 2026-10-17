@@ -1,0 +1,59 @@
+{
+  "aliases": {
+    "GOOGL": [
+      "synthetic company"
+    ],
+    "VOO": [
+      "synthetic fund"
+    ]
+  },
+  "disclosures": [
+    "Synthetic fixture; no news or market observations."
+  ],
+  "feature_version": "gdelt-gkg-v1-organization-tone-v1",
+  "features": [
+    {
+      "article_count": 10,
+      "cluster_count": 5,
+      "instrument_id": "GOOGL",
+      "missing": false,
+      "tone": 0.25
+    },
+    {
+      "article_count": 10,
+      "cluster_count": 5,
+      "instrument_id": "VOO",
+      "missing": false,
+      "tone": 0.25
+    }
+  ],
+  "lineage": {
+    "archive_bytes": 100,
+    "archive_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "attribution": "Synthetic GDELT fixture",
+    "availability_basis": "historical_source_proxy_not_platform_first_seen",
+    "platform_available_at": "2026-01-02T12:00:00Z",
+    "retrieved_at": "2026-01-02T12:00:00Z",
+    "central_available_at": "2026-01-02T12:00:00Z",
+    "rights": {
+      "attribution": "Synthetic GDELT fixture",
+      "evidence_checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "evidence_url": "https://example.invalid/terms",
+      "retrieved_at": "2026-01-02T12:00:00Z",
+      "rights_status": "research_and_training",
+      "scope": "released_GDELT_machine_metadata_only"
+    },
+    "rights_evidence_url": "https://example.invalid/terms",
+    "rights_scope": "released machine metadata only",
+    "source": "gdelt-gkg-v1",
+    "source_available_at": "2026-01-02T12:00:00Z",
+    "source_day": "2026-01-01",
+    "source_etag": "synthetic-etag",
+    "source_last_modified": "2026-01-02T12:00:00Z",
+    "url": "https://example.invalid/synthetic-archive.zip"
+  },
+  "rejected_rows": 0,
+  "row_count": 20,
+  "source_day": "2026-01-01",
+  "synthetic": true
+}

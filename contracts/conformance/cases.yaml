@@ -178,6 +178,27 @@ cases:
   expect: valid
   covers:
   - ID-06
+- fixture: api/crypto-dataset-response/invalid/synthetic.json
+  schema: api/crypto-dataset-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/crypto-dataset-response/valid/synthetic.json
+  schema: api/crypto-dataset-response
+  expect: valid
+- fixture: api/gdelt-metadata-request/invalid/synthetic.json
+  schema: api/gdelt-metadata-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/gdelt-metadata-request/valid/synthetic.json
+  schema: api/gdelt-metadata-request
+  expect: valid
+- fixture: api/gdelt-metadata-response/invalid/synthetic.json
+  schema: api/gdelt-metadata-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/gdelt-metadata-response/valid/synthetic.json
+  schema: api/gdelt-metadata-response
+  expect: valid
 - fixture: api/get-portfolio-state-response/invalid/paper.json
   schema: api/get-portfolio-state-response
   expect: invalid
@@ -380,6 +401,27 @@ cases:
   expect: valid
   covers:
   - ID-09
+- fixture: api/research-news-import-request/invalid/synthetic.json
+  schema: api/research-news-import-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/research-news-import-request/valid/synthetic.json
+  schema: api/research-news-import-request
+  expect: valid
+- fixture: api/research-news-import-response/invalid/synthetic.json
+  schema: api/research-news-import-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/research-news-import-response/valid/synthetic.json
+  schema: api/research-news-import-response
+  expect: valid
+- fixture: api/research-news-response/invalid/synthetic.json
+  schema: api/research-news-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: api/research-news-response/valid/synthetic.json
+  schema: api/research-news-response
+  expect: valid
 - fixture: api/resolve-portfolio-decision-request/invalid/unexpected-field.json
   schema: api/resolve-portfolio-decision-request
   expect: invalid
@@ -1173,6 +1215,13 @@ cases:
   expect: valid
   covers:
   - DOM-03
+- fixture: gdelt-metadata-document/invalid/synthetic.json
+  schema: gdelt-metadata-document
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: gdelt-metadata-document/valid/synthetic.json
+  schema: gdelt-metadata-document
+  expect: valid
 - fixture: idempotency/invalid/key-bad-characters.json
   schema: idempotency
   expect: invalid
@@ -2332,6 +2381,20 @@ cases:
   expect: valid
   covers:
   - OWN-06
+- fixture: tools/discover-research-data-request/invalid/synthetic.json
+  schema: tools/discover-research-data-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/discover-research-data-request/valid/synthetic.json
+  schema: tools/discover-research-data-request
+  expect: valid
+- fixture: tools/discover-research-data-response/invalid/synthetic.json
+  schema: tools/discover-research-data-response
+  expect: invalid
+  code: INVALID_IDENTIFIER
+- fixture: tools/discover-research-data-response/valid/synthetic.json
+  schema: tools/discover-research-data-response
+  expect: valid
 - fixture: tools/evaluate-classical-performance-request/invalid/unknown-field.json
   schema: tools/evaluate-classical-performance-request
   expect: invalid
@@ -2415,6 +2478,34 @@ cases:
   code: VALIDATION_FAILED
 - fixture: tools/get-classical-analysis-response/valid/synthetic.json
   schema: tools/get-classical-analysis-response
+  expect: valid
+- fixture: tools/get-crypto-experiment-request/invalid/synthetic.json
+  schema: tools/get-crypto-experiment-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-crypto-experiment-request/valid/synthetic.json
+  schema: tools/get-crypto-experiment-request
+  expect: valid
+- fixture: tools/get-crypto-experiment-response/invalid/synthetic.json
+  schema: tools/get-crypto-experiment-response
+  expect: invalid
+  code: INVALID_IDENTIFIER
+- fixture: tools/get-crypto-experiment-response/valid/synthetic.json
+  schema: tools/get-crypto-experiment-response
+  expect: valid
+- fixture: tools/get-etf-research-inputs-request/invalid/synthetic.json
+  schema: tools/get-etf-research-inputs-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-etf-research-inputs-request/valid/synthetic.json
+  schema: tools/get-etf-research-inputs-request
+  expect: valid
+- fixture: tools/get-etf-research-inputs-response/invalid/synthetic.json
+  schema: tools/get-etf-research-inputs-response
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/get-etf-research-inputs-response/valid/synthetic.json
+  schema: tools/get-etf-research-inputs-response
   expect: valid
 - fixture: tools/get-experiment-result-request/invalid/missing-run-id.json
   schema: tools/get-experiment-result-request
@@ -2584,6 +2675,20 @@ cases:
   code: VALIDATION_FAILED
 - fixture: tools/list-classical-analyses-response/valid/synthetic.json
   schema: tools/list-classical-analyses-response
+  expect: valid
+- fixture: tools/list-crypto-history-request/invalid/synthetic.json
+  schema: tools/list-crypto-history-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/list-crypto-history-request/valid/synthetic.json
+  schema: tools/list-crypto-history-request
+  expect: valid
+- fixture: tools/list-crypto-history-response/invalid/synthetic.json
+  schema: tools/list-crypto-history-response
+  expect: invalid
+  code: INVALID_IDENTIFIER
+- fixture: tools/list-crypto-history-response/valid/synthetic.json
+  schema: tools/list-crypto-history-response
   expect: valid
 - fixture: tools/list-executions-request/invalid/advisory.json
   schema: tools/list-executions-request
@@ -2817,6 +2922,20 @@ cases:
 - fixture: tools/recommend-classical-portfolio-response/valid/synthetic.json
   schema: tools/recommend-classical-portfolio-response
   expect: valid
+- fixture: tools/recommend-crypto-portfolio-request/invalid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-request
+  expect: invalid
+  code: VALIDATION_FAILED
+- fixture: tools/recommend-crypto-portfolio-request/valid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-request
+  expect: valid
+- fixture: tools/recommend-crypto-portfolio-response/invalid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-response
+  expect: invalid
+  code: INVALID_IDENTIFIER
+- fixture: tools/recommend-crypto-portfolio-response/valid/synthetic.json
+  schema: tools/recommend-crypto-portfolio-response
+  expect: valid
 - fixture: tools/recommend-portfolio-invocation-request/invalid/advisory.json
   schema: tools/recommend-portfolio-invocation-request
   expect: invalid
@@ -2858,6 +2977,9 @@ cases:
   expect: invalid
   code: VALIDATION_FAILED
 - fixture: tools/recommend-portfolio-response/valid/advisory.json
+  schema: tools/recommend-portfolio-response
+  expect: valid
+- fixture: tools/recommend-portfolio-response/valid/current-news-timing.json
   schema: tools/recommend-portfolio-response
   expect: valid
 - fixture: tools/recommend-portfolio-response/valid/saved-paper.json

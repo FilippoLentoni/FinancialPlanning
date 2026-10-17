@@ -21,6 +21,15 @@ and the design differ, the design wins.
 
 ## Contents
 
+Contracts 1.10 adds the bounded read-only `api/gdelt-metadata-request` and
+`api/gdelt-metadata-response` contracts plus `gdelt-metadata-document`. The producer
+owns immutable raw archives, derived organization counts/tone, rights evidence,
+checksums and actual central availability. Historical-source availability is an
+explicit proxy mode and does not backdate platform ingestion. Numeric metadata
+and headline-search features remain distinct versions. Optional news timing and decision-cutoff fields describe current eligible news
+with the latest completed prices while preserving the existing closed timing value. See the platform's
+[GDELT metadata workflow](../docs/gdelt-metadata.md).
+
 1. [Layout](#layout)
 2. [Quick start](#quick-start)
 3. [Ownership matrix and how consumers reference resources](#ownership-matrix-and-how-consumers-reference-resources) (task 1.4)

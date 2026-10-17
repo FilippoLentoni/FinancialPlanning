@@ -270,6 +270,13 @@
             "current_cash"
           ],
           "additionalProperties": false
+        },
+        "news_timing": {
+          "const": "eligible_news_at_decision_with_completed_prices"
+        },
+        "decision_at": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "required": [
