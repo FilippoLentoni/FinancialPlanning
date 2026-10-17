@@ -327,3 +327,24 @@ def test_noop_cannot_mint_cash_or_positions(evidence):
         with pytest.raises(PlatformError,match="without fills"):
             evidence.commit_paper_step(run["run_id"],1,state,[],{},LATER)
     assert evidence.get_portfolio(book["portfolio_id"])["revision"]==1
+
+
+@pytest.mark.parametrize("value_as_of,eligible",[("2026-01-12T21:00:00Z",False),("2026-01-12T21:30:00Z",True),("2026-01-12T22:00:00Z",True),("2026-01-12T22:06:00Z",False)])
+def test_forecast_horizon_uses_actual_valuation_time_not_late_eod_report_time(evidence,value_as_of,eligible):
+    e=evidence;book,_,run=ready(e)
+    target="2026-01-12T21:30:00Z";observed="2026-01-12T22:05:00Z"
+    forecast={"status":"pending","available":True,"expected_value":1100.,"baseline_value":1000.,"units":"USD","target_at":target,"forecast_checksum":"sha256:controlled-close-forecast"}
+    e.finish_run(run["run_id"],{"status":"hold","forecast":forecast},AT)
+    original=e.read_run(run["run_id"])["output_ref"]["checksum"]
+    valuation=e.record_observation("experiment-test","optimizer",target,book["portfolio_id"],{"value":1080.,"observed_at":observed,"value_as_of":value_as_of,"observation_kind":"valid","quote_status":"fresh","quote_provenance":{"source":"controlled_replay","quote_status":"fresh_close"}},observed)
+    matched={"run_id":run["run_id"],"forecast_checksum":forecast["forecast_checksum"],"observation_id":valuation["observation_id"],"observed_at":observed,"realized_value":1080.,"signed_error":-20.,"absolute_error":20.,"squared_error":400.}
+    candidate=e.record_observation("experiment-test","optimizer",AT,book["portfolio_id"],matched,observed,kind="forecast_match")
+    if eligible:
+        e.mark_forecast_realized(run["run_id"],candidate["observation_id"],observed)
+        assert e.read_run(run["run_id"])["forecast_state"]=="realized"
+    else:
+        with pytest.raises(PlatformError,match="post-horizon"):
+            e.mark_forecast_realized(run["run_id"],candidate["observation_id"],observed)
+        assert e.read_run(run["run_id"])["forecast_state"]=="pending"
+        assert e.query_pending_forecasts("experiment-test",observed)[0]
+    assert e.read_run(run["run_id"])["output_ref"]["checksum"]==original
