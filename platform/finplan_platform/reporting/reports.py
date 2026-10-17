@@ -219,6 +219,10 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
         opening, current = (_value(valid[0]), _value(valid[-1])) if valid else (None, None)
         # Net external flows are excluded from investment P&L. Prefer the common
         # evaluator's persisted time-weighted return when cash flows occurred.
+        executed_notional = None
+        if executions is not None:
+            executed_notional = sum(abs(float(fill["notional"])) for event in executions for fill in event.get("simulated_fills", []))
+            turnover = executed_notional / opening if opening else None
         flows = sum(float(o.get("external_cash_flow", 0)) for o in valid[1:])
         pnl = current - opening - flows if valid else None
         ret = pnl / opening if opening else None
@@ -252,7 +256,9 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
                       "portfolio_id": approach.get("portfolio_id"), "family": approach.get("family"),
                       "opening_value": opening, "current_value": current, "net_pnl": pnl, "net_return": ret,
                       "max_drawdown": drawdown if valid else None,
-                      "turnover": turnover, "execution_cost": execution_cost,
+                      "turnover": turnover, "executed_notional": executed_notional,
+                      "turnover_definition": "absolute_executed_notional_divided_by_period_opening_value" if executions is not None else "legacy_sum_of_supplied_turnover",
+                      "execution_cost": execution_cost,
                       "model_cost": sum(float(r["model_cost"]) for r in selected) if selected and all(r.get("model_cost") is not None for r in selected) else None,
                       "model_cost_basis": sorted({r.get("model_cost_basis", "unavailable") for r in selected}),
                       "recommendations": len(selected), "fills": fills_count,

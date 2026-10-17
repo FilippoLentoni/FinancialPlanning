@@ -361,3 +361,14 @@ def test_decision_rows_and_csv_include_reconciled_daily_values_and_forecast_outc
     forecast_row = next(r for r in exported if r["run_id"] == "run_rule_0")
     assert forecast_row["expected_value"] == "100.5"
     assert forecast_row["realized_value"] == "101.0" and forecast_row["signed_error"] == "0.5" and forecast_row["forecast_status"] == "matched"
+
+
+def test_window_turnover_uses_total_executed_notional_over_window_opening_not_point_rates():
+    approaches = registry()
+    observations = Reader().observations
+    events = [{"approach_id": "rule", "observation_id": "buy", "transaction_cost": .5, "simulated_fills": [{"notional": 50}], "execution": {"turnover": .5}},
+              {"approach_id": "rule", "observation_id": "sell", "transaction_cost": .55, "simulated_fills": [{"notional": 55}], "execution": {"turnover": 55/110}}]
+    result = summarize(approaches, Reader().runs, observations, [], events)
+    rule = next(b for b in result if b["approach_id"] == "rule")
+    assert rule["turnover"] == 1.05 and rule["executed_notional"] == 105
+    assert rule["turnover_definition"] == "absolute_executed_notional_divided_by_period_opening_value"
