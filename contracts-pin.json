@@ -1,9 +1,9 @@
 {
   "$comment": "Exact pin of the contract package consumed by the platform service (task 1.2, CS-04 consumer case). The digest is the SHA-256 of the exact wheel installed (also recorded in uv.lock, which uv verifies on install). 1.1.0 (change add-research-universe-and-daily-loop) is a backward-compatible minor of the first stable release 1.0.0 (contracts D16; the compatibility gate against 1.0.0 passes as a minor without the 0.x exemption): it may be deployed to beta, gamma and prod. Until the contract registry exists (tooling stack re-run by the bootstrap, then the build stage's publish step) the wheel is built reproducibly from contracts/python (SOURCE_DATE_EPOCH=315532800) and vendored; the vendored pin stays the build input after publication, and the publish step refuses a registry asset whose SHA-256 differs from this digest.",
   "package": "finplan-contracts",
-  "version": "1.10.0",
-  "artifact": "vendor/finplan-contracts/finplan_contracts-1.10.0-py3-none-any.whl",
-  "sha256": "7bebe5d5b77d061a105d38ae77e3d1170e83833198ec8355eaff656a217dbaf5",
+  "version": "1.11.0",
+  "artifact": "vendor/finplan-contracts/finplan_contracts-1.11.0-py3-none-any.whl",
+  "sha256": "01f5ebaefae68268ae2c429957bbdeb118e0d90e7b952d577589c8c24a6476dd",
   "source": "contracts/python (built locally and vendored; published to CodeArtifact by the build stage once the registry exists)",
   "source_date_epoch": 315532800,
   "published": false,

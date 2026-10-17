@@ -1,0 +1,8 @@
+{
+  "symbols": [],
+  "start_date": "2026-01-02",
+  "end_date": "2026-01-02",
+  "decision_at": "2026-01-02T14:00:00Z",
+  "availability_mode": "historical_source_proxy",
+  "synthetic": true
+}
