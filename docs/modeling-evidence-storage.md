@@ -63,6 +63,15 @@ Large allowed artifacts are bounded to 32 MiB and kept out of DynamoDB items.
    forever, including after idempotency TTL expiry. The common evaluator remains
    responsible for instrument/execution/market price semantics; this method neither
    issues brokerage orders nor invokes a weights-only evaluator with order objects.
+Every committed rebalance/no-op also atomically publishes a `paper_execution`
+   observation in its actual execution-day partition. It points at the same immutable
+   execution receipt and carries run/input/decision IDs, decision slot, execution time,
+   recorded time and resulting holdings revision. Its `payload` is the standard receipt
+   with normalized fills, transaction costs and the complete evaluator's turnover and
+   quote provenance. Reports must deduplicate the event and any same-day run execution
+   by run/decision ID plus execution checksum, and allocate costs/fills to execution day,
+   even when the issuing recommendation belongs to an earlier day. This is an immutable
+   query pointer to the existing ledger receipt, not a second portfolio ledger.
 7. `record_observation(...payload,observed_at,kind='valuation')` captures immutable
    valuation/status evidence, including null equity and stale/missing data instead
    of invented zero returns. `query_day` expands verified actual output and execution

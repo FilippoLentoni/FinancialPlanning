@@ -199,3 +199,32 @@ def test_due_forecasts_survive_long_horizon_and_realization_is_permanent(evidenc
     assert e.read_run(run["run_id"])["forecast_realization"]["realized_value"]==1080
     historical,_=e.query_observations_after("experiment-test","optimizer",target,"2026-03-01T00:00:00Z")
     assert len(historical)==2 and all(r["observed_at"]==target for r in historical)
+
+
+def test_execution_events_account_actual_day_and_retry_never_duplicates(evidence):
+    """A prior-day policy's costs belong to execution day, never the issue day."""
+    e=evidence
+    book,_,run=ready(e)
+    e.finish_run(run["run_id"],{"status":"succeeded","target_weights":{"SPY":.5},"cash_weight":.5},AT)
+    execution_at="2026-01-13T15:00:00Z"
+    recorded="2026-01-13T15:00:01Z"
+    state={**book["paper_state"],"positions":[{"instrument_id":"SPY","quantity":5}],"cash_balance":499.5,"as_of":"2026-01-13","source":"paper_rebalance"}
+    execution={"market_session_valid":True,"evaluator_version":"CONTROLLED_REPLAY","quote_provenance":{"source":"CONTROLLED_REPLAY"},"execution_at":execution_at,"reference_prices":{"SPY":100},"reference_date":"2026-01-13","transaction_cost_bps":10,"before_value":1000,"after_value":999.5,"transaction_cost":.5,"turnover":.5}
+    fills=[{"instrument_id":"SPY","quantity":5,"price":100,"fee":.5,"spread_cost":0,"slippage_cost":0}]
+    receipt=e.commit_paper_step(run["run_id"],1,state,fills,execution,recorded)
+    assert e.commit_paper_step(run["run_id"],1,state,fills,execution,recorded)==receipt
+    issue_runs,_=e.query_day("experiment-test","2026-01-12")
+    issue_events,_=e.query_day("experiment-test","2026-01-12",kind="observations")
+    execution_runs,_=e.query_day("experiment-test","2026-01-13")
+    execution_events,_=e.query_day("experiment-test","2026-01-13",kind="observations")
+    assert len(issue_runs)==1 and not issue_events and not execution_runs
+    assert len(execution_events)==1
+    event=execution_events[0]
+    assert event["kind"]=="paper_execution" and event["decision_slot"]==AT
+    assert event["run_id"]==run["run_id"] and event["decision_id"]==receipt["decision_id"]
+    assert event["execution_ref"]["checksum"]==issue_runs[0]["execution_ref"]["checksum"]
+    assert event["payload"]["transaction_cost"]==.5
+    assert event["payload"]["simulated_fills"][0]["side"]=="buy"
+    assert event["payload"]["execution"]["turnover"]==.5
+    assert event["observed_at"]==execution_at and event["recorded_at"]==recorded
+    assert event["portfolio_revision"]==2
