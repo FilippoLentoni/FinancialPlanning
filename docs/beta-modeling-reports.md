@@ -158,3 +158,25 @@ numeric keys, invocation state, pinned selector test and JavaScript errors. Exit
 means two inspectable decisions per approach are not yet available; it does not
 pretend that a missing approach passed. Browser tests against controlled replay
 validate UI mechanics only; live scheduled acceptance needs live report input.
+
+## Actual execution-day ledger accounting
+
+The production backend declares `execution_events_supported=True` and atomically
+writes one immutable `paper_execution` observation with every ledger commit. Its
+DynamoDB day partition is the actual execution day, while the recommendation keeps
+its original decision-day partition. The event references the SAME verified ledger
+receipt as the run, and permanently binds its run/input/decision/book IDs.
+
+Daily/weekly leaderboard fills, transaction costs and turnover come from these
+execution-day events. A Friday recommendation filled Monday therefore contributes
+one recommendation Friday and its fills/costs Monday. Querying a window containing
+both days never counts the run receipt plus event twice. Recommendation detail still
+shows its eventual lifecycle fills/time/cost, clearly distinct from a day's ledger
+totals. A missing expected event or corrupt receipt remains a coverage blocker.
+Zero execution events means zero committed executions, rather than substituting a
+failed model's return. Legacy test readers without this capability explicitly label
+issue-day fallback accounting; production uses the actual-day event path.
+
+Late receipts/forecast matches contribute their real observed/recorded timestamp to
+the report's data cutoff. A revised historical report therefore cannot display a
+Monday fill while claiming that its evidence cutoff is still Friday.

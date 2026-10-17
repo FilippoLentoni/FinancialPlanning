@@ -67,3 +67,42 @@ def test_real_backend_daily_report_roundtrip_exact_input_fills_and_book_values(r
     written = write_report(result, tmp_path, artifact_store=artifacts)
     assert written["manifest"]["source_record_ids"]["runs"] == result["source_record_ids"]["runs"]
     assert (tmp_path / "replay" / "latest.html").exists()
+
+
+def test_friday_recommendation_monday_execution_cost_is_counted_only_on_execution_day(repo_any, artifacts):
+    e = ModelingEvidence(repo_any, artifacts)
+    friday, monday = "2026-01-09T19:00:00Z", "2026-01-12T15:00:00Z"
+    book = e.ensure_portfolio("cross-day-report", "rule", 1000, ["SPY"], friday)
+    registry = [{"approach_id": "rule", "display_name": "rule", "family": "control", "portfolio_id": book["portfolio_id"],
+                 "cohort_id": "cross-day", "comparison_policy_id": "controlled", "starting_capital": 1000, "investable_universe": ["SPY"]}]
+    iid = _id("mi", "cross-day-report", "rule", friday, "model_input")
+    rid = _id("mr", "cross-day-report", "rule", friday)
+    supplied = e.capture_input("cross-day-report", "rule", friday,
+        {"run_id": rid, "input_id": iid, "approach_id": "rule", "decision_time": friday, "availability_cutoff": friday,
+         "input_snapshot_id": "snap_01ARZ3NDEKTSV4RRFFQ69G5FAV", "news": {"consumed": False}, "numeric": {"prepared": {"price": 100}}}, None, friday)
+    e.start_run("cross-day-report", "rule", friday, supplied["input_id"], book["portfolio_id"], friday, {"family": "control"})
+    e.finish_run(rid, {"status": "succeeded", "target_weights": {"SPY": .5}, "cash_weight": .5, "model_cost": 0, "model_cost_basis": "observed"}, friday)
+    e.record_observation("cross-day-report", "rule", friday, book["portfolio_id"], {"value": 1000, "status": "valid", "quote_status": "fresh"}, friday)
+    e.record_observation("cross-day-report", "rule", "2026-01-12T14:00:00Z", book["portfolio_id"], {"value": 1000, "status": "valid", "quote_status": "fresh"}, "2026-01-12T14:00:00Z")
+    state = {**book["paper_state"], "positions": [{"instrument_id": "SPY", "quantity": 5}], "cash_balance": 499.5, "source": "paper_rebalance", "as_of": "2026-01-12"}
+    execution = {"execution_at": monday, "market_session_valid": True, "evaluator_version": "controlled-replay", "quote_provenance": {"provider": "controlled-test"},
+                 "reference_prices": {"SPY": 100}, "reference_date": "2026-01-12", "transaction_cost_bps": 10, "transaction_cost": .5,
+                 "before_value": 1000, "after_value": 999.5, "turnover": .5}
+    fills = [{"symbol": "SPY", "quantity": 5, "side": "buy", "price": 100, "cost": .5}]
+    committed = e.commit_paper_step(rid, 1, state, fills, execution, monday)
+    assert e.commit_paper_step(rid, 1, state, fills, execution, monday) == committed
+    e.record_observation("cross-day-report", "rule", monday, book["portfolio_id"], {"value": 999.5, "status": "valid", "quote_status": "fresh"}, monday)
+    def build(start, end=None):
+        return aggregate(e, experiment_id="cross-day-report", registry=registry, start_day=start, end_day=end,
+                         generated_at="2026-01-12T16:00:00Z", mode="controlled_replay")
+    friday_report, monday_report = build("2026-01-09"), build("2026-01-12")
+    assert len(friday_report["runs"]) == 1 and len(monday_report["runs"]) == 0
+    assert friday_report["leaderboard"][0]["fills"] == 0 and friday_report["leaderboard"][0]["execution_cost"] == 0
+    assert friday_report["runs"][0]["execution_cost"] == .5  # Eventual recommendation lifecycle evidence.
+    assert friday_report["data_cutoff"] == monday  # Late outcome is an explicit revised cutoff.
+    assert monday_report["leaderboard"][0]["fills"] == 1 and monday_report["leaderboard"][0]["execution_cost"] == .5
+    assert monday_report["leaderboard"][0]["turnover"] == .5 and monday_report["leaderboard"][0]["net_pnl"] == -.5
+    assert len(monday_report["execution_events"]) == 1
+    combined_window = build("2026-01-09", "2026-01-12")
+    assert len(combined_window["runs"]) == 1 and len(combined_window["execution_events"]) == 1
+    assert combined_window["leaderboard"][0]["fills"] == 1 and combined_window["leaderboard"][0]["execution_cost"] == .5

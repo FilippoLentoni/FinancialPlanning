@@ -200,11 +200,20 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
     return results
 
 
-def summarize(approaches: list[dict], runs: list[dict], observations: list[dict], forecasts: list[dict]) -> list[dict]:
+def summarize(approaches: list[dict], runs: list[dict], observations: list[dict], forecasts: list[dict], execution_events: list[dict] | None = None) -> list[dict]:
     books = []
     for approach in approaches:
         aid = approach["approach_id"]
         selected = [r for r in runs if r["approach_id"] == aid]
+        executions = [e for e in execution_events if e["approach_id"] == aid] if execution_events is not None else None
+        if executions is None:
+            execution_cost = sum(float(r["execution_cost"]) for r in selected) if selected and all(r.get("execution_cost") is not None for r in selected) else None
+            fills_count = sum(len(r.get("fills", [])) for r in selected)
+            turnover = sum(float(r.get("turnover", 0) or 0) for r in selected)
+        else:
+            execution_cost = sum(float(e["transaction_cost"]) for e in executions) if all(e.get("transaction_cost") is not None for e in executions) else None
+            fills_count = sum(len(e.get("simulated_fills", [])) for e in executions)
+            turnover = sum(float(e.get("execution", {}).get("turnover", 0) or 0) for e in executions)
         history = sorted([o for o in observations if o.get("approach_id") == aid], key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
         valid = [o for o in history if _valid(o)]
         opening, current = (_value(valid[0]), _value(valid[-1])) if valid else (None, None)
@@ -227,6 +236,8 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
         policy = approach.get("comparison_policy_id")
         cohort = approach.get("cohort_id")
         reasons = []
+        if executions is not None and any(e.get("evidence_error") for e in executions):
+            reasons.append("Missing/corrupt execution-day receipt")
         if len(valid) < 2:
             reasons.append("Fewer than two valid valuations")
         if failures or not selected:
@@ -241,11 +252,12 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
                       "portfolio_id": approach.get("portfolio_id"), "family": approach.get("family"),
                       "opening_value": opening, "current_value": current, "net_pnl": pnl, "net_return": ret,
                       "max_drawdown": drawdown if valid else None,
-                      "turnover": sum(float(r.get("turnover", 0) or 0) for r in selected),
-                      "execution_cost": sum(float(r["execution_cost"]) for r in selected) if selected and all(r.get("execution_cost") is not None for r in selected) else None,
+                      "turnover": turnover, "execution_cost": execution_cost,
                       "model_cost": sum(float(r["model_cost"]) for r in selected) if selected and all(r.get("model_cost") is not None for r in selected) else None,
                       "model_cost_basis": sorted({r.get("model_cost_basis", "unavailable") for r in selected}),
-                      "recommendations": len(selected), "fills": sum(len(r.get("fills", [])) for r in selected),
+                      "recommendations": len(selected), "fills": fills_count,
+                      "execution_event_ids": [e["observation_id"] for e in executions] if executions is not None else [],
+                      "execution_accounting": "actual_execution_day_events" if executions is not None else "legacy_issue_day_fallback",
                       "valuations": len(history), "valid_valuations": len(valid), "failure_rate": failures / len(selected) if selected else None,
                       "forecast_matches": len(matched), "mae": sum(f["absolute_error"] for f in matched) / len(matched) if matched else None,
                       "rmse": math.sqrt(sum(f["signed_error"] ** 2 for f in matched) / len(matched)) if matched else None,
@@ -394,6 +406,33 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             raise EvidenceError("Observation follows report cutoff")
     ancillary = [o for o in observations if o.get("kind", "valuation") not in {"valuation", "opening", "baseline"}]
     observations = [o for o in observations if o.get("kind", "valuation") in {"valuation", "opening", "baseline"}]
+    execution_events = [o for o in ancillary if o.get("kind") == "paper_execution"] if getattr(reader, "execution_events_supported", False) else None
+    if execution_events is not None:
+        event_runs = set()
+        for event in execution_events:
+            if event.get("evidence_error"):
+                event.update(transaction_cost=None, simulated_fills=[], execution={})
+                continue
+            receipt = event.get("payload") or {}
+            if receipt.get("run_id") != event.get("run_id") or receipt.get("portfolio_id") != event["portfolio_id"] or receipt.get("decision_id") != event.get("decision_id"):
+                raise EvidenceError("Execution-day event does not match immutable ledger receipt")
+            if event["run_id"] in event_runs:
+                raise EvidenceError("Multiple execution-day events for one permanent run")
+            event_runs.add(event["run_id"])
+            event_at = receipt.get("execution", {}).get("execution_at") or receipt["recorded_at"]
+            if timestamp(event_at) != timestamp(event["observed_at"]):
+                raise EvidenceError("Execution event is indexed on a different execution time")
+            event["transaction_cost"] = receipt["transaction_cost"]
+            event["simulated_fills"] = receipt["simulated_fills"]
+            event["execution"] = receipt["execution"]
+            if event["execution"].get("turnover") is None:
+                capital = known[event["approach_id"]].get("starting_capital")
+                if capital:
+                    event["execution"] = {**event["execution"], "turnover": sum(abs(float(f["notional"])) for f in event["simulated_fills"])/float(capital),
+                                          "turnover_transformation": "sum_absolute_executed_notional_divided_by_common_starting_capital"}
+        for run in runs:
+            if run.get("execution_ref") and run.get("fill_time") and timestamp(run["fill_time"]).astimezone(EASTERN).date().isoformat() in days and run["run_id"] not in event_runs:
+                run["evidence_error"] = "Immutable actual-execution-day ledger event missing"
     forecasts = forecast_metrics(forecasts, observations, generated_at)
     for forecast in forecasts:
         source_run = next(r for r in runs if r["run_id"] == forecast["run_id"])
@@ -478,13 +517,16 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                    forecast_status=forecast.get("outcome_status") if forecast else "unavailable",
                    realized_value=forecast.get("realized_value") if forecast else None,
                    signed_error=forecast.get("signed_error") if forecast else None)
-    leaderboard = summarize(registry, runs, observations, forecasts)
+    leaderboard = summarize(registry, runs, observations, forecasts, execution_events)
     for missing_row in missing:
         book = next(b for b in leaderboard if b["approach_id"] == missing_row["approach_id"])
         if "Missing scheduled slots" not in book["ranking_blockers"]:
             book["ranking_blockers"].append("Missing scheduled slots")
         book["rank"] = None
-    latest = max([r["decision_time"] for r in runs] + [o["observed_at"] for o in observations], default=None, key=lambda x: timestamp(x) if x else datetime.min.replace(tzinfo=timezone.utc))
+    latest = max([r["decision_time"] for r in runs] + [o["observed_at"] for o in observations + ancillary]
+                 + [r[k] for r in runs for k in ("finished_at", "fill_time") if r.get(k)]
+                 + [r["execution"]["recorded_at"] for r in runs if (r.get("execution") or {}).get("recorded_at")]
+                 + [f["observed_at"] for f in forecasts if f.get("observed_at")], default=None, key=lambda x: timestamp(x) if x else datetime.min.replace(tzinfo=timezone.utc))
     next_eod = datetime.combine(timestamp(generated_at).astimezone(EASTERN).date(), time(17), EASTERN)
     if next_eod <= timestamp(generated_at):
         next_eod += timedelta(days=1)
@@ -496,7 +538,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "renderer_checksum": checksum((Path(__file__).parent / "template.html").read_bytes() + (Path(__file__).parent / "report.js").read_bytes()),
               "ranking_rule": "Net realized return after common execution costs; then lower drawdown; then approach ID. Identical policy/universe/capital/observation windows only. Observed winner is not universal optimality.",
               "registry": registry, "runs": sorted(runs, key=lambda r: (r["decision_time"], r["approach_id"])),
-              "inputs": inputs, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "forecasts": forecasts,
+              "inputs": inputs, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "forecasts": forecasts,
               "leaderboard": leaderboard, "missing_slots": missing,
               "evidence_failures": [{"run_id": r["run_id"], "error": r["evidence_error"]} for r in runs if r.get("evidence_error")],
               "next_daily_generation": next_eod.isoformat(),
@@ -523,7 +565,7 @@ def consolidate(reports: list[dict]) -> dict:
         return reports[0]
     combined = dict(reports[0])
     combined.update(registry=[], runs=[], observations=[], forecasts=[], missing_slots=[], evidence_failures=[],
-                    inputs={}, additional_inputs={}, ancillary_evidence=[], source_record_ids={"runs": [], "observations": []},
+                    inputs={}, additional_inputs={}, ancillary_evidence=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
                     experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
                                   "expected_slot_manifest_available": r["expected_slot_manifest_available"]} for r in reports])
     book_ids, run_ids = set(), set()
@@ -548,9 +590,11 @@ def consolidate(reports: list[dict]) -> dict:
         combined["additional_inputs"].update(report.get("additional_inputs", {}))
         combined["evidence_failures"].extend(report["evidence_failures"])
         combined["ancillary_evidence"].extend(report.get("ancillary_evidence", []))
+        if combined["execution_events"] is not None:
+            combined["execution_events"].extend({**e, "source_approach_id": e["approach_id"], "approach_id": f"{experiment}::{e['approach_id']}"} for e in report["execution_events"])
         for key in ("runs", "observations"):
             combined["source_record_ids"][key].extend(report["source_record_ids"][key])
-    combined["leaderboard"] = summarize(combined["registry"], combined["runs"], combined["observations"], combined["forecasts"])
+    combined["leaderboard"] = summarize(combined["registry"], combined["runs"], combined["observations"], combined["forecasts"], combined["execution_events"])
     for missing in combined["missing_slots"]:
         book = next(b for b in combined["leaderboard"] if b["approach_id"] == missing["approach_id"])
         if "Missing scheduled slots" not in book["ranking_blockers"]:
