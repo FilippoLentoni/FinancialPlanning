@@ -165,7 +165,7 @@ def diff_schema(name: str, old: Any, new: Any, root_new: dict[str, Any] | None =
         Its absence branch may only repeat exact old property constraints.
         Anything less precise remains a conservative breaking change.
         """
-        if previous.get("additionalProperties") is not False or not isinstance(node, dict) or set(node) != {"if", "then", "else"}:
+        if previous.get("type") != "object" or previous.get("patternProperties") or previous.get("additionalProperties") is not False or not isinstance(node, dict) or set(node) != {"if", "then", "else"}:
             return False
         condition = node["if"]
         if not isinstance(condition, dict) or set(condition) != {"required"} or not isinstance(condition["required"], list) or len(condition["required"]) != 1:

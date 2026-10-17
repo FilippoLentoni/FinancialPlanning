@@ -122,3 +122,7 @@ are migrated. Existing user-facing decision requests and explicit confirmations
 continue using real approved daily snapshots. The native form is available only
 through the owned isolated experiment path. The four repositories must pin the
 same 1.13.0 wheel before rollout. Historical 1.12.0 artifacts remain readable.
+
+Contract patch 1.13.1 conservatively restricts the compatibility proof to old
+closed object schemas without patternProperties. It preserves the exact 1.13.0
+native schemas and source references, and does not replace prior wheel bytes.
