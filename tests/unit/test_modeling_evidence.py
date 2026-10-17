@@ -176,3 +176,26 @@ def test_unavailable_artifact_keeps_day_row_with_integrity_blocker(evidence, mon
     rows,_=e.query_day("experiment-test","2026-01-12")
     assert len(rows)==1 and rows[0]["run_id"]==run["run_id"]
     assert rows[0]["outcome"] is None and rows[0]["evidence_error"]["code"]=="NOT_FOUND"
+
+
+def test_due_forecasts_survive_long_horizon_and_realization_is_permanent(evidence):
+    e=evidence
+    book,_,run=ready(e)
+    target="2026-02-12T15:00:00Z"
+    forecast={"status":"pending","available":True,"expected_value":1100,"baseline_value":1000,"units":"USD","target_at":target,"forecast_checksum":"sha256:controlled-forecast"}
+    e.finish_run(run["run_id"],{"status":"hold","forecast":forecast},AT)
+    assert e.query_pending_forecasts("experiment-test","2026-02-12T14:59:59Z")[0]==[]
+    due,_=e.query_pending_forecasts("experiment-test","2026-02-12T15:00:00.001Z")
+    assert [r["run_id"] for r in due]==[run["run_id"]]
+    output_before=e.read_run(run["run_id"])["output_ref"]["checksum"]
+    valuation=e.record_observation("experiment-test","optimizer",target,book["portfolio_id"],{"value":1080,"observed_at":target,"observation_kind":"valid","quote_status":"fresh","quote_provenance":{"source":"controlled_replay"}},target)
+    payload={"run_id":run["run_id"],"forecast_checksum":"sha256:controlled-forecast","observation_id":valuation["observation_id"],"observed_at":target,"realized_value":1080,"signed_error":-20,"absolute_error":20,"squared_error":400}
+    match=e.record_observation("experiment-test","optimizer",AT,book["portfolio_id"],payload,target,kind="forecast_match")
+    ref=e.mark_forecast_realized(run["run_id"],match["observation_id"],target)
+    assert e.mark_forecast_realized(run["run_id"],match["observation_id"],target)==ref
+    assert e.query_pending_forecasts("experiment-test","2027-01-01T00:00:00Z")[0]==[]
+    assert e.read_run(run["run_id"])["output_ref"]["checksum"]==output_before
+    assert e.read_run(run["run_id"])["forecast_state"]=="realized"
+    assert e.read_run(run["run_id"])["forecast_realization"]["realized_value"]==1080
+    historical,_=e.query_observations_after("experiment-test","optimizer",target,"2026-03-01T00:00:00Z")
+    assert len(historical)==2 and all(r["observed_at"]==target for r in historical)

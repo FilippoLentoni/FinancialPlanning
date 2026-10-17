@@ -185,15 +185,15 @@ TABLES: dict[str, TableSpec] = {
     ),
     "research_run": TableSpec(
         "research_run", "research-run-table", "run_id",
-        head_attributes=("invocation_revision", "lease_owner", "lease_until"),
-        indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("approach-index", "approach_key", "time_key")),
+        head_attributes=("invocation_revision", "lease_owner", "lease_until", "forecast_revision", "forecast_state", "forecast_partition", "forecast_target", "realization_ref"),
+        indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("approach-index", "approach_key", "time_key"), IndexSpec("pending-forecast-index", "forecast_partition", "forecast_target")),
         mutable_fields=("status", "finished_at", "output_ref", "execution_ref"),
         attribute_fields=("run_id", "report_key", "approach_key", "time_key", "status", "experiment_id", "approach_id", "portfolio_id"),
     ),
     "portfolio_observation": TableSpec(
         "portfolio_observation", "portfolio-observation-table", "observation_id",
-        indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("portfolio-index", "portfolio_id", "time_key"), IndexSpec("approach-index", "approach_key", "time_key")),
-        attribute_fields=("observation_id", "report_key", "approach_key", "time_key", "portfolio_id", "experiment_id", "approach_id", "kind"),
+        indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("portfolio-index", "portfolio_id", "time_key"), IndexSpec("approach-index", "approach_key", "time_key"), IndexSpec("observation-time-index", "approach_key", "observed_key")),
+        attribute_fields=("observation_id", "report_key", "approach_key", "time_key", "portfolio_id", "experiment_id", "approach_id", "kind", "observed_key"),
     ),
 }
 
@@ -795,6 +795,8 @@ class MetadataRepository:
         newest_first: bool = True,
         limit: int = 50,
         page_token: str | None = None,
+        sort_upper_bound: str | None = None,
+        sort_lower_bound: str | None = None,
     ) -> tuple[list[Record], str | None]:
         """One page of an index partition, ordered by the index sort key (ULIDs: newest first)."""
         spec = TABLES[table]
@@ -810,6 +812,19 @@ class MetadataRepository:
             "ScanIndexForward": not newest_first,
             "Limit": int(limit),
         }
+        if sort_upper_bound is not None or sort_lower_bound is not None:
+            if not ix.sort_key:
+                raise ValueError("sort bound requires an index sort key")
+            kwargs["ExpressionAttributeNames"]["#s"] = ix.sort_key
+            if sort_upper_bound is not None and sort_lower_bound is not None:
+                kwargs["KeyConditionExpression"] += " AND #s BETWEEN :lo AND :hi"
+                kwargs["ExpressionAttributeValues"].update({":lo": {"S": sort_lower_bound}, ":hi": {"S": sort_upper_bound}})
+            elif sort_upper_bound is not None:
+                kwargs["KeyConditionExpression"] += " AND #s <= :hi"
+                kwargs["ExpressionAttributeValues"][":hi"] = {"S": sort_upper_bound}
+            else:
+                kwargs["KeyConditionExpression"] += " AND #s >= :lo"
+                kwargs["ExpressionAttributeValues"][":lo"] = {"S": sort_lower_bound}
         if page_token:
             kwargs["ExclusiveStartKey"] = decode_page_token(page_token)
         try:
