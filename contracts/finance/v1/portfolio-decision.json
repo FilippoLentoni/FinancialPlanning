@@ -100,6 +100,15 @@
     },
     "resolution": {
       "$ref": "https://contracts.finplan.invalid/finance/v1/api/resolve-portfolio-decision-response.json"
+    },
+    "automatic_experiment_policy": {
+      "const": true
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "input_id": {
+      "type": "string"
     }
   },
   "required": [

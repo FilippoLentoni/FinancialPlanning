@@ -20,7 +20,7 @@ def evidence(repo_any, artifacts):
 def ready(e, *, approach="optimizer", slot=AT):
     book = e.ensure_portfolio("experiment-test", approach, 1000, ["SPY"], AT)
     payload = {"availability_cutoff": slot, "decision_time": slot, "numeric": {"feature_order": ["return", "risk"], "observation": [0.1, 0.2]}, "news": {"consumed": False, "items": []}, "holdings": book}
-    source = e.capture_shared_source("experiment-test", slot, {"prices": [{"symbol": "SPY", "price": 100, "available_at": slot}]}, slot)
+    source = e.capture_shared_source("experiment-test", slot, {"input_snapshot_id": "snap_01ARZ3NDEKTSV4RRFFQ69G5FAV", "prices": [{"symbol": "SPY", "price": 100, "available_at": slot}]}, slot)
     supplied = e.capture_input("experiment-test", approach, slot, payload, source, slot)
     run = e.start_run("experiment-test", approach, slot, supplied["input_id"], book["portfolio_id"], slot, {"family": "optimization"})
     return book, supplied, run
@@ -66,7 +66,7 @@ def test_paper_commit_permanent_retry_and_competing_revision(evidence):
     e.finish_run(run["run_id"], {"status": "succeeded", "target_weights": {"SPY": 0.5}, "forecast": None}, AT)
     e.finish_run(competing["run_id"], {"status": "succeeded", "target_weights": {"SPY": 0.5}}, AT)
     state = {**book["paper_state"], "positions": [{"instrument_id": "SPY", "quantity": 5}], "cash_balance": 499.5, "source": "paper_rebalance"}
-    execution = {"market_session_valid": True, "evaluator_version": "controlled-test", "quote_provenance": {"source": "controlled-test", "price": 100}, "execution_at": AT, "transaction_cost": 0.5, "before_value": 1000, "after_value": 999.5}
+    execution = {"market_session_valid": True, "evaluator_version": "controlled-test", "quote_provenance": {"source": "controlled-test", "price": 100}, "execution_at": AT, "transaction_cost": 0.5, "before_value": 1000, "after_value": 999.5, "reference_prices": {"SPY": 100}, "transaction_cost_bps": 10}
     fills = [{"symbol": "SPY", "quantity": 5, "price": 100, "cost": 0.5, "side": "buy"}]
     result = e.commit_paper_step(run["run_id"], 1, state, fills, execution, AT)
     assert e.commit_paper_step(run["run_id"], 1, state, fills, execution, AT) == result
@@ -131,3 +131,48 @@ def test_lease_nonoverlap_and_crash_recovery_reuses_exact_input(evidence):
     assert not e.claim_run(run["run_id"], "worker-three", LATER)
     attempts = [a for a in e.repo.audit_events(run["run_id"]) if a.operation == "claim_model_invocation"]
     assert len(attempts) == 2
+
+
+def test_automatic_receipts_roundtrip_existing_decision_and_history_contracts(evidence, ctx, env_config):
+    from finplan_platform.core.contract_io import require_valid
+    from finplan_platform.core.portfolio_lifecycle import get_decision, get_history
+    from finplan_platform.core.services import Services
+    e=evidence
+    book, _, run=ready(e)
+    e.finish_run(run["run_id"], {"status":"succeeded","target_weights":{"SPY":0.5},"cash_weight":0.5}, AT)
+    execution={"reference_prices":{"SPY":100},"reference_date":"2026-01-12","transaction_cost_bps":1}
+    result=e.commit_paper_step(run["run_id"],1,book["paper_state"],[],execution,AT)
+    svc=Services(cfg=env_config,repo=e.repo,artifacts=e.store)
+    decision=get_decision(ctx,svc,result["decision_id"])
+    require_valid(decision,"api/portfolio-decision-response")
+    require_valid(get_history(ctx,svc,book["portfolio_id"],1),"api/portfolio-history-entry-response")
+    require_valid(get_history(ctx,svc,book["portfolio_id"],2),"api/portfolio-history-entry-response")
+    assert decision["decision"]["resolution"]["confirmed_by_user"] is False
+    assert decision["decision"]["resolution"]["automatic_experiment_policy"] is True
+    # An ordinary user resolution cannot claim unconfirmed acceptance.
+    ordinary=dict(decision["decision"]["resolution"])
+    ordinary.pop("automatic_experiment_policy")
+    with pytest.raises(PlatformError):require_valid(ordinary,"api/resolve-portfolio-decision-response")
+
+
+def test_equivalent_timezone_slot_cannot_create_second_run(evidence):
+    from finplan_platform.core.modeling_evidence import _id
+    e=evidence
+    book, supplied, run=ready(e)
+    alias="2026-01-12T10:00:00-05:00"
+    assert _id("mr","experiment-test","optimizer",alias)==run["run_id"]
+    assert e.start_run("experiment-test","optimizer",alias,supplied["input_id"],book["portfolio_id"],LATER)["run_id"]==run["run_id"]
+
+
+def test_unavailable_artifact_keeps_day_row_with_integrity_blocker(evidence, monkeypatch):
+    e=evidence
+    _,_,run=ready(e)
+    e.finish_run(run["run_id"],{"status":"failed","reason":"test"},AT)
+    original=e.store.get
+    def missing(role,key,**kwargs):
+        if "/outputs/" in key:raise PlatformError.not_found("controlled missing artifact")
+        return original(role,key,**kwargs)
+    monkeypatch.setattr(e.store,"get",missing)
+    rows,_=e.query_day("experiment-test","2026-01-12")
+    assert len(rows)==1 and rows[0]["run_id"]==run["run_id"]
+    assert rows[0]["outcome"] is None and rows[0]["evidence_error"]["code"]=="NOT_FOUND"

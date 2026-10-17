@@ -39,6 +39,9 @@
     },
     "resolution": {
       "type": "object"
+    },
+    "run_id": {
+      "type": "string"
     }
   },
   "required": [

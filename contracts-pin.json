@@ -3,7 +3,7 @@
   "package": "finplan-contracts",
   "version": "1.12.0",
   "artifact": "vendor/finplan-contracts/finplan_contracts-1.12.0-py3-none-any.whl",
-  "sha256": "7b542969dd8299a9b6ac2f7fd35cd9d52fffad27eb63131e84d776b198fd8ae3",
+  "sha256": "2f9464d1ffb0344ee6dd839a6bf635bd56beed69f9603d9f654f2dc8dc0f1f2a",
   "source": "contracts/python (built locally and vendored; published to CodeArtifact by the build stage once the registry exists)",
   "source_date_epoch": 315532800,
   "published": false,

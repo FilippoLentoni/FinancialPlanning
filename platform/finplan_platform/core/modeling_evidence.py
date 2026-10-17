@@ -32,7 +32,7 @@ from .contract_io import require_valid
 FAMILIES = frozenset({"reinforcement_learning", "optimization", "language_model", "agentic", "control"})
 TERMINAL = frozenset({"succeeded", "hold", "skipped", "failed", "unavailable", "reused"})
 KINDS = {"runs": "research_run", "inputs": "research_input", "observations": "portfolio_observation"}
-SECRET_KEYS = re.compile(r"^(authorization|password|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret[_-]?access[_-]?key|session[_-]?token|aws[_-]?credentials)$", re.I)
+SECRET_KEYS = re.compile(r"^(authorization|password|token|credentials|api[_-]?token|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret[_-]?access[_-]?key|session[_-]?token|aws[_-]?credentials)$", re.I)
 
 
 def _timestamp(value: str) -> datetime:
@@ -45,7 +45,12 @@ def _timestamp(value: str) -> datetime:
         raise PlatformError.validation("a timezone-qualified timestamp is required") from None
 
 
+def _slot(value: str) -> str:
+    return _timestamp(value).isoformat().replace("+00:00", "Z")
+
+
 def _id(prefix: str, *parts: str) -> str:
+    parts = tuple(_slot(p) if re.fullmatch(r"\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})", p) else p for p in parts)
     # Not a public contract ULID: internal identifiers are deliberately namespaced.
     return prefix + "_" + hashlib.sha256(canonicalize(list(parts))).hexdigest()
 
@@ -113,6 +118,7 @@ class ModelingEvidence:
         return {k:v for k,v in old.items() if k not in ignored} == {k:v for k,v in new.items() if k not in ignored}
 
     def _put(self, table: str, doc: dict[str, Any], at: str) -> dict[str, Any]:
+        _safe(doc)
         rid = doc[{"research_input": "input_id", "research_run": "run_id", "portfolio_observation": "observation_id"}[table]]
         old = self.repo.get(table, rid)
         if old:
@@ -134,7 +140,7 @@ class ModelingEvidence:
 
     def capture_input(self, experiment_id: str, approach_id: str, slot: str, payload: Mapping[str, Any], shared_source_ref: Mapping[str, Any] | None, captured_at: str, *, kind: str = "model_input") -> dict[str, Any]:
         """Call immediately BEFORE inference. Same slot can never acquire replacement input."""
-        _timestamp(slot); _timestamp(captured_at)
+        slot = _slot(slot); _timestamp(captured_at)
         cutoff = payload.get("availability_cutoff", payload.get("decision_time", slot))
         if _timestamp(cutoff) > _timestamp(captured_at):
             raise PlatformError.validation("input cutoff exceeds capture time")
@@ -173,6 +179,7 @@ class ModelingEvidence:
         return {"metadata": doc, "payload": json.loads(self.read_artifact_bytes(doc))}
 
     def start_run(self, experiment_id: str, approach_id: str, slot: str, input_id: str, portfolio_id: str, started_at: str, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        slot = _slot(slot)
         supplied = self.repo.require("research_input", input_id).doc
         if (supplied["experiment_id"], supplied["approach_id"], supplied["slot"]) != (experiment_id, approach_id, slot):
             raise PlatformError.validation("captured input/run association mismatch")
@@ -222,7 +229,7 @@ class ModelingEvidence:
         forecast = outcome.get("forecast")
         if forecast and forecast.get("available", True) is not False:
             target = forecast.get("target_at", forecast.get("target_timestamp"))
-            if not target or _timestamp(target) < _timestamp(old["slot"]):
+            if not target or _timestamp(target) <= _timestamp(old["started_at"]):
                 raise PlatformError.validation("forecast requires a future declared target timestamp")
             value = forecast.get("expected_value")
             baseline = forecast.get("baseline_value")
@@ -266,7 +273,7 @@ class ModelingEvidence:
         doc = {"portfolio_id": pid, "name": f"{experiment_id}: {approach_id}"[:200], "base_currency": "USD", "synthetic": True, "revision": 1, "created_at": created_at, "settings": {"isolated_experiment": True, "experiment_id": experiment_id, "approach_id": approach_id, "initial_capital": initial_capital, "universe": list(universe)}, "paper_state_revision": 1, "paper_state": {"cash_balance": initial_capital, "positions": [], "high_watermark": initial_capital, "as_of": _timestamp(created_at).date().isoformat(), "base_currency": "USD", "mode": "paper", "source": "paper_initialization"}}
         state = doc["paper_state"]
         history_id = f"{pid}:{1:020d}"
-        ref = self._artifact("history", history_id, {"portfolio_id": pid, "revision": 1, "paper_state": state, "recorded_at": created_at, "reason": "isolated_experiment_baseline"})
+        ref = self._artifact("history", history_id, {"portfolio_id": pid, "revision": 1, "paper_state": state, "recorded_at": created_at, "reason": "isolated_experiment_baseline", "synthetic": True, "contract_version": "1.12.0"})
         ctx = self._ctx(created_at)
         try:
             self.repo.commit([PutNew("portfolio", doc={k:v for k,v in doc.items() if k not in {"paper_state", "paper_state_revision"}}, extra_attrs={"paper_state": state, "paper_state_revision": 1}, contract_version="1.12.0"), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": pid, "revision": 1, **ref})], audit=[audit_event(ctx, record_id=pid, record_type="portfolio", operation="create_isolated_experiment_book", new={"revision": 1})])
@@ -316,18 +323,37 @@ class ModelingEvidence:
                 raise PlatformError.validation("paper evaluator wealth/cost conservation failed")
         status = "applied" if fills else "no_op"
         did = _public_id("pd", run_id)
-        result = {"run_id": run_id, "decision_id": did, "portfolio_id": old["portfolio_id"], "before_revision": expected_revision, "after_revision": expected_revision + 1, "paper_state": dict(state), "simulated_fills": fills, "execution": dict(execution), "recorded_at": recorded_at, "status": status, "synthetic": True, "automatic_experiment_policy": True, "confirmed_by_user": False}
-        ref = self._artifact("execution", run_id, result)
+        captured = self.read_input(old["input_id"])
+        shared_ref = captured["metadata"].get("shared_source_ref")
+        source = self.read_input(shared_ref["input_id"])["payload"] if shared_ref else captured["payload"]
+        snapshot_id = source.get("input_snapshot_id")
+        if not snapshot_id:
+            raise PlatformError.precondition("paper ledger requires captured approved input snapshot identity")
         outcome = json.loads(self.read_artifact_bytes(old["output_ref"]))
-        decision = {"decision_id": did, "portfolio_id": old["portfolio_id"], "run_id": run_id, "input_id": old["input_id"], "algorithm_family": old.get("metadata", {}).get("family", "control"), "algorithm": old["approach_id"], "portfolio_revision": expected_revision, "status": "accepted", "created_at": old["started_at"], "recommendation": outcome, "provenance": {"experiment_id": old["experiment_id"], "run_id": run_id, "input_checksum": old["input_checksum"]}, "execution": dict(execution), "synthetic": True, "automatic_experiment_policy": True, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]}
+        targets = outcome.get("target_weights", {})
+        if isinstance(targets, list):
+            targets = {row["instrument_id"]: row["weight"] for row in targets}
+        targets = {**targets, "USD_CASH": outcome.get("cash_weight", max(0, 1-sum(targets.values())))}
+        numerical_execution = {"reference_date": execution.get("reference_date", state["as_of"]), "reference_prices": execution.get("reference_prices", {}), "target_weights": targets, "transaction_cost_bps": execution.get("transaction_cost_bps", 0)}
+        public_fills = []
+        for fill in fills:
+            quantity = fill["quantity"]
+            price = fill.get("reference_price", fill.get("price"))
+            public_fills.append({"instrument_id": fill.get("instrument_id", fill.get("symbol")), "side": fill.get("side", "buy" if quantity >= 0 else "sell"), "quantity": abs(quantity), "reference_price": price, "notional": abs(fill.get("notional", quantity * price)), "transaction_cost": fill.get("transaction_cost", fill.get("cost", fill.get("fee", 0) + fill.get("spread_cost", 0) + fill.get("slippage_cost", 0)))})
+        result = {"run_id": run_id, "input_id": old["input_id"], "decision_id": did, "portfolio_id": old["portfolio_id"], "before_revision": expected_revision, "after_revision": expected_revision + 1, "paper_state": dict(state), "simulated_fills": public_fills, "execution": dict(execution), "recorded_at": recorded_at, "status": "accepted", "execution_status": status, "action": "accept", "transaction_cost": execution.get("transaction_cost", 0), "paper_execution": True, "reference_date": numerical_execution["reference_date"], "reference_prices": numerical_execution["reference_prices"], "input_snapshot_id": snapshot_id, "synthetic": True, "contract_version": "1.12.0", "automatic_experiment_policy": True, "confirmed_by_user": False, "execution_mode": "automatic_isolated_experiment_common_evaluator", "caller": self._ctx(recorded_at).caller.audit_view()}
+        require_valid(result, "api/resolve-portfolio-decision-response")
+        ref = self._artifact("execution", run_id, result)
+        decision = {"decision_id": did, "portfolio_id": old["portfolio_id"], "run_id": run_id, "input_id": old["input_id"], "input_snapshot_id": snapshot_id, "algorithm_family": old.get("metadata", {}).get("family", "control"), "algorithm": old["approach_id"], "portfolio_revision": expected_revision, "status": "accepted", "created_at": old["started_at"], "recommendation": outcome, "provenance": {"experiment_id": old["experiment_id"], "run_id": run_id, "input_checksum": old["input_checksum"]}, "execution": numerical_execution, "synthetic": True, "contract_version": "1.12.0", "automatic_experiment_policy": True}
+        require_valid({**decision, "checksum": ref["checksum"]}, "portfolio-decision")
         proposal = self._artifact("decisions", did, decision)
         history_id = f"{old['portfolio_id']}:{expected_revision + 1:020d}"
-        history = self._artifact("history", history_id + ":" + run_id, {"portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, "paper_state": dict(state), "recorded_at": recorded_at, "reason": "automatic_isolated_experiment", "decision_id": did, "run_id": run_id})
+        history = self._artifact("history", history_id + ":" + run_id, {"portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, "paper_state": dict(state), "recorded_at": recorded_at, "reason": "automatic_isolated_experiment", "decision_id": did, "run_id": run_id, "synthetic": True, "contract_version": "1.12.0"})
         new = {**old, "status": status, "execution_ref": ref}
         self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]})], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
         return result
 
     def record_observation(self, experiment_id: str, approach_id: str, slot: str, portfolio_id: str, payload: Mapping[str, Any], observed_at: str, *, kind: str = "valuation") -> dict[str, Any]:
+        slot = _slot(slot)
         book = self.get_portfolio(portfolio_id)
         if (book["experiment_id"], book["approach_id"]) != (experiment_id, approach_id):
             raise PlatformError.not_permitted("observation portfolio ownership mismatch")
@@ -354,12 +380,17 @@ class ModelingEvidence:
         rows, token = self.repo.query_index(table, "day-index", f"{experiment_id}#{day}", newest_first=False, limit=page_size, page_token=cursor)
         values = []
         for row in rows:
-            if table == "research_run":
-                values.append(self.read_run(row.id))
-            elif table == "portfolio_observation":
-                values.append({**row.doc, "payload": json.loads(self.read_artifact_bytes(row.doc))})
-            else:
-                values.append(row.doc)
+            try:
+                if table == "research_run":
+                    values.append(self.read_run(row.id))
+                elif table == "portfolio_observation":
+                    values.append({**row.doc, "payload": json.loads(self.read_artifact_bytes(row.doc))})
+                else:
+                    values.append(row.doc)
+            except PlatformError as exc:
+                # A damaged/unavailable artifact must remain a visible coverage failure,
+                # never disappear from a day's recommendation/accounting rows.
+                values.append({**row.doc, "outcome": None, "execution": None, "payload": None, "evidence_error": {"code": exc.code, "message": str(exc)}})
         encoded = base64.urlsafe_b64encode(json.dumps({"scope": scope, "cursor": token}).encode()).decode() if token else None
         return values, encoded
 

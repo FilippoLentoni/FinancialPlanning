@@ -104,7 +104,7 @@
       "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
     },
     "confirmed_by_user": {
-      "const": true
+      "type": "boolean"
     },
     "reason": {
       "type": "string",
@@ -132,6 +132,24 @@
     },
     "caller": {
       "type": "object"
+    },
+    "automatic_experiment_policy": {
+      "const": true
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "input_id": {
+      "type": "string"
+    },
+    "execution": {
+      "type": "object"
+    },
+    "execution_status": {
+      "enum": [
+        "applied",
+        "no_op"
+      ]
     }
   },
   "required": [
@@ -152,5 +170,40 @@
     "synthetic",
     "contract_version"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "automatic_experiment_policy": {
+            "const": true
+          }
+        },
+        "required": [
+          "automatic_experiment_policy"
+        ]
+      },
+      "then": {
+        "properties": {
+          "confirmed_by_user": {
+            "const": false
+          },
+          "synthetic": {
+            "const": true
+          }
+        },
+        "required": [
+          "run_id",
+          "input_id"
+        ]
+      },
+      "else": {
+        "properties": {
+          "confirmed_by_user": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
 }
