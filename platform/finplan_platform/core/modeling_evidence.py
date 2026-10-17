@@ -422,8 +422,11 @@ class ModelingEvidence:
         if (book["experiment_id"], book["approach_id"]) != (experiment_id, approach_id):
             raise PlatformError.not_permitted("observation portfolio ownership mismatch")
         oid = _id("mo", experiment_id, approach_id, slot, kind)
+        revision = payload.get("revision", payload.get("portfolio_revision", book["revision"]))
+        if isinstance(revision, bool) or not isinstance(revision, int) or not 1 <= revision <= book["revision"]:
+            raise PlatformError.validation("observation holdings revision must exist in this book")
         ref = self._artifact("observations", oid, payload)
-        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": book["revision"], "observed_at": observed_at, "observed_key": _index_time(observed_at) + "#" + oid, "kind": kind, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
+        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": revision, "observed_at": observed_at, "observed_key": _index_time(observed_at) + "#" + oid, "kind": kind, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
         return self._put("portfolio_observation", doc, observed_at)
 
     def query_day(self, experiment_id: str, day: str, *, kind: str = "runs", page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
