@@ -178,7 +178,9 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
     results = []
     for forecast in _unique(forecasts, "forecast_id"):
         row = dict(forecast)
-        if forecast.get("expected_value") is None:
+        if forecast.get("comparison_eligible") is False:
+            row.update(outcome_status="interim_not_applied", realized_value=None, reason="Interim research does not trade or enter primary forecast rankings")
+        elif forecast.get("expected_value") is None:
             row.update(outcome_status="unavailable", realized_value=None)
         elif timestamp(forecast["target_at"]) > timestamp(cutoff):
             row.update(outcome_status="pending", realized_value=None, next_eligible_observation=forecast["target_at"])
@@ -200,9 +202,48 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
     return results
 
 
+
+def _session_proof(value: Any) -> tuple[set[str], bool]:
+    """Only persisted session/quote evidence establishes observed market sessions."""
+    dates, proven = set(), False
+    if isinstance(value, dict):
+        session = value.get("market_session")
+        if isinstance(session, dict) and session.get("source") and session.get("status") in {"open", "closed"}:
+            proven = True
+            if session["status"] == "open" and session.get("session_date"):
+                dates.add(session["session_date"])
+        regular = value.get("regular_session") or {}
+        if isinstance(value.get("market_open"), bool) and regular.get("start") and regular.get("end"):
+            start, end = timestamp(regular["start"]), timestamp(regular["end"])
+            if end > start:
+                if value["market_open"] is False:
+                    proven = True
+                elif value.get("quoted_at") and start <= timestamp(value["quoted_at"]) <= end:
+                    proven = True
+                    dates.add(start.astimezone(EASTERN).date().isoformat())
+        for child in value.values():
+            child_dates, child_proven = _session_proof(child)
+            dates.update(child_dates); proven = proven or child_proven
+    elif isinstance(value, list):
+        for child in value:
+            child_dates, child_proven = _session_proof(child)
+            dates.update(child_dates); proven = proven or child_proven
+    return dates, proven
+
+
+def _compact_session_quotes(value: dict) -> list[dict]:
+    quotes = (value.get("current_quotes") or {}).get("quotes", [])
+    if isinstance(quotes, dict):
+        quotes = list(quotes.values())
+    keys = ("instrument_id", "market_open", "regular_session", "quoted_at", "available_at", "retrieved_at", "status", "provider", "source_response_checksum")
+    return [{k: q[k] for k in keys if k in q} for q in quotes if isinstance(q, dict)]
+
+
 def summarize(approaches: list[dict], runs: list[dict], observations: list[dict], forecasts: list[dict], execution_events: list[dict] | None = None) -> list[dict]:
     books = []
     for approach in approaches:
+        if approach.get("non_trading"):
+            continue
         aid = approach["approach_id"]
         selected = [r for r in runs if r["approach_id"] == aid]
         executions = [e for e in execution_events if e["approach_id"] == aid] if execution_events is not None else None
@@ -236,6 +277,14 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
             drawdown = max(drawdown, (peak - value) / peak if peak else 0)
         matched = [f for f in forecasts if f.get("approach_id") == aid and f.get("outcome_status") == "matched" and f.get("forecast_kind", "model_forecast") == "model_forecast"]
         failures = sum(r.get("status") in BAD_STATUSES or bool(r.get("evidence_error")) for r in selected)
+        observed_dates = {timestamp(o["observed_at"]).astimezone(EASTERN).date().isoformat() for o in valid}
+        session_dates, session_proof_count = set(), 0
+        for observation in valid:
+            proven_dates, proof = _session_proof({"quote_provenance": observation.get("quote_provenance"),
+                                                 "market_session": observation.get("market_session"),
+                                                 "market_session_evidence": observation.get("market_session_evidence")})
+            session_dates.update(proven_dates)
+            session_proof_count += int(proof)
         observation_key = tuple(o["observed_at"] for o in valid)
         policy = approach.get("comparison_policy_id")
         cohort = approach.get("cohort_id")
@@ -268,7 +317,8 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
                       "forecast_matches": len(matched), "mae": sum(f["absolute_error"] for f in matched) / len(matched) if matched else None,
                       "rmse": math.sqrt(sum(f["signed_error"] ** 2 for f in matched) / len(matched)) if matched else None,
                       "coverage": len(valid) / len(history) if history else 0,
-                      "observed_sessions": len({timestamp(o["observed_at"]).astimezone(EASTERN).date() for o in valid}),
+                      "observed_dates": len(observed_dates), "observed_sessions": len(session_dates) if session_proof_count else None,
+                      "market_session_dates": sorted(session_dates), "market_session_proof_coverage": session_proof_count/len(valid) if valid else None,
                       "window_start": valid[0]["observed_at"] if valid else None, "window_end": valid[-1]["observed_at"] if valid else None,
                       "comparison_policy_id": policy, "cohort_id": cohort, "observation_window": list(observation_key),
                       "ranking_blockers": reasons, "rank": None, "return_tied": False})
@@ -345,6 +395,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     known = {r["approach_id"]: r for r in registry}
     slots: set[tuple[str, str]] = set()
     forecasts = []
+    shared_session_cache: dict[str, list[dict]] = {}
     for run in runs:
         if run.get("experiment_id") != experiment_id or run.get("approach_id") not in known:
             raise EvidenceError("Run outside selected experiment/registry")
@@ -359,6 +410,20 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             raise EvidenceError("Decision follows report data cutoff")
         try:
             inputs[run["run_id"]] = _input_for_run(reader, run)
+            captured = inputs[run["run_id"]]
+            if known[aid].get("non_trading"):
+                run.update(non_trading=True, purpose="interim_research_no_primary_execution",
+                           reviewed_portfolio_id=captured["payload"].get("holdings", {}).get("portfolio_id"))
+            source_ref = captured["metadata"].get("shared_source_ref")
+            if source_ref and source_ref["input_id"] not in shared_session_cache:
+                source = reader.read_input(source_ref["input_id"])
+                original = reader.read_input_bytes(source_ref["input_id"]) if hasattr(reader, "read_input_bytes") else _actual_bytes(source)
+                if source["metadata"].get("kind") != "shared_source" or checksum(original) != source_ref["checksum"] or source["metadata"]["checksum"] != source_ref["checksum"]:
+                    raise EvidenceError("Shared valuation/session source checksum or kind mismatch")
+                shared_session_cache[source_ref["input_id"]] = _compact_session_quotes(source["payload"])
+            if source_ref:
+                run["market_session_evidence"] = {"role": "valuation/session context only; not an inference input", "source_input_id": source_ref["input_id"],
+                    "source_checksum": source_ref["checksum"], "quotes": shared_session_cache[source_ref["input_id"]]}
         except (EvidenceError, PlatformError, KeyError, ValueError) as error:
             run["evidence_error"] = str(error)
         if timestamp(run["decision_time"]) > timestamp(generated_at):
@@ -398,12 +463,17 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             run["model_cost_basis"] = output["usage"].get("cost_basis", "observed" if run["model_cost"] is not None else "unavailable")
         if (run.get("forecast") or {}).get("expected_value") is not None:
             forecast = dict(run["forecast"], approach_id=aid, portfolio_id=run["portfolio_id"], run_id=run["run_id"])
+            if known[aid].get("non_trading"):
+                forecast.update(portfolio_id=run["forecast"].get("portfolio_id", run.get("reviewed_portfolio_id")), comparison_eligible=False)
             forecast.setdefault("forecast_id", forecast.get("forecast_checksum"))
             if not forecast.get("forecast_id") or not forecast.get("target_at"):
                 run["evidence_error"] = "Supplied forecast lacks immutable forecast_id/target_at"
             else:
                 forecasts.append(forecast)
     for observation in observations:
+        source_run = next((r for r in runs if r["run_id"] == observation.get("run_id")), None)
+        if source_run and source_run.get("market_session_evidence"):
+            observation["market_session_evidence"] = source_run["market_session_evidence"]
         if observation.get("experiment_id") != experiment_id or observation.get("approach_id") not in known:
             raise EvidenceError("Observation outside selected experiment/registry")
         if observation.get("portfolio_id") != known[observation["approach_id"]]["portfolio_id"]:
@@ -525,7 +595,9 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                    signed_error=forecast.get("signed_error") if forecast else None)
     leaderboard = summarize(registry, runs, observations, forecasts, execution_events)
     for missing_row in missing:
-        book = next(b for b in leaderboard if b["approach_id"] == missing_row["approach_id"])
+        book = next((b for b in leaderboard if b["approach_id"] == missing_row["approach_id"]), None)
+        if book is None:
+            continue
         if "Missing scheduled slots" not in book["ranking_blockers"]:
             book["ranking_blockers"].append("Missing scheduled slots")
         book["rank"] = None
@@ -552,6 +624,44 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     _safe_content(result)
     return result
 
+
+
+
+def aggregate_interim(reader: EvidenceReader, *, primary_experiment: str, primary_registry: dict, start_day: str,
+                      end_day: str, generated_at: str, finalized: bool = False, mode: str = "forward") -> dict | None:
+    """Read actual interim evidence without creating a registry/book/model payload.
+
+    The registry annotation is a report read model derived from persisted bounded
+    runs + verified existing evidence book and the primary descriptive reference.
+    """
+    experiment = primary_experiment + "-interim"
+    first, last = date.fromisoformat(start_day), date.fromisoformat(end_day)
+    actual = []
+    for offset in range((last-first).days+1):
+        actual.extend(_pages(reader, experiment, (first+timedelta(days=offset)).isoformat(), "runs", max_records=20000))
+    if not actual:
+        return None
+    approaches = []
+    for aid in sorted({r["approach_id"] for r in actual}):
+        records = [r for r in actual if r["approach_id"] == aid]
+        books = {r["portfolio_id"] for r in records}
+        if len(books) != 1:
+            raise EvidenceError("Interim approach does not have one permanent evidence book")
+        book_id = next(iter(books))
+        book = reader.get_portfolio(book_id)
+        if book["experiment_id"] != experiment or book["approach_id"] != aid:
+            raise EvidenceError("Interim evidence book ownership mismatch")
+        reference = next((a for a in primary_registry["approaches"] if a["approach_id"] == aid), None)
+        if reference is None:
+            raise EvidenceError("Interim approach missing primary descriptive reference")
+        approaches.append({**reference, "portfolio_id": book_id, "non_trading": True, "cohort_id": "interim_research_nontrading",
+                           "comparison_policy_id": None, "native_cadence": "thirty_minute_interim",
+                           "display_name": reference.get("display_name", aid) + " · 30-minute interim research (nontrading)",
+                           "registry_annotation_source": "bounded actual runs, existing isolated evidence book, primary registry descriptive reference"})
+    report = aggregate(reader, experiment_id=experiment, registry=approaches, start_day=start_day, end_day=end_day,
+                       generated_at=generated_at, finalized=finalized, mode=mode)
+    report["interim_research"] = True
+    return report
 
 
 def consolidate(reports: list[dict]) -> dict:
@@ -602,7 +712,9 @@ def consolidate(reports: list[dict]) -> dict:
             combined["source_record_ids"][key].extend(report["source_record_ids"][key])
     combined["leaderboard"] = summarize(combined["registry"], combined["runs"], combined["observations"], combined["forecasts"], combined["execution_events"])
     for missing in combined["missing_slots"]:
-        book = next(b for b in combined["leaderboard"] if b["approach_id"] == missing["approach_id"])
+        book = next((b for b in combined["leaderboard"] if b["approach_id"] == missing["approach_id"]), None)
+        if book is None:
+            continue
         if "Missing scheduled slots" not in book["ranking_blockers"]:
             book["ranking_blockers"].append("Missing scheduled slots")
         book["rank"] = None

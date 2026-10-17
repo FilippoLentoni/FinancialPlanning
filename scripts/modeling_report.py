@@ -10,12 +10,13 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "platform"))
-from finplan_platform.reporting.reports import EvidenceError, aggregate, consolidate, write_report
+from finplan_platform.reporting.reports import EvidenceError, aggregate, aggregate_interim, consolidate, write_report
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment", required=True)
+    parser.add_argument("--include-interim", action=argparse.BooleanOptionalAction, default=True, help="Include actual primary-experiment30-minute interim recommendations (default enabled); exclude from primary ranking")
     parser.add_argument("--include-experiment", action="append", default=[], help="Include another isolated cohort in this same consolidated report (repeatable)")
     parser.add_argument("--day", help="Reporting day in America/New_York (defaults to today)")
     parser.add_argument("--weekly", action="store_true", help="Rolling seven calendar days ending on --day")
@@ -42,6 +43,12 @@ def main(argv=None):
                            end_day=day, generated_at=now.isoformat(), finalized=args.finalized, mode=args.mode,
                            comparison_policy=registry.get("comparison_policy", {}))
         reports.append(report)
+    if args.include_interim:
+        interim = aggregate_interim(evidence, primary_experiment=args.experiment, primary_registry=evidence.read_registry(args.experiment),
+            start_day=(end-timedelta(days=6)).isoformat() if args.weekly else day, end_day=day,
+            generated_at=now.isoformat(), finalized=args.finalized, mode=args.mode)
+        if interim:
+            reports.append(interim)
     report = consolidate(reports)
     result = write_report(report, args.output, artifact_store=None if args.no_s3_archive else evidence.store)
     print(json.dumps({"directory": result["directory"], "archive": result["archive"], "revision": result["revision"],

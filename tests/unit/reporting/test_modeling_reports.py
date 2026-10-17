@@ -372,3 +372,14 @@ def test_window_turnover_uses_total_executed_notional_over_window_opening_not_po
     rule = next(b for b in result if b["approach_id"] == "rule")
     assert rule["turnover"] == 1.05 and rule["executed_notional"] == 105
     assert rule["turnover_definition"] == "absolute_executed_notional_divided_by_period_opening_value"
+
+
+def test_observed_dates_are_not_market_sessions_without_persisted_proof():
+    reader = Reader()
+    result = report(reader)
+    assert all(b["observed_dates"] == 1 and b["observed_sessions"] is None for b in result["leaderboard"])
+    reader.observations[0]["quote_provenance"] = {"market_session": {"status": "open", "session_date": DAY, "source": "controlled-calendar-proof"}}
+    result = report(reader)
+    cash = next(b for b in result["leaderboard"] if b["approach_id"] == "cash")
+    assert cash["observed_sessions"] == 1 and cash["market_session_dates"] == [DAY]
+    assert cash["market_session_proof_coverage"] == pytest.approx(1/3)

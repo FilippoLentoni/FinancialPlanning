@@ -106,3 +106,60 @@ def test_friday_recommendation_monday_execution_cost_is_counted_only_on_executio
     combined_window = build("2026-01-09", "2026-01-12")
     assert len(combined_window["runs"]) == 1 and len(combined_window["execution_events"]) == 1
     assert combined_window["leaderboard"][0]["fills"] == 1 and combined_window["leaderboard"][0]["execution_cost"] == .5
+
+
+def test_interim_recommendations_with_no_registry_are_included_but_cannot_trade_or_rank(repo_any, artifacts):
+    from finplan_platform.reporting.reports import aggregate_interim, consolidate
+    e = ModelingEvidence(repo_any, artifacts)
+    experiment = "interim-report-test"
+    primary = e.ensure_portfolio(experiment, "direct_codex_news", 1000, ["SPY"], OPEN)
+    interim = e.ensure_portfolio(experiment+"-interim", "direct_codex_news", 1000, ["SPY"], OPEN)
+    approaches = [{"approach_id": "direct_codex_news", "display_name": "Direct Codex", "family": "language_model", "portfolio_id": primary["portfolio_id"],
+                   "comparison_policy_id": "controlled", "cohort_id": "primary", "starting_capital": 1000, "investable_universe": ["SPY"]}]
+    primary_registry = {"approaches": approaches, "comparison_policy": {}}
+    for at in ["2026-01-12T14:30:00Z", "2026-01-12T15:00:00Z"]:
+        iid = _id("mi", experiment+"-interim", "direct_codex_news", at, "model_input")
+        rid = _id("mr", experiment+"-interim", "direct_codex_news", at)
+        payload = {"approach_id": "direct_codex_news", "run_id": rid, "input_id": iid, "decision_time": at, "availability_cutoff": at,
+                   "holdings": {"portfolio_id": primary["portfolio_id"], "cash": 1000, "revision": 1},
+                   "numeric": {"prepared": {"actual_source": {"market_descriptors": {"trend_bucket": "flat"}}}},
+                   "news": {"consumed": True, "layer": "selected_headlines", "items": [{"title": "Controlled permitted headline", "available_at": at}]}}
+        captured = e.capture_input(experiment+"-interim", "direct_codex_news", at, payload, None, at)
+        e.start_run(experiment+"-interim", "direct_codex_news", at, captured["input_id"], interim["portfolio_id"], at, {"family": "language_model"})
+        e.finish_run(rid, {"status": "succeeded", "target_weights": {"SPY": .5}, "cash_weight": .5, "purpose": "interim_research_no_primary_execution", "execution_status": "not_applied_interim"}, at)
+    assert e.read_registry(experiment+"-interim") is None
+    interim_report = aggregate_interim(e, primary_experiment=experiment, primary_registry=primary_registry, start_day=DAY, end_day=DAY,
+                                     generated_at=SLOTS[-1], mode="controlled_replay")
+    assert len(interim_report["runs"]) == 2 and len(interim_report["inputs"]) == 2
+    assert interim_report["leaderboard"] == [] and interim_report["execution_events"] == []
+    assert all(r["non_trading"] and r["reviewed_portfolio_id"] == primary["portfolio_id"] for r in interim_report["runs"])
+    assert e.get_portfolio(primary["portfolio_id"])["revision"] == 1 and e.get_portfolio(interim["portfolio_id"])["revision"] == 1
+    primary_report = aggregate(e, experiment_id=experiment, registry=approaches, start_day=DAY, generated_at=SLOTS[-1], mode="controlled_replay")
+    combined = consolidate([primary_report, interim_report])
+    assert len(combined["runs"]) == 2 and len(combined["leaderboard"]) == 1
+    assert all("-interim::" in r["approach_id"] for r in combined["runs"])
+    assert e.read_registry(experiment+"-interim") is None  # read model never writes a fictional registry.
+
+
+def test_session_proof_from_shared_quotes_never_becomes_cash_model_input(repo_any, artifacts):
+    e = ModelingEvidence(repo_any, artifacts)
+    at = "2026-10-17T14:00:00Z"  # Saturday; explicit stored provider closure is the proof.
+    book = e.ensure_portfolio("session-report-test", "cash", 1000, ["SPY"], at)
+    shared = e.capture_shared_source("session-report-test", at, {"current_quotes": {"quotes": [{"instrument_id": "SPY", "price": 999,
+        "provider": "controlled-test", "market_open": False, "quoted_at": "2026-10-16T19:59:00Z", "available_at": at,
+        "regular_session": {"start": "2026-10-16T13:30:00Z", "end": "2026-10-16T20:00:00Z"}}]}}, at)
+    iid = _id("mi", "session-report-test", "cash", at, "model_input")
+    rid = _id("mr", "session-report-test", "cash", at)
+    payload = {"input_id": iid, "run_id": rid, "approach_id": "cash", "decision_time": at, "availability_cutoff": at,
+               "news": {"consumed": False}, "numeric": {"prepared": {"rule": "hold cash"}}, "holdings": {"cash": 1000}}
+    captured = e.capture_input("session-report-test", "cash", at, payload, shared, at)
+    e.start_run("session-report-test", "cash", at, captured["input_id"], book["portfolio_id"], at, {"family": "control"})
+    e.finish_run(rid, {"status": "hold"}, at)
+    e.record_observation("session-report-test", "cash", at, book["portfolio_id"], {"run_id": rid, "value": 1000, "quote_status": "fresh", "quote_provenance": {"basis": "authoritative_cash"}}, at)
+    registry = [{"approach_id": "cash", "portfolio_id": book["portfolio_id"], "family": "control", "cohort_id": "test", "comparison_policy_id": "test", "starting_capital": 1000}]
+    report = aggregate(e, experiment_id="session-report-test", registry=registry, start_day="2026-10-17", generated_at=at, mode="controlled_replay")
+    assert report["leaderboard"][0]["observed_dates"] == 1 and report["leaderboard"][0]["observed_sessions"] == 0
+    assert report["inputs"][rid]["payload"] == payload
+    assert "price" not in json.dumps(report["inputs"][rid]["payload"])
+    assert report["runs"][0]["market_session_evidence"]["role"].startswith("valuation/session context only")
+    assert "price" not in report["runs"][0]["market_session_evidence"]["quotes"][0]

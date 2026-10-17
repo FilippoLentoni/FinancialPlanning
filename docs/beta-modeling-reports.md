@@ -180,3 +180,35 @@ issue-day fallback accounting; production uses the actual-day event path.
 Late receipts/forecast matches contribute their real observed/recorded timestamp to
 the report's data cutoff. A revised historical report therefore cannot display a
 Monday fill while claiming that its evidence cutoff is still Friday.
+
+## Interim research and verified session counts
+
+The report CLI includes the primary experiment's `-interim` thirty-minute research
+by default (`--include-interim`; `--no-include-interim` is a diagnostic override).
+An old interim workflow need not have registered a trading strategy: the read model
+queries its actual bounded daily runs, verifies the existing isolated evidence book
+with `get_portfolio`, and takes only a descriptive approach reference from the
+primary persisted registry. It does not write a registry, create a portfolio, invoke
+a model, or construct replacement model inputs. Every original interim run/input
+and recommendation remains available in the table, explorer and exports.
+
+Interim rows state `non_trading` and show `reviewed_portfolio_id` from that run's
+EXACT input holdings. Their evidence book is distinct from the reviewed primary
+book. They are excluded from the primary leaderboard, fills, turnover and forecast
+accuracy; an interim prediction is labeled not applied rather than realized against
+a book that did not execute its policy. Half-hour recommendations cannot give Codex
+extra primary comparison trades.
+
+`observed_dates` counts dates with valid observations, including cash observations
+on closed days. `observed_sessions` counts distinct market session dates only when
+persisted provider/market-session evidence proves them. Missing proof yields null,
+not an inferred weekday or holiday calendar. Explicit stored provider closure with
+regular-session timestamps establishes zero observed market sessions, including a
+Saturday cash-only book. Coverage of session proof is reported separately.
+
+Cash strategies do not receive quote inputs just to establish market state for a
+report. The builder may verify an original shared source and extract ONLY compact
+session provenance from its stored `current_quotes`; this is labeled valuation/
+session context, remains separate from the exact inference input, and never adds
+raw shared prices or news to an approach's consumed payload. Root provider checksums
+and the source input ID remain available for reconciliation.
