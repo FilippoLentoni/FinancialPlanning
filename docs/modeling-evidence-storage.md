@@ -15,8 +15,8 @@ items remain unchanged. Three new on-demand KMS-encrypted PITR tables use `pk`:
 | Suffix | ID | Mutable fields | Indexes |
 | --- | --- | --- | --- |
 | research-input | input_id | none | day-index(report_key,time_key), approach-index(approach_key,time_key) |
-| research-run | run_id | status, finished_at, output_ref, execution_ref; bounded invocation lease head | day-index, approach-index |
-| portfolio-observation | observation_id | none | day-index, approach-index, portfolio-index(portfolio_id,time_key) |
+| research-run | run_id | status, finished_at, output_ref, execution_ref; bounded invocation lease and forecast reconciliation heads | day-index, approach-index, pending-forecast-index(forecast_partition,forecast_target) |
+| portfolio-observation | observation_id | none | day-index, approach-index, portfolio-index(portfolio_id,time_key), observation-time-index(approach_key,observed_key) |
 
 `report_key` is `experiment_id#YYYY-MM-DD` in America/New_York. `approach_key`
 is `experiment_id#approach_id`. `time_key` orders a canonical UTC slot plus stable
@@ -75,6 +75,19 @@ can leave an unreferenced immutable object; retry verifies identical bytes or st
 another content-addressed artifact, never publishes missing bytes or advances the
 book twice. Lease recovery uses the original captured input and records an audited
 attempt. The scheduler owns bounded backoff and stale-run failure status.
+
+Forecast publication atomically adds a sparse due-work index head. The original
+forecast remains inside its immutable output artifact. `query_pending_forecasts`
+queries due unmatched forecasts by experiment and target timestamp regardless of
+how old their decisions are; there is no seven-day expiry of pending work.
+`query_observations_after` returns bounded pages ordered by actual observation time,
+which is separate from hourly slot identity. `mark_forecast_realized` verifies the
+original forecast checksum/book, the fresh post-horizon authoritative valuation and
+cash-flow-adjusted errors, then conditionally links the immutable forecast-match
+observation and removes the head from the pending partition. Retrying a crash after
+the match was saved but before the head moved completes that same link. Later quotes
+cannot rewrite the original forecast or permanent match. `read_run` expands verified
+`forecast_realization` and exposes its `forecast_realization_ref` for reports.
 
 No historic model inputs can be recovered retroactively unless they were originally
 captured. There is no destructive backfill: existing stores remain authoritative,

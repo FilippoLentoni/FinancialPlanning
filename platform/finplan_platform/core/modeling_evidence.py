@@ -49,6 +49,10 @@ def _slot(value: str) -> str:
     return _timestamp(value).isoformat().replace("+00:00", "Z")
 
 
+def _index_time(value: str) -> str:
+    return _timestamp(value).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def _id(prefix: str, *parts: str) -> str:
     parts = tuple(_slot(p) if re.fullmatch(r"\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})", p) else p for p in parts)
     # Not a public contract ULID: internal identifiers are deliberately namespaced.
@@ -179,7 +183,7 @@ class ModelingEvidence:
         return {"metadata": doc, "payload": json.loads(self.read_artifact_bytes(doc))}
 
     def start_run(self, experiment_id: str, approach_id: str, slot: str, input_id: str, portfolio_id: str, started_at: str, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
-        slot = _slot(slot)
+        slot = _slot(slot); started_at = _slot(started_at)
         supplied = self.repo.require("research_input", input_id).doc
         if (supplied["experiment_id"], supplied["approach_id"], supplied["slot"]) != (experiment_id, approach_id, slot):
             raise PlatformError.validation("captured input/run association mismatch")
@@ -241,12 +245,70 @@ class ModelingEvidence:
                 raise PlatformError.immutable("completed invocation output cannot change")
             return old
         new = {**old, "status": outcome["status"], "finished_at": finished_at, "output_ref": ref}
-        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new)], audit=[audit_event(self._ctx(finished_at), record_id=run_id, record_type="research_run", operation="finish_modeling_run", prior={"status": "running"}, new={"status": new["status"]})])
+        forecast_heads = {"forecast_revision": 0, "forecast_state": "pending", "forecast_partition": old["experiment_id"] + "#pending", "forecast_target": _index_time(forecast.get("target_at", forecast.get("target_timestamp")))} if forecast and forecast.get("available", True) is not False else {}
+        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new, extra_attrs=forecast_heads)], audit=[audit_event(self._ctx(finished_at), record_id=run_id, record_type="research_run", operation="finish_modeling_run", prior={"status": "running"}, new={"status": new["status"]})])
         return new
 
     def read_run(self, run_id: str) -> dict[str, Any]:
-        doc = self.repo.require("research_run", run_id).doc
-        return {**doc, "outcome": json.loads(self.read_artifact_bytes(doc["output_ref"])) if doc.get("output_ref") else None, "execution": json.loads(self.read_artifact_bytes(doc["execution_ref"])) if doc.get("execution_ref") else None}
+        record = self.repo.require("research_run", run_id)
+        doc = record.doc
+        result = {**doc, **{k:record.attrs[k] for k in ("forecast_state", "forecast_target", "realization_ref") if k in record.attrs}, "outcome": json.loads(self.read_artifact_bytes(doc["output_ref"])) if doc.get("output_ref") else None, "execution": json.loads(self.read_artifact_bytes(doc["execution_ref"])) if doc.get("execution_ref") else None}
+        if record.attrs.get("realization_ref"):
+            result["forecast_realization_ref"] = record.attrs["realization_ref"]
+            result["forecast_realization"] = json.loads(self.read_artifact_bytes(record.attrs["realization_ref"]))
+        return result
+
+    def query_pending_forecasts(self, experiment_id: str, through: str, *, page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
+        """Due unmatched forecasts independent of decision age; no historic table scan."""
+        if not 1 <= page_size <= 100:
+            raise PlatformError.validation("pending forecast page must contain 1..100 rows")
+        if next_token:
+            from .repository import decode_page_token
+            cursor = decode_page_token(next_token)
+            if cursor.get("forecast_partition", {}).get("S") != experiment_id + "#pending":
+                raise PlatformError.validation("pending forecast token has wrong experiment")
+        rows, token = self.repo.query_index("research_run", "pending-forecast-index", experiment_id + "#pending", newest_first=False, limit=page_size, page_token=next_token, sort_upper_bound=_index_time(through))
+        # GSI propagation may lag a realized head: strong reads prevent double matching.
+        return [self.read_run(r.id) for r in rows if self.repo.require("research_run", r.id).attrs.get("forecast_state") == "pending"], token
+
+    def query_observations_after(self, experiment_id: str, approach_id: str, start_at: str, through: str, *, page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
+        """Original observations in actual observation-time order, independent of slot/day."""
+        if not 1 <= page_size <= 100 or _timestamp(start_at) > _timestamp(through):
+            raise PlatformError.validation("invalid bounded observation time range")
+        partition = f"{experiment_id}#{approach_id}"
+        if next_token:
+            from .repository import decode_page_token
+            if decode_page_token(next_token).get("approach_key", {}).get("S") != partition:
+                raise PlatformError.validation("observation cursor belongs to another approach")
+        rows, token = self.repo.query_index("portfolio_observation", "observation-time-index", partition, newest_first=False, limit=page_size, page_token=next_token, sort_lower_bound=_index_time(start_at) + "#", sort_upper_bound=_index_time(through) + "#~")
+        return [{**r.doc, "payload": json.loads(self.read_artifact_bytes(r.doc))} for r in rows], token
+
+    def mark_forecast_realized(self, run_id: str, observation_id: str, recorded_at: str) -> dict[str, Any]:
+        """Link an immutable forecast match exactly once, without changing its forecast."""
+        record = self.repo.require("research_run", run_id)
+        match = self.repo.require("portfolio_observation", observation_id).doc
+        payload = json.loads(self.read_artifact_bytes(match))
+        outcome = self.read_run(run_id)["outcome"]
+        forecast = (outcome or {}).get("forecast") or {}
+        if match.get("kind") != "forecast_match" or payload.get("run_id") != run_id or payload.get("forecast_checksum") != forecast.get("forecast_checksum") or match["portfolio_id"] != record.doc["portfolio_id"]:
+            raise PlatformError.validation("realization does not match immutable forecast/book")
+        actual = self.repo.require("portfolio_observation", payload.get("observation_id", "")).doc
+        actual_payload = json.loads(self.read_artifact_bytes(actual))
+        target = forecast.get("target_at", forecast.get("target_timestamp"))
+        if actual["portfolio_id"] != record.doc["portfolio_id"] or actual_payload.get("observation_kind") != "valid" or actual_payload.get("quote_status") != "fresh" or _timestamp(actual_payload["observed_at"]) < _timestamp(target):
+            raise PlatformError.validation("forecast match requires a valid fresh post-horizon book observation")
+        realized = actual_payload["value"]
+        flows = actual_payload.get("net_external_cash_flows_since_decision", 0)
+        error = realized - flows - forecast["expected_value"]
+        if payload.get("observed_at") != actual_payload["observed_at"] or any(not math.isclose(payload.get(k, float("inf")), v, rel_tol=1e-10, abs_tol=1e-8) for k,v in {"realized_value": realized, "signed_error": error, "absolute_error": abs(error), "squared_error": error*error}.items()):
+            raise PlatformError.validation("forecast realization/error differs from authoritative observation")
+        ref = {"observation_id": observation_id, "artifact_key": match["artifact_key"], "checksum": match["checksum"]}
+        if record.attrs.get("forecast_state") == "realized":
+            if record.attrs.get("realization_ref") != ref:
+                raise PlatformError.immutable("forecast already matched another observation")
+            return ref
+        self.repo.commit([HeadMove("research_run", record_id=run_id, expected_revision=int(record.attrs.get("forecast_revision", 0)), revision_attr="forecast_revision", set_attrs={"forecast_state": "realized", "forecast_partition": record.doc["experiment_id"] + "#realized", "realization_ref": ref}, additional_condition=Cond.eq("forecast_state", "pending"))], audit=[audit_event(self._ctx(recorded_at), record_id=run_id, record_type="research_run", operation="reconcile_frozen_forecast", new={"forecast_state": "realized"}, observation_id=observation_id)])
+        return ref
 
     def register_approaches(self, experiment_id: str, approaches: list[dict[str, Any]], policy: Mapping[str, Any], recorded_at: str) -> dict[str, Any]:
         ids = [a["approach_id"] for a in approaches]
@@ -261,6 +323,7 @@ class ModelingEvidence:
         return self.read_input(rows[0].id)["payload"] if rows else None
 
     def ensure_portfolio(self, experiment_id: str, approach_id: str, initial_capital: float, universe: list[str], created_at: str) -> dict[str, Any]:
+        created_at = _slot(created_at)
         if not math.isfinite(initial_capital) or initial_capital <= 0 or not universe or len(universe) != len(set(universe)):
             raise PlatformError.validation("isolated book requires positive capital and distinct investable universe")
         pid = _public_id("pf", experiment_id, approach_id)
@@ -296,6 +359,7 @@ class ModelingEvidence:
         session validation. All fills must reconcile cost and cash before publication.
         A permanently committed run cannot produce a second revision on any retry.
         """
+        recorded_at = _slot(recorded_at)
         old = self.repo.require("research_run", run_id).doc
         if old.get("execution_ref"):
             return json.loads(self.read_artifact_bytes(old["execution_ref"]))
@@ -315,7 +379,7 @@ class ModelingEvidence:
             raise PlatformError.precondition("fills require validated session, evaluator and eligible quote provenance")
         if fills:
             quote_at = execution.get("execution_at")
-            if not quote_at or _timestamp(quote_at) < _timestamp(old["slot"]) or _timestamp(quote_at) > _timestamp(recorded_at):
+            if not quote_at or _timestamp(quote_at) < _timestamp(old["started_at"]) or _timestamp(quote_at) > _timestamp(recorded_at):
                 raise PlatformError.precondition("paper fill time is not eligible for this decision")
             total_cost = execution.get("transaction_cost", 0)
             before_value, after_value = execution.get("before_value"), execution.get("after_value")
@@ -359,7 +423,7 @@ class ModelingEvidence:
             raise PlatformError.not_permitted("observation portfolio ownership mismatch")
         oid = _id("mo", experiment_id, approach_id, slot, kind)
         ref = self._artifact("observations", oid, payload)
-        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": book["revision"], "observed_at": observed_at, "kind": kind, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
+        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": book["revision"], "observed_at": observed_at, "observed_key": _index_time(observed_at) + "#" + oid, "kind": kind, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
         return self._put("portfolio_observation", doc, observed_at)
 
     def query_day(self, experiment_id: str, day: str, *, kind: str = "runs", page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
