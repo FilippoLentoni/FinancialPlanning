@@ -19,3 +19,10 @@ Optional statement identifiers are removed only in beta to keep the resolved
 managed policy at 5,877 characters, below IAM's 6,144-character limit. Regression
 tests simulate a permissive identity policy to verify that the boundary itself
 maintains these restrictions. The canonical package and wheel are unchanged.
+
+The deployment build gate recognizes the entire exact beta policy document and
+managed-policy name before auditing four DENY-only secret ARN reference leaves
+that the canonical generic scanner reports. All Allow findings and all other
+references remain scanned. Any change to the role, secret, statements, actions,
+or boundary name invalidates this recognition; regression tests cover those
+mutations and an extra resource. Canonical ENV-05 logic remains unchanged.

@@ -288,8 +288,16 @@ def gate_boundaries(ctx: GateContext) -> list[str]:
 def gate_live_perms(ctx: GateContext) -> list[str]:
     from finplan_contracts import live_perms
 
-    n, findings = live_perms.scan_paths(templates_of(_need_assembly(ctx)))
-    ctx.note("live-perm-scan", f"{n} templates scanned")
+    from infra.stacks.brokerage_boundary import audited_deny_reference_locations
+
+    paths = templates_of(_need_assembly(ctx))
+    n, findings = live_perms.scan_paths(paths)
+    audited = {str(path): audited_deny_reference_locations(_load(path)) for path in paths}
+    retained = [f for f in findings if not (
+        f.rule == "live-secret" and f.location in audited.get(f.file, set())
+    )]
+    ctx.note("live-perm-scan", f"{n} templates scanned; {len(findings)-len(retained)} exact beta DENY references audited")
+    findings = retained
     return [f"live-financial permission: {f}" for f in findings]
 
 

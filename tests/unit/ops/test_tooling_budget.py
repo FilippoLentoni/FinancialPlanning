@@ -249,3 +249,9 @@ def test_every_tooling_role_carries_its_environment_boundary_and_tags(tooling_te
             name = role["Properties"]["RoleName"]
             assert tags["logical-role"] in {"deploy-role", "pipeline-role"} and env in name, (lid, name)
     assert per_env == {"beta": 3, "gamma": 3, "prod": 3}  # deploy, exec and stage role per environment
+
+
+def test_brokerage_overlay_passes_synthesized_security_gates(ops_assembly):
+    from scripts.build_gates import ROOT, GateContext, run_gates
+    results = run_gates(GateContext(root=ROOT, assembly=ops_assembly), only=['ownership', 'boundaries', 'live-perm-scan'])
+    assert all(result.ok for result in results), [(r.name, r.problems) for r in results if not r.ok]

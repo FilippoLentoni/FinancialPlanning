@@ -34,3 +34,23 @@ def deployment_env_boundary(env,*,partition=boundaries.PARTITION,region=boundari
     # preserves enforcement while keeping the resolved managed policy under 6144.
     for statement in doc['Statement']:statement.pop('Sid',None)
     return doc
+
+
+def audited_deny_reference_locations(template):
+    """Recognize only exact deployed beta policy and four DENY-only ARN leaves."""
+    expected=deployment_env_boundary('beta')
+    leaves={
+        '/Statement/12/NotResource/Fn::Sub',
+        '/Statement/13/Resource/Fn::Sub',
+        '/Statement/14/Resource/Fn::Sub',
+        '/Statement/15/Condition/StringNotLike/secretsmanager:SecretId/1/Fn::Sub',
+    }
+    result=set()
+    for logical_id,resource in template.get('Resources',{}).items():
+        props=resource.get('Properties',{})
+        if (resource.get('Type')=='AWS::IAM::ManagedPolicy'
+                and props.get('ManagedPolicyName')==boundaries.boundary_name('beta')
+                and props.get('PolicyDocument')==expected):
+            prefix=f'/Resources/{logical_id}/Properties/PolicyDocument'
+            result.update(prefix+leaf for leaf in leaves)
+    return result
