@@ -61,3 +61,25 @@ checksum, when supplied, must match the producer's source, including an already
 stored vintage. The operator can choose up to eight concurrent invocations;
 errors remain listed and are not automatically retried. Bulk capture and its
 elapsed/cost estimate must be measured from an initial actual invocation.
+
+
+A separate GKG2.1 source captures four same-day premarket archives and serves
+`GET /v1/gdelt-intraday-metadata` under feature version
+`gdelt-gkg-v2-premarket-organization-tone-v1`. Source windows use New York DST,
+07:45 through08:45; the conservative source proxy is the later of object LastModified
+and batch timestamp plus15minutes. Daily central capture runs08:45 on every calendar
+day. Beta prices run08:50; a distinct Friday17:05 capture preserves completed Friday
+prices for weekend reports without submitting another recommendation. Gamma/prod times
+remain unchanged. The second price phase uses an independent retry key.
+
+Complete windows can have zero entity matches with null tone and `missing:false`.
+Partial windows preserve observed counts as lower bounds and `missing:true`; all absent
+windows have unknown null counts/tone. Four attempted source URLs with HTTP status,
+retrieval timestamp and checksum record the difference. Missing historical files describe
+today's archive audit, not proof of historical feed downtime. No failed source is replaced
+with a synthetic news observation. Strict source identity, field bounds and immutable hashes
+remain required. The released English GKG corpus is a bounded organization-tone signal,
+not exhaustive multilingual or article-level financial sentiment.
+
+For GKG2, `cluster_count` equals the number of unique document identifiers. It does
+not represent independently clustered financial events or calibrated asset sentiment.

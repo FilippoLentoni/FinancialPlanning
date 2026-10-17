@@ -94,6 +94,9 @@ def _caller_from_proxy(event: Mapping[str, Any]) -> Caller:
 
 
 def handler(event: Mapping[str, Any], context: Any = None) -> dict[str, Any]:
+    if isinstance(event, Mapping) and event.get("source") == "finplan.gdelt-intraday":
+        from ..core.gdelt_intraday import capture
+        return capture(event)
     if isinstance(event, Mapping) and event.get("source") == "finplan.gdelt-metadata":
         from ..core.gdelt_metadata import capture
         return capture(event)

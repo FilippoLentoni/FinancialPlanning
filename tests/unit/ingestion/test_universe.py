@@ -106,6 +106,8 @@ def test_data_parity_with_beta_decision_26(env: str) -> None:
     # Selected eight-asset beta research is evaluated before independent promotion.
     expected["ingest"].pop("universe")
     actual["ingest"].pop("universe")
+    assert expected["ingest"].pop("schedule_time") == "08:50"
+    assert actual["ingest"].pop("schedule_time") == "09:00"
     assert actual == expected
     assert load_config(env).universe.tickers == TICKERS
 

@@ -268,6 +268,12 @@ def _plan_scheduled(ctx: OperationContext, body: Any, deps: IngestionDeps) -> _P
     cal.require_covered(fire_date)
     key = scheduled_idempotency_key(ctx.env, dataset.dataset_id, fire_date, deps.provider.describe().provider_id)
     request_body = {"trigger": "scheduled", "dataset_id": dataset.dataset_id, "scheduled_session_date": fire_date.isoformat(), "granularity": "daily"}
+    phase = body.get("capture_phase")
+    if phase is not None:
+        if phase != "post_close" or ctx.env != "beta":
+            raise PlatformError.validation("unsupported scheduled capture phase")
+        key += "-post-close"
+        request_body["capture_phase"] = phase
     status = cal.status(fire_date)
     if status not in ("regular", "early_close"):
         return _Plan(dataset, fire_date, fire_date, "daily", key, request_body, {"start": fire_date.isoformat(), "end": fire_date.isoformat()}, no_session=True, session_status=status)

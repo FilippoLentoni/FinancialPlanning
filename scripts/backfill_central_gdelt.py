@@ -17,9 +17,10 @@ def main():
     parser.add_argument("--end", type=date.fromisoformat, required=True)
     parser.add_argument("--local-corpus", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-kind", choices=("daily", "intraday"), default="daily")
     parser.add_argument("--workers", type=int, choices=range(1, 9), default=4)
     args = parser.parse_args()
-    if not 0 <= (args.end - args.start).days <= 365 or args.end >= datetime.now(UTC).date():
+    if not 0 <= (args.end - args.start).days <= (1095 if args.source_kind == "intraday" else 365) or args.end >= datetime.now(UTC).date():
         parser.error("capture requires 1..366 prior UTC archive days")
     import boto3
     from botocore.config import Config
@@ -27,10 +28,14 @@ def main():
     days = [args.start + timedelta(days=i) for i in range((args.end-args.start).days+1)]
     rows, failures = [], []
     def invoke(day):
-        event = {"source": "finplan.gdelt-metadata", "source_day": str(day)}
+        event = {"source": "finplan.gdelt-intraday" if args.source_kind == "intraday" else "finplan.gdelt-metadata", "source_day": str(day)}
         frozen = args.local_corpus / day.strftime("%Y/%m/%d/source.json")
         if frozen.exists():
             event["expected_archive_checksum"] = json.loads(frozen.read_text())["archive_checksum"]
+        if args.source_kind == "intraday":
+            window = args.local_corpus / day.strftime("%Y/%m/%d/gdelt-gkg-v2-premarket-organization-tone-v1.json")
+            if window.exists():
+                event["expected_sources"] = {s["batch_at"]: s["archive_checksum"] for s in json.loads(window.read_text())["lineage"]["sources"]}
         result = client.invoke(FunctionName="finplan-beta-financialplanning-ingestion-handler", InvocationType="RequestResponse", Payload=json.dumps(event).encode())
         body = json.loads(result["Payload"].read())
         if result.get("FunctionError") or body.get("status") not in ("captured", "already_frozen"):

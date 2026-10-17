@@ -52,11 +52,11 @@ def test_schedule_weekdays_new_york_from_configuration(templates: dict[str, Any]
     scheds = _of(templates[env], "AWS::Scheduler::Schedule")
     (sched,) = [s for s in scheds if json.loads(s["Properties"]["Target"]["Input"]).get("dataset_id") == "finance/etf-daily/SPY"]
     # the research universe has its own schedule at the same time (add-research-universe-and-daily-loop)
-    (uni,) = [s for s in scheds if json.loads(s["Properties"]["Target"]["Input"]).get("dataset_id") == "finance/equity-etf-daily/research-universe"]
+    (uni,) = [s for s in scheds if json.loads(s["Properties"]["Target"]["Input"]).get("dataset_id") == "finance/equity-etf-daily/research-universe" and not json.loads(s["Properties"]["Target"]["Input"]).get("capture_phase")]
     assert json.loads(uni["Properties"]["Target"]["Input"]) == scheduler_input("finance/equity-etf-daily/research-universe")
     assert uni["Properties"]["ScheduleExpression"] == sched["Properties"]["ScheduleExpression"]
     p = sched["Properties"]
-    assert p["ScheduleExpression"] == "cron(0 9 ? * MON-FRI *)"
+    assert p["ScheduleExpression"] == ("cron(50 8 ? * MON-FRI *)" if env == "beta" else "cron(0 9 ? * MON-FRI *)")
     assert p["ScheduleExpressionTimezone"] == "America/New_York"
     assert p["FlexibleTimeWindow"] == {"Mode": "OFF"} and p["State"] == "ENABLED"
     assert p["Target"]["RetryPolicy"]["MaximumRetryAttempts"] >= 1 and "DeadLetterConfig" in p["Target"]
@@ -65,7 +65,7 @@ def test_schedule_weekdays_new_york_from_configuration(templates: dict[str, Any]
 
 def test_configured_0930_fires_at_0930_new_york() -> None:
     t = _synth(config_with(**{"ingest.schedule_time": "09:30"}))
-    scheds = [s for s in _of(t, "AWS::Scheduler::Schedule") if json.loads(s["Properties"]["Target"]["Input"]).get("source") == "finplan.scheduler"]
+    scheds = [s for s in _of(t, "AWS::Scheduler::Schedule") if json.loads(s["Properties"]["Target"]["Input"]).get("source") == "finplan.scheduler" and not json.loads(s["Properties"]["Target"]["Input"]).get("capture_phase")]
     assert len(scheds) == 2
     for sched in scheds:
         assert sched["Properties"]["ScheduleExpression"] == "cron(30 9 ? * MON-FRI *)"
@@ -173,3 +173,12 @@ def test_hourly_crypto_is_separate_bounded_beta_schedule(templates, env):
         assert s["EndDate"]=="2026-10-21T00:00:00.000Z"
         assert "DeadLetterConfig" in s["Target"]
         assert json.loads(s["Target"]["Input"])["scheduled_at"]=="<aws.scheduler.scheduled-time>"
+
+
+def test_intraday_all_calendar_days_and_distinct_friday_retention(templates):
+    schedules=_of(templates['beta'],'AWS::Scheduler::Schedule')
+    intraday=[s['Properties'] for s in schedules if json.loads(s['Properties']['Target']['Input']).get('source')=='finplan.gdelt-intraday']
+    assert len(intraday)==1 and intraday[0]['ScheduleExpression']=='cron(45 8 * * ? *)'
+    friday=[s['Properties'] for s in schedules if json.loads(s['Properties']['Target']['Input']).get('capture_phase')=='post_close']
+    assert len(friday)==1 and friday[0]['ScheduleExpression']=='cron(5 17 ? * FRI *)'
+    assert friday[0]['ScheduleExpressionTimezone']=='America/New_York'

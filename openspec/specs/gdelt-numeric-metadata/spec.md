@@ -55,3 +55,24 @@ SHALL NOT acquire producer storage write permissions through this route.
 - **WHEN** no eligible frozen archive exists for a requested source day
 - **THEN** that day is listed as missing and coverage is incomplete
 - **AND** fabricated zero-valued feature rows are not returned
+
+
+### Requirement: Same-day premarket numeric state
+The producer SHALL retain a separately versioned four-batch GKG2.1 source window07:45–08:45
+America/New_York, using conservative source availability and fixed09:00 formation. It SHALL
+run every calendar day08:45 and expose immutable documents through the beta read-only
+`GET /v1/gdelt-intraday-metadata` route. Archive attempts and partial source coverage SHALL
+remain explicit; known zero entity matches SHALL differ from unknown missing archives.
+Historical missingness SHALL be identified as a current archive audit, not platform first-seen.
+
+#### Scenario: Partial or unavailable window
+- GIVEN one or more source archives cannot be retrieved
+- WHEN a premarket source window is frozen
+- THEN successful source counts remain observed lower bounds, failed attempts are retained,
+  source coverage is captured batches divided by four, and wholly unavailable counts are null
+- AND live recommendations fail closed if all archives are unavailable
+
+### Requirement: Prices available before formation and for weekend reporting
+Beta weekday price ingestion SHALL run08:50 America/New_York before09:00 formation.
+A separate Friday17:05 capture SHALL ingest the completed session with an independent
+idempotency key and SHALL NOT submit an additional daily model recommendation.

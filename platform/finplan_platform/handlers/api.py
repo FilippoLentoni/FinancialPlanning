@@ -191,7 +191,7 @@ _PUBLICATION = "finplan_platform.core.publication"
 _EXECUTION = "finplan_platform.core.execution"
 _SNAPSHOTS = "finplan_platform.core.snapshot_reads"
 _LIFECYCLE = "finplan_platform.core.portfolio_lifecycle"
-BETA_LIFECYCLE_OPERATIONS = frozenset({"get_gdelt_metadata","import_research_news","get_research_news","get_crypto_dataset","create_portfolio_decision", "get_portfolio_decision", "list_portfolio_decisions", "resolve_portfolio_decision", "get_portfolio_history", "list_portfolio_history", "list_market_snapshots", "record_activity_event", "list_activity_events"})
+BETA_LIFECYCLE_OPERATIONS = frozenset({"get_gdelt_intraday_metadata","get_gdelt_metadata","import_research_news","get_research_news","get_crypto_dataset","create_portfolio_decision", "get_portfolio_decision", "list_portfolio_decisions", "resolve_portfolio_decision", "get_portfolio_history", "list_portfolio_history", "list_market_snapshots", "record_activity_event", "list_activity_events"})
 
 
 def _lazy_schema(target: str) -> Callable[[Mapping[str, Any]], Any]:
@@ -212,6 +212,7 @@ def _observation_query(r: Parts) -> dict[str, Any]:
 ROUTES: tuple[Route, ...] = (
     Route("POST", "/v1/research-news", "import_research_news", "finplan_platform.core.research_news", lambda m,c,s,r: m.ingest(c,s,r.body), response_schema="api/research-news-import-response", operator_only=True),
     Route("GET", "/v1/research-news/latest", "get_research_news", "finplan_platform.core.research_news", lambda m,c,s,r: m.latest(c,s,r.query), _READERS+("financemodel-job-api",), response_schema="api/research-news-response", query={"symbols":"str","decision_at":"str"}),
+    Route("GET", "/v1/gdelt-intraday-metadata", "get_gdelt_intraday_metadata", "finplan_platform.core.gdelt_intraday", lambda m,c,s,r: m.read(c,s,r.query), _READERS+FINANCEMODEL_CLASSES, response_schema="api/gdelt-intraday-response", query={"symbols":"str","start_date":"str","end_date":"str","decision_at":"str","availability_mode":"str"}),
     Route("GET", "/v1/gdelt-metadata", "get_gdelt_metadata", "finplan_platform.core.gdelt_metadata", lambda m,c,s,r: m.read(c,s,r.query), _READERS+FINANCEMODEL_CLASSES, response_schema="api/gdelt-metadata-response", query={"symbols":"str","start_date":"str","end_date":"str","decision_at":"str","availability_mode":"str"}),
     Route("GET", "/v1/crypto-research/latest", "get_crypto_dataset", "finplan_platform.core.crypto_hourly", lambda m,c,s,r: m.latest(c,s), _READERS+("financemodel-job-api",), response_schema="api/crypto-dataset-response"),
     Route("POST", "/v1/portfolios/{portfolio_id}/decisions", "create_portfolio_decision", _LIFECYCLE, lambda m,c,s,r: m.create_decision(c,s,r.path["portfolio_id"],r.body), ("financemodel-job-api",), status=201, response_schema="api/portfolio-decision-response"),

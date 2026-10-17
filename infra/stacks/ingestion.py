@@ -224,6 +224,24 @@ class IngestionStack(PlatformStack):
                     retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_event_age_in_seconds=1800, maximum_retry_attempts=2),
                     dead_letter_config=scheduler.CfnSchedule.DeadLetterConfigProperty(arn=self.dlq.queue_arn)))
             self.gdelt_schedule.add_metadata("logical-role", "daily-ingest-schedule")
+            self.gdelt_intraday_schedule = scheduler.CfnSchedule(self, "DailyGdeltIntradaySchedule",
+                name=resource_name(env, "daily-gdelt-intraday"), description="Same-day premarket GKG2 numeric metadata before09ET formation",
+                schedule_expression="cron(45 8 * * ? *)", schedule_expression_timezone=SCHEDULE_TIMEZONE,
+                flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"), state="ENABLED",
+                target=scheduler.CfnSchedule.TargetProperty(arn=self.function.function_arn, role_arn=self.schedule_role.role_arn,
+                    input='{"source":"finplan.gdelt-intraday","scheduled_at":"<aws.scheduler.scheduled-time>"}',
+                    retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_event_age_in_seconds=600, maximum_retry_attempts=1),
+                    dead_letter_config=scheduler.CfnSchedule.DeadLetterConfigProperty(arn=self.dlq.queue_arn)))
+            self.gdelt_intraday_schedule.add_metadata("logical-role", "daily-ingest-schedule")
+            self.friday_close_schedule = scheduler.CfnSchedule(self, "FridayCloseUniverseSchedule",
+                name=resource_name(env, "friday-close-universe"), description="Friday completed equity prices retained for weekend reports",
+                schedule_expression="cron(5 17 ? * FRI *)", schedule_expression_timezone=SCHEDULE_TIMEZONE,
+                flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"), state="ENABLED",
+                target=scheduler.CfnSchedule.TargetProperty(arn=self.function.function_arn, role_arn=self.schedule_role.role_arn,
+                    input=json.dumps({**scheduler_input(cfg.universe.dataset_id), "capture_phase":"post_close"}, sort_keys=True),
+                    retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_event_age_in_seconds=1800, maximum_retry_attempts=2),
+                    dead_letter_config=scheduler.CfnSchedule.DeadLetterConfigProperty(arn=self.dlq.queue_arn)))
+            self.friday_close_schedule.add_metadata("logical-role", "daily-ingest-schedule")
             self.crypto_schedule = scheduler.CfnSchedule(self, "HourlyCryptoIngestSchedule",
                 name=resource_name(env, "hourly-crypto-ingest"), description="Hourly completed BTC/ETH research candles; no trading",
                 schedule_expression="cron(5 * * * ? *)", schedule_expression_timezone="UTC", state="ENABLED",

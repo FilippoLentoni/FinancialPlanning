@@ -75,6 +75,11 @@ def test_every_api_route_conforms(flow: Flow, clients: Any, svc: Any, clock: Any
     gdelt_body = gdelt_canonical(gdelt)
     svc.store.put_once("curated", gdelt_prefix + "2026/01/01/" + gdelt_checksum(gdelt_body).split(":")[1] + ".json", gdelt_body)
     tool.get("/v1/gdelt-metadata?symbols=GOOGL,VOO&start_date=2026-01-01&end_date=2026-01-01")
+    from finplan_platform.core.gdelt_intraday import PREFIX as INTRADAY_PREFIX
+    intraday = json.loads((load_store().fixtures_dir("gdelt-intraday-document") / "valid" / "synthetic.json").read_text())
+    body = gdelt_canonical(intraday)
+    svc.store.put_once("curated", INTRADAY_PREFIX + "2026/01/02/" + gdelt_checksum(body).split(":")[1] + ".json", body)
+    tool.get("/v1/gdelt-intraday-metadata?symbols=GOOGL,VOO&start_date=2026-01-02&end_date=2026-01-02")
     _, pf, _ = web.post("/v1/portfolios", {"name": "Contract portfolio", "base_currency": "USD", "idempotency_key": "c-pf"})
     tool.get(f"/v1/portfolios/{pf['portfolio_id']}")
     op.call("PUT", f"/v1/portfolios/{pf['portfolio_id']}/state", {"paper_state": {"positions": [{"instrument_id": "SPY", "quantity": 20.5}], "cash_balance": 1000, "high_watermark": 10000, "as_of": "2026-01-09", "base_currency": "USD", "mode": "paper", "source": "paper_initialization"}, "expected_revision": 0, "idempotency_key": "c-paper-state"})

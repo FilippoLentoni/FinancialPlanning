@@ -400,3 +400,16 @@ def test_yfinance_missing_adjusted_close_is_partial_response(make_deps: Any, fak
     snap = run_ingestion(octx(), on_demand("2026-01-08", "2026-01-09"), deps=deps)["snapshot"]
     assert "partial_response" in snap["quality_flags"]
     assert {"session_date": "2026-01-09", "instrument_id": "SPY", "missing_fields": ["adj_close"]} in snap["quality_details"]["partial_response"]
+
+
+def test_post_close_phase_captures_completed_friday_with_independent_retry_key(make_deps,sctx,at):
+    deps=make_deps()
+    at('2026-01-09T13:50:00Z')
+    first=run_ingestion(sctx(),{'dataset_id':'finance/etf-daily/SPY','scheduled_time':'2026-01-09T13:50:00Z'},deps=deps)
+    at('2026-01-09T22:05:00Z')
+    request={'dataset_id':'finance/etf-daily/SPY','scheduled_time':'2026-01-09T22:05:00Z','capture_phase':'post_close'}
+    closed=run_ingestion(sctx(),request,deps=deps)
+    assert first['requested_range']['end']=='2026-01-08'
+    assert closed['requested_range']['end']=='2026-01-09'
+    assert first['input_snapshot_id']!=closed['input_snapshot_id']
+    assert run_ingestion(sctx(),request,deps=deps)['input_snapshot_id']==closed['input_snapshot_id']

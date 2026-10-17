@@ -37,7 +37,7 @@ def test_committed_configs_are_valid() -> None:
         # decision 26: every environment runs the same real-data configuration; the phase is the
         # only switch (yfinance in phase 2, promoted beta -> gamma -> prod by the UNI-06 gate)
         assert cfg.env == env and cfg.region == "us-east-2" and cfg.phase in (1, 2)
-        assert cfg.provider == ("yfinance" if cfg.phase == 2 else "fixture") and cfg.schedule_time == "09:00"
+        assert cfg.provider == ("yfinance" if cfg.phase == 2 else "fixture") and cfg.schedule_time == ("08:50" if env == "beta" else "09:00")
         assert cfg.dataset_id == "finance/etf-daily/SPY"
         assert cfg.metadata["idempotency_ttl_days"] >= 7 and cfg.metadata["orphan_grace_hours"] >= 24
 

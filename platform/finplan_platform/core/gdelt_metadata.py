@@ -90,13 +90,13 @@ def capture(event, *, deps=None, clock=None):
             "row_count": document["row_count"]}
 
 
-def read(ctx, svc, query):
+def read(ctx, svc, query, *, prefix=PREFIX, feature_version=FEATURE_VERSION, request_schema="api/gdelt-metadata-request"):
     _require_beta(svc.env)
     from .contract_io import require_valid
     try:
         symbols = query.get("symbols", "GOOGL,AMZN,NVDA,MSFT,AAPL,META,TSLA,VOO").split(",")
         contract_query = {"symbols": symbols, **{k:v for k,v in query.items() if k != "symbols"}}
-        require_valid(contract_query, "api/gdelt-metadata-request")
+        require_valid(contract_query, request_schema)
         if not 1 <= len(symbols) <= 9 or len(set(symbols)) != len(symbols) or set(symbols) - ALIASES.keys():
             raise ValueError("symbols")
         start, end = date.fromisoformat(query["start_date"]), date.fromisoformat(query["end_date"])
@@ -114,16 +114,20 @@ def read(ctx, svc, query):
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
         candidates = []
-        for index, (key, _) in enumerate(svc.store.list_objects("curated", PREFIX + day.strftime("%Y/%m/%d/"))):
+        for index, (key, _) in enumerate(svc.store.list_objects("curated", prefix + day.strftime("%Y/%m/%d/"))):
             if index >= 8:
                 raise PlatformError.precondition("GDELT source exceeds the bounded daily revision window")
             raw, _ = svc.store.get("curated", key)
             document = json.loads(raw)
-            if document.get("feature_version") != FEATURE_VERSION or document.get("source_day") != str(day) or checksum(raw).split(":")[1] != Path(key).stem:
+            if document.get("feature_version") != feature_version or document.get("source_day") != str(day) or checksum(raw).split(":")[1] != Path(key).stem:
                 raise PlatformError.internal("GDELT feature identity failed verification")
             lineage = document["lineage"]
             available = lineage["central_available_at"] if mode == "platform" else lineage["source_available_at"]
-            if dt(available) > decision:
+            if available is None:
+                # An explicit missing-window audit has no source availability.
+                # Its intended cutoff only positions the unknown-data mask.
+                available = document.get("decision_cutoff")
+            if available is None or dt(available) > decision:
                 continue
             candidates.append({"checksum": checksum(raw), "document": document})
         if candidates:
@@ -133,7 +137,7 @@ def read(ctx, svc, query):
             rows.append(candidates[0])
         else:
             missing.append(str(day))
-    return {"contract_version": current_version(), "feature_version": FEATURE_VERSION,
+    return {"contract_version": current_version(), "feature_version": feature_version,
             "symbols": symbols, "decision_at": stamp(decision), "availability_mode": mode,
             "coverage": {"start_date": str(start), "end_date": str(end), "expected_days": (end-start).days+1,
                          "captured_days": len(rows), "complete": not missing, "missing_days": missing},

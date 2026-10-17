@@ -4,7 +4,7 @@
   "region": "us-east-2",
   "phase": 2,
   "ingest": {
-    "schedule_time": "09:00",
+    "schedule_time": "08:50",
     "timezone": "America/New_York",
     "provider": "yfinance",
     "provider_settings": {

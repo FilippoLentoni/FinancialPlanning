@@ -734,3 +734,14 @@ default `platform` mode enforces central availability; explicitly requested
 `historical_source_proxy` mode enforces the disclosed conservative archive
 availability proxy. These numeric derivatives have a distinct feature version
 and do not confer access to article text. See [gdelt-metadata.md](gdelt-metadata.md).
+
+
+Same-day premarket numeric GKG2 metadata (contracts1.11, beta): `GET /v1/gdelt-intraday-metadata`.
+Query bounds and explicit platform/historical-source-proxy modes match the daily numeric route.
+The distinct feature version freezes four batches07:45–08:30 America/New_York with conservative
+availability through08:45, before09:00 state formation. Numeric zero matches and missing
+archives have separate semantics: `captured_batches / expected_batches` measures source
+coverage; partial counts are observed lower bounds; wholly absent counts and tone are null.
+The original ZIPs, terms, HTTP attempts, actual retrieval and central availability remain
+immutable. Historical archive missingness is reconstructed today and never labeled original
+platform availability. Live inference fails closed when every batch is absent.
