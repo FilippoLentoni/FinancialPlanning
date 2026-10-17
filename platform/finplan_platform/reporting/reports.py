@@ -121,7 +121,7 @@ def _input_for_run(reader: EvidenceReader, run: dict) -> dict:
             raise EvidenceError(f"Model-specific input {field} does not match selected run")
         if field in payload and payload[field] != run.get(field):
             raise EvidenceError(f"Payload {field} does not match selected run")
-    if metadata.get("slot") and metadata["slot"] != run["scheduled_slot"]:
+    if metadata.get("slot") and timestamp(metadata["slot"]) != timestamp(run["scheduled_slot"]):
         raise EvidenceError("Captured input belongs to a different scheduled slot")
     if metadata.get("kind", "model_input") != "model_input":
         raise EvidenceError("Shared source bundle substituted for model-specific input")
@@ -295,6 +295,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     # Normalize authoritative storage field names without reconstructing inputs.
     for run in runs:
         run.setdefault("scheduled_slot", run.get("slot"))
+        run["scheduled_slot"] = timestamp(run["scheduled_slot"]).isoformat()
         run.setdefault("decision_time", run.get("slot", run.get("started_at")))
         run.setdefault("availability_cutoff", run.get("slot", run["decision_time"]))
         if run.get("outcome") is not None:
