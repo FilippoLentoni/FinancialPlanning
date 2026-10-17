@@ -1,0 +1,269 @@
+"""Known-outcome replay tests; fixtures are never forward performance evidence."""
+import base64
+import copy
+import json
+from pathlib import Path
+
+import pytest
+
+from finplan_platform.reporting.reports import (
+    EvidenceError, aggregate, canonical, checksum, csv_export, forecast_metrics,
+    html_export, summarize, write_report,
+)
+
+DAY = "2026-10-12"
+T0 = DAY + "T14:00:00+00:00"
+T1 = DAY + "T15:00:00+00:00"
+T2 = DAY + "T16:00:00+00:00"
+
+
+def registry():
+    return [{"approach_id": a, "display_name": a, "family": "control", "portfolio_id": "book_"+a,
+             "cohort_id": "cohort", "comparison_policy_id": "common/1", "starting_capital": 100,
+             "investable_universe": ["TEST"], "native_cadence": "hourly"} for a in ["cash", "rule"]]
+
+
+class Reader:
+    def __init__(self):
+        self.runs, self.observations, self.inputs = [], [], {}
+        self.calls = []
+        for aid in ["cash", "rule"]:
+            for i, at in enumerate([T0, T1]):
+                rid, iid = f"run_{aid}_{i}", f"input_{aid}_{i}"
+                payload = {"approach_id": aid, "run_id": rid, "input_id": iid,
+                           "decision_time": at, "availability_cutoff": at,
+                           "holdings": {"cash": 100-i, "revision": i+1},
+                           "numeric": {"prepared": {"observation": [i, 7.25], "feature_order": ["hour", "test_feature"]}},
+                           "news": {"consumed": False, "layer": "not_consumed", "items": []}}
+                raw = canonical(payload)
+                self.inputs[iid] = {"metadata": {"input_id": iid, "approach_id": aid, "run_id": rid,
+                                               "checksum": checksum(raw), "captured_at": at, "kind": "model_input"},
+                                    "payload": payload, "raw_bytes": raw}
+                self.runs.append({"experiment_id": "test", "approach_id": aid, "portfolio_id": "book_"+aid,
+                                  "run_id": rid, "input_id": iid, "scheduled_slot": at, "decision_time": at,
+                                  "availability_cutoff": at, "status": "hold", "model_cost": 0,
+                                  "model_cost_basis": "observed", "execution_cost": 0, "fills": []})
+            for i, at in enumerate([T0, T1, T2]):
+                self.observations.append({"experiment_id": "test", "approach_id": aid, "portfolio_id": "book_"+aid,
+                                          "observation_id": f"obs_{aid}_{i}", "observed_at": at,
+                                          "value": 100 + (i if aid == "rule" else 0), "status": "valid",
+                                          "quote_status": "fresh", "cash": 100})
+
+    def query_day(self, experiment_id, day, *, kind, page_size=100, next_token=None):
+        self.calls.append((experiment_id, day, kind, next_token))
+        values = self.runs if kind == "runs" else self.observations
+        values = [v for v in values if v.get("decision_time", v.get("slot", v.get("observed_at")))[:10] == day]
+        offset = int(next_token or 0)
+        # Deliberately exercise pagination smaller than requested page size.
+        return copy.deepcopy(values[offset:offset+2]), str(offset+2) if len(values)>offset+2 else None
+
+    def read_input(self, input_id):
+        return copy.deepcopy(self.inputs[input_id])
+
+
+def report(reader=None, **kwargs):
+    return aggregate(reader or Reader(), experiment_id="test", registry=registry(), start_day=DAY,
+                     generated_at=T2, mode="controlled_replay", **kwargs)
+
+
+def test_exact_per_model_per_hour_bundles_do_not_change_on_later_source_update():
+    reader = Reader()
+    result = report(reader)
+    assert len(result["runs"]) == 4
+    assert len(result["inputs"]) == 4
+    assert result["evidence_failures"] == []
+    assert result["inputs"]["run_rule_0"]["payload"]["numeric"]["prepared"]["observation"] == [0, 7.25]
+    assert result["inputs"]["run_rule_1"]["payload"]["numeric"]["prepared"]["observation"] == [1, 7.25]
+    for rid, captured in result["inputs"].items():
+        raw = base64.b64decode(captured["raw_base64"])
+        assert checksum(raw) == captured["checksum"]
+        assert json.loads(raw)["run_id"] == rid
+    reader.inputs["input_rule_0"]["payload"]["numeric"]["prepared"]["observation"] = [999]
+    assert result["inputs"]["run_rule_0"]["payload"]["numeric"]["prepared"]["observation"] == [0, 7.25]
+    assert any(call[-1] for call in reader.calls)
+
+
+@pytest.mark.parametrize("mutation,expected", [
+    (lambda x: x["metadata"].update(approach_id="cash"), "approach_id"),
+    (lambda x: x["metadata"].update(kind="shared_source"), "Shared source"),
+    (lambda x: x["payload"].update(run_id="run_cash_0"), "differs"),
+    (lambda x: x["metadata"].update(checksum="sha256:"+"0"*64), "checksum"),
+])
+def test_catches_shared_input_substitution_and_mismatched_run(mutation, expected):
+    reader = Reader()
+    mutation(reader.inputs["input_rule_0"])
+    result = report(reader)
+    assert "run_rule_0" not in result["inputs"]
+    assert expected.lower() in result["evidence_failures"][0]["error"].lower()
+    assert next(b for b in result["leaderboard"] if b["approach_id"] == "rule")["rank"] is None
+
+
+def test_catches_future_available_evidence_and_falsely_attributed_news():
+    reader = Reader()
+    item = reader.inputs["input_rule_0"]
+    item["payload"]["news"] = {"consumed": True, "items": [{"title": "future", "available_at": T1}]}
+    item["raw_bytes"] = canonical(item["payload"]); item["metadata"]["checksum"] = checksum(item["raw_bytes"])
+    assert "Future-available" in report(reader)["evidence_failures"][0]["error"]
+    item["payload"]["news"] = {"consumed": False, "prepared_context": "This was supplied"}
+    item["raw_bytes"] = canonical(item["payload"]); item["metadata"]["checksum"] = checksum(item["raw_bytes"])
+    assert "falsely labeled" in report(reader)["evidence_failures"][0]["error"]
+
+
+def test_duplicate_join_does_not_multiply_recommendations_costs_or_fills():
+    reader = Reader()
+    reader.runs.append(copy.deepcopy(reader.runs[0]))
+    reader.observations.append(copy.deepcopy(reader.observations[0]))
+    result = report(reader)
+    assert len(result["runs"]) == 4 and len(result["observations"]) == 6
+    assert sum(b["recommendations"] for b in result["leaderboard"]) == 4
+    reader.runs[-1]["run_id"] = "conflicting_new_run"
+    with pytest.raises(EvidenceError, match="permanent approach/slot"):
+        report(reader)
+
+
+def test_known_outcome_daily_and_seven_day_rank_and_forecast_alignment(tmp_path):
+    reader = Reader()
+    reader.runs[2]["forecast"] = {"forecast_id": "forecast", "target_at": DAY+"T14:30:00+00:00",
+                                  "expected_value": 100.5, "baseline_value": 100, "units": "USD", "forecast_kind": "model_forecast"}
+    daily = report(reader)
+    assert daily["forecasts"][0]["realized_value"] == 101
+    assert daily["forecasts"][0]["signed_error"] == .5
+    assert daily["forecasts"][0]["matched_observation_id"] == "obs_rule_1"
+    assert daily["leaderboard"][0]["approach_id"] == "rule"
+    assert daily["leaderboard"][0]["net_return"] == pytest.approx(.02)
+    assert daily["leaderboard"][0]["mae"] == .5
+    weekly = report(reader, end_day="2026-10-18", finalized=False)
+    assert weekly["period"] == "weekly" and not weekly["window_complete"]
+    written = write_report(weekly, tmp_path)
+    assert "/replay/weekly/" in written["archive"]
+    assert Path(written["archive"], "report.html").exists()
+    assert "CONTROLLED REPLAY" in Path(written["archive"], "report.html").read_text()
+    # Completed known-outcome replay uses the same daily/weekly renderer, never a
+    # backdated forward experiment. No extra data is invented to close the week.
+    complete = report(reader, end_day="2026-10-18", finalized=True)
+    assert complete["window_complete"]
+    assert len(complete["source_record_ids"]["runs"]) == 4
+
+
+def test_forecast_pending_matures_without_modifying_original_and_stale_quote_skipped():
+    forecasts = [{"forecast_id": "f", "portfolio_id": "book_rule", "target_at": T1, "expected_value": 101}]
+    original = copy.deepcopy(forecasts)
+    obs = Reader().observations
+    pending = forecast_metrics(forecasts, obs, T0)
+    assert pending[0]["outcome_status"] == "pending"
+    next(o for o in obs if o["observation_id"] == "obs_rule_1")["quote_status"] = "stale"
+    realized = forecast_metrics(forecasts, obs, T2)
+    assert realized[0]["matched_observation_id"] == "obs_rule_2"
+    assert realized[0]["signed_error"] == 1
+    assert forecasts == original
+
+
+def test_unequal_windows_missing_prices_and_unavailable_models_do_not_rank_as_zero():
+    reader = Reader()
+    reader.observations.pop()
+    result = report(reader)
+    assert all(b["rank"] is None for b in result["leaderboard"])
+    reader = Reader()
+    reader.runs[2]["status"] = "unavailable"
+    reader.observations[3]["value"] = None
+    result = report(reader)
+    book = next(b for b in result["leaderboard"] if b["approach_id"] == "rule")
+    assert book["rank"] is None and book["failure_rate"] == .5
+    assert book["opening_value"] == 101
+
+
+def test_cash_flow_adjustment_fees_not_double_counted_and_unknown_costs_not_zero():
+    reader = Reader()
+    reader.observations[-1].update(value=111, external_cash_flow=10, time_weighted_return=.01)
+    reader.runs[2].update(execution_cost=.5, model_cost=None)
+    result = report(reader)
+    rule = next(b for b in result["leaderboard"] if b["approach_id"] == "rule")
+    assert rule["net_pnl"] == 1 and rule["net_return"] == .01
+    assert rule["execution_cost"] == .5  # NAV already net of execution costs.
+    assert rule["model_cost"] is None
+
+
+def test_html_escaping_offline_safe_download_and_csv_formula_protection(tmp_path):
+    reader = Reader()
+    item = reader.inputs["input_rule_0"]
+    item["payload"]["news"] = {"consumed": True, "layer": "selected_headlines", "items": [{"title": '</script><img src=x onerror="alert(1)">'}]}
+    item["raw_bytes"] = canonical(item["payload"]); item["metadata"]["checksum"] = checksum(item["raw_bytes"])
+    reader.runs[2]["rationale"] = "=WEBSERVICE(\"malicious\")"
+    result = report(reader)
+    html = html_export(result)
+    assert '</script><img src=x' not in html
+    assert "\\u003c/script\\u003e" in html
+    assert "https://cdn" not in html and "connect-src 'none'" in html
+    assert "inputRun" in html and "inputMatrix" in html and "exactInputDownload" in html
+    assert "'=WEBSERVICE" in csv_export(result)
+    written = write_report(result, tmp_path)
+    before = Path(written["archive"], "report.html").read_bytes()
+    newer = copy.deepcopy(result); newer["generated_at"] = DAY+"T17:00:00+00:00"
+    new_archive = write_report(newer, tmp_path)
+    assert new_archive["revision"] != written["revision"]
+    assert Path(written["archive"], "report.html").read_bytes() == before
+    assert not (tmp_path/"latest.html").exists()  # replay never contaminates forward.
+
+
+def test_secret_field_in_original_capture_is_blocked():
+    reader = Reader()
+    item = reader.inputs["input_rule_0"]
+    item["payload"]["access_token"] = "must-not-render"
+    item["raw_bytes"] = canonical(item["payload"]); item["metadata"]["checksum"] = checksum(item["raw_bytes"])
+    result = report(reader)
+    assert "Secret-bearing" in result["evidence_failures"][0]["error"]
+    assert "must-not-render" not in html_export(result)
+
+
+def test_storage_native_envelope_and_exact_non_reformatted_original_bytes():
+    reader = Reader()
+    for run in reader.runs:
+        run["slot"] = run.pop("scheduled_slot"); run.pop("decision_time"); run.pop("availability_cutoff")
+        run["outcome"] = {"cash_weight": 1, "target_weights": [], "rationale": "hold"}
+    for observation in reader.observations:
+        observation["payload"] = {"value": observation.pop("value"), "quote_status": "fresh"}
+    def read_input_bytes(iid):
+        # Source uses original whitespace: captures cannot be reconstructed later.
+        return reader.inputs[iid]["raw_bytes"]
+    reader.read_input_bytes = read_input_bytes
+    for captured in reader.inputs.values():
+        captured["metadata"].pop("run_id")
+        captured["raw_bytes"] = json.dumps(captured["payload"], indent=2).encode()
+        captured["metadata"]["checksum"] = checksum(captured["raw_bytes"])
+    result = report(reader)
+    assert result["evidence_failures"] == []
+    assert result["runs"][0]["cash_weight"] == 1
+    assert result["leaderboard"][0]["net_pnl"] == 2
+    assert base64.b64decode(result["inputs"]["run_rule_0"]["raw_base64"]) == reader.inputs["input_rule_0"]["raw_bytes"]
+
+
+def test_graph_sub_boundaries_download_original_provider_tool_and_receipt_inputs():
+    reader = Reader()
+    payload = {"schema_version": "graph-model-sub-boundaries/1", "run_id": "run_rule_0", "input_id": "input_rule_0", "approach_id": "rule",
+               "captured_inputs": [{"boundary": "bedrock_generate", "GenerateRequest": {"prompt": "actual prompt"}},
+                                   {"boundary": "ppo_policy", "observation": [0.1, 0.7], "news_consumed": False},
+                                   {"boundary": "tool_call", "arguments": {"symbol": "TEST"}, "result": {"price": 12}}],
+               "activity_receipts": [{"activity_event_id": "receipt_1", "status": "success"}]}
+    raw = canonical(payload)
+    reader.read_artifact_bytes = lambda ref: raw
+    reader.runs[2]["output"] = {"graph_sub_boundary_ref": {"artifact_key": "modeling-evidence/v1/inputs/sub.json", "checksum": checksum(raw)}}
+    result = report(reader)
+    layer = result["additional_inputs"]["run_rule_0"][0]
+    assert base64.b64decode(layer["raw_base64"]) == raw
+    assert layer["payload"]["captured_inputs"][0]["GenerateRequest"]["prompt"] == "actual prompt"
+    assert result["evidence_failures"] == []
+    assert "Actual graph provider / policy / tool input boundaries" in html_export(result)
+    payload["run_id"] = "another_run"
+    raw = canonical(payload)
+    reader.runs[2]["output"]["graph_sub_boundary_ref"]["checksum"] = checksum(raw)
+    assert "sub-boundary run_id mismatch" in report(reader)["evidence_failures"][0]["error"]
+
+
+def test_entire_missing_hour_is_visible_from_permanent_schedule_policy():
+    reader = Reader()
+    # Even when every strategy fails to write an entire slot, the expected policy
+    # accounts for it; a scheduler timestamp alone cannot hide the missing hour.
+    result = report(reader, comparison_policy={"first_scheduled_slot": T0, "cadence_seconds": 3600})
+    assert len(result["missing_slots"]) == 2
+    assert {r["scheduled_slot"] for r in result["missing_slots"]} == {T2}
+    assert all(b["rank"] is None for b in result["leaderboard"])
