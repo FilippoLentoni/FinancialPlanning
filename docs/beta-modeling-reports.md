@@ -1,0 +1,148 @@
+# Persisted beta modeling reports
+
+`platform/finplan_platform/reporting` is the production report builder. It does not
+import `codex-jobs/build-report-demo.py`, invoke any market/news provider, regenerate
+features, or substitute shared data for an inference input. The approved demo informs
+the explorer/table interactions only. All report figures originate in the bounded
+`ModelingEvidence.query_day` DynamoDB read path and checksum-verified immutable S3
+artifacts. Reporting cannot make an unavailable model or stale quote succeed.
+
+## Run and inspect
+
+From FinancialPlanning, using the repository environment:
+
+```bash
+PYTHONPATH=platform .venv/bin/python scripts/modeling_report.py --experiment EXPERIMENT_ID
+PYTHONPATH=platform .venv/bin/python scripts/modeling_report.py --experiment EXPERIMENT_ID --day YYYY-MM-DD --finalized
+PYTHONPATH=platform .venv/bin/python scripts/modeling_report.py --experiment EXPERIMENT_ID --day YYYY-MM-DD --weekly
+```
+
+The EC2 backend is restricted to beta/us-east-2. It resolves the approved existing
+reports bucket through SSM and uses the ordinary EC2 credentials server-side. No
+credentials, signed AWS URLs, browser AWS clients or external JavaScript CDN are
+embedded. A day cannot be marked finalized before its 17:00 America/New_York reporting
+cutoff. Daily EOD and seven-day schedule ownership stays with the experiment runner.
+`--no-s3-archive` is a diagnostic option; the normal path archives immutable reports
+in S3 and local files. The report window is at most seven calendar days; each DynamoDB
+query is partitioned by experiment/reporting day, paginated, and bounded to 20,000
+records per kind/day. An exceeded bound fails visibly instead of silently truncating.
+
+Default outputs:
+
+- `/home/ec2-user/projects/reports/beta-modeling/latest.html`, `latest.csv`, `latest.json`.
+- `/home/ec2-user/projects/reports/beta-modeling/YYYY-MM-DD.html`, matching CSV/JSON.
+- `/home/ec2-user/projects/reports/beta-modeling/archive/YYYY-MM-DD/REVISION/` contains
+  immutable `report.html`, `report.csv`, `report.json`, `manifest.json` revisions.
+- `/home/ec2-user/projects/reports/beta-modeling/weekly/` has current and archived
+  seven-calendar-day reports named `START_END.html`, matching CSV/JSON.
+- A controlled replay uses a separate `replay/` subtree. It cannot replace any forward
+  `latest.html`, even if its test data uses a date that appears in a forward report.
+
+Open/download `latest.html` with the IDE file explorer, or copy it to your laptop
+using your existing SSH/SCP connection and open the file in any modern browser. It is
+self-contained, including original downloadable input bytes, data, CSS and charts.
+JSON/CSV are companion exports. Keep these private: exact input bundles may contain
+permitted market/news context. Immutable S3 keys follow
+`modeling/v1/EXPERIMENT/MODE/DATE_OR_WINDOW/REVISION/FILE`; the manifest includes source
+record IDs and SHA-256/size for every output. Local aliases update atomically; immutable
+archive revisions are never overwritten when later data arrives.
+
+## Storage joins and exact input acceptance
+
+The source adapter is `finplan_platform.core.modeling_evidence.ModelingEvidence`:
+
+| Read | Evidence |
+| --- | --- |
+| `read_registry(experiment)` | Versioned approach identities, book IDs, common comparison policy |
+| `query_day(..., kind='runs')` | Permanent approach/slot run head plus verified immutable outcome/execution |
+| `query_day(..., kind='observations')` | Immutable valuation envelope plus verified exact observation payload |
+| `read_input(input_id)` + `read_input_bytes(input_id)` | Captured inference-boundary metadata, decoded content and ORIGINAL bytes |
+| `read_artifact_bytes(graph_sub_boundary_ref)` | Actual graph provider/tool numerical input layers and activity receipts |
+
+Every input must match the selected approach, permanent slot, `input_id`, and the
+`run_id` stored in its payload when present. The shared-source kind is refused as an
+inference input. SHA-256 is checked against the original bytes; pretty-printed JSON
+is only a reading aid and is never used for the input download. HTML contains the
+original bytes as base64 so archived downloads survive later source/config changes.
+Graph orchestration requests and remote PPO/provider/tool captures are shown as
+separate layers; the served policy is not described as consuming a narration prompt.
+
+The prominent explorer pins a run independently of report filters. It displays
+actual own-book holdings/cash/revision, supplied constraints/model versions, ordered
+numeric values, history, optimizer matrices/scenarios, policy vectors/normalization,
+source news content and exact prepared context. It distinguishes metadata-only news,
+news not consumed, and invocation not attempted. Large lists/matrices have explicit
+preview limits and complete downloads. No missing text is manufactured. A missing,
+misbound, regenerated or future-available input remains a visible evidence failure
+and blocks ranking for that approach.
+
+The input matrix derives actual consumption from each selected day's captured input,
+with native capabilities labeled separately. Rendering escapes untrusted model/news
+text; links accept only HTTP(S), and CSP disables network connections. CSV text that
+could be interpreted as a spreadsheet formula is prefixed with an apostrophe.
+Secret credential fields and signed grants are refused rather than rendered.
+
+## Aggregation and comparison definitions
+
+Distinct run IDs are deduplicated before joins. Conflicting duplicate evidence and
+multiple run IDs for one permanent approach/slot fail; input/news fan-out never
+multiplies decision, fill or P&L counts. Book identities must be unique per approach.
+The comparison policy should persist `first_scheduled_slot` (or
+`scheduled_start_at`) and `cadence_seconds: 3600`; this accounts for even an entire
+hour with no recorded runs. Without an initialization manifest the report discloses
+that coverage cannot be established before the earliest known slot.
+
+Only valid fresh valuations enter realized performance. Stale/carried-forward
+observations remain visible, with dashed chart segments, and block equivalent
+comparison. Net P&L is current NAV minus opening NAV minus external cash flows;
+execution fees are already in NAV and are not subtracted twice. A cash-flow window
+requires the common evaluator's persisted time-weighted return. Drawdown is the
+maximum decline from the running NAV peak. Turnover and execution costs use the
+persisted evaluator output. Unknown execution/model cost stays unavailable, never
+an invented zero. Model costs remain separate from simulated transaction costs and
+carry an observed/estimated/unavailable basis.
+
+Ranks require identical declared cohort, universe, starting capital, comparison
+policy and complete observation timestamps. Missing/unavailable approaches are
+unranked; a sole valid book cannot be called a cross-approach winner. The ranking
+metric is net realized return, then lower drawdown, then approach ID for deterministic
+ties. The result is the observed comparable period's winner, not a universal optimum.
+The leaderboard always states its full reporting window even when decision filters
+are narrowed. It reports observed dates/valuation counts, failures and coverage.
+
+Forecasts must be actual frozen value forecasts with `forecast_id`, `expected_value`,
+`target_at`, portfolio/run identity, baseline, units and model/projection type. An
+allocation alone is unavailable forecast coverage. The first valid same-book
+observation at/after target (and at/before report cutoff) gives realized value. Signed
+error is realized minus expected; absolute error, MAE and RMSE only use matched model
+forecasts. A deterministic projection is labeled and excluded from model forecast
+accuracy. Future horizons and unpriced matured horizons remain pending. Reporting
+is read-only; the durable experiment reconciler owns persisted realization records.
+
+## Verification
+
+```bash
+PYTHONPATH=platform .venv/bin/pytest tests/unit/reporting/test_modeling_reports.py
+node --check platform/finplan_platform/reporting/report.js
+```
+
+Known-outcome controlled replay tests cover exact historical inputs, checksums,
+wrong/shared run substitution, no-lookahead, falsely attributed news, duplicate
+joins/slots, missing whole hours, unequal windows, stale prices, immutable horizons,
+pending-to-realized alignment, cash flows/fees, graph sub-boundary receipts, secret
+refusal, HTML escaping and immutable daily/weekly report revisions. Test fixtures
+are explicitly controlled replay and never forward research performance.
+
+Browser verification can inspect two real decisions per registered approach and
+checksum every original input download:
+
+```bash
+PLAYWRIGHT_MODULE=/PATH/TO/playwright-core CHROMIUM_EXECUTABLE=/PATH/TO/chromium \
+node scripts/verify_modeling_report.cjs /home/ec2-user/projects/reports/beta-modeling/latest.html /PATH/TO/verification.json
+```
+
+The harness records the report cutoff, exact run/input/checksum, actual news layer,
+numeric keys, invocation state, pinned selector test and JavaScript errors. Exit 2
+means two inspectable decisions per approach are not yet available; it does not
+pretend that a missing approach passed. Browser tests against controlled replay
+validate UI mechanics only; live scheduled acceptance needs live report input.
