@@ -212,3 +212,17 @@ session provenance from its stored `current_quotes`; this is labeled valuation/
 session context, remains separate from the exact inference input, and never adds
 raw shared prices or news to an approach's consumed payload. Root provider checksums
 and the source input ID remain available for reconciliation.
+
+For cohorts with a declared market calendar, ranking uses verified open-session
+valuation windows. Expected provider-proven closed-market marks remain visible but
+do not create unequal extra cash observations or block an otherwise identical
+eligible session window. Missing/stale values during open or unproven periods still
+block comparison. A closed-only cash period has a truthful cash return but cannot
+be declared a market winner. When the first eligible mark is after a fill, its
+immutable execution receipt's `before_value` supplies the opening baseline so the
+opening trade fee is included in return; that event ID is displayed in provenance.
+
+A nominal query covering seven dates is not automatically a mature week. Finalized
+weekly comparison additionally requires a persisted experiment start on/before the
+first reporting date, an actual cutoff at/after the final reporting date, and no
+missing expected slots. Newly initialized or unproven windows remain incomplete.

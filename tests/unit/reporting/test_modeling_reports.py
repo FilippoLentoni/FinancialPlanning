@@ -141,7 +141,7 @@ def test_known_outcome_daily_and_seven_day_rank_and_forecast_alignment(tmp_path)
     # Completed known-outcome replay uses the same daily/weekly renderer, never a
     # backdated forward experiment. No extra data is invented to close the week.
     complete = report(reader, end_day="2026-10-18", finalized=True)
-    assert complete["window_complete"]
+    assert not complete["window_complete"]  # One observed day cannot mature a nominal future7-date window.
     assert len(complete["source_record_ids"]["runs"]) == 4
 
 
@@ -383,3 +383,50 @@ def test_observed_dates_are_not_market_sessions_without_persisted_proof():
     cash = next(b for b in result["leaderboard"] if b["approach_id"] == "cash")
     assert cash["observed_sessions"] == 1 and cash["market_session_dates"] == [DAY]
     assert cash["market_session_proof_coverage"] == pytest.approx(1/3)
+
+
+def test_closed_market_marks_do_not_block_common_verified_open_session_window():
+    reader = Reader()
+    reg = registry()
+    for a in reg:
+        a["market_calendar"] = "XNYS"
+    closed = {"market_session": {"status": "closed", "source": "controlled-calendar-proof"}}
+    opened = {"market_session": {"status": "open", "session_date": DAY, "source": "controlled-calendar-proof"}}
+    for observation in reader.observations:
+        observation["quote_provenance"] = closed if observation["observed_at"] == T0 else opened
+        if observation["approach_id"] == "rule" and observation["observed_at"] == T0:
+            observation.update(quote_status="stale", observation_kind="carried_forward")
+    result = aggregate(reader, experiment_id="test", registry=reg, start_day=DAY, generated_at=T2, mode="controlled_replay")
+    assert {b["window_start"] for b in result["leaderboard"]} == {T1}
+    assert {b["window_end"] for b in result["leaderboard"]} == {T2}
+    assert all(b["rank"] is not None and b["expected_closed_observations"] == 1 for b in result["leaderboard"])
+    assert result["leaderboard"][0]["approach_id"] == "rule"
+    reader.observations[-1]["quote_status"] = "stale"
+    blocked = aggregate(reader, experiment_id="test", registry=reg, start_day=DAY, generated_at=T2, mode="controlled_replay")
+    assert next(b for b in blocked["leaderboard"] if b["approach_id"] == "rule")["rank"] is None
+
+
+def test_closed_only_cash_returns_are_visible_without_declaring_a_market_winner():
+    reader = Reader()
+    reg = registry()
+    for a in reg:
+        a["market_calendar"] = "XNYS"
+    for observation in reader.observations:
+        observation["quote_provenance"] = {"market_session": {"status": "closed", "source": "controlled-calendar-proof"}}
+    result = aggregate(reader, experiment_id="test", registry=reg, start_day=DAY, generated_at=T2, mode="controlled_replay")
+    assert all(b["rank"] is None and b["observed_sessions"] == 0 for b in result["leaderboard"])
+    assert next(b for b in result["leaderboard"] if b["approach_id"] == "cash")["net_return"] == 0
+
+
+def test_earliest_execution_before_value_keeps_opening_fill_fee_in_observed_return():
+    observations = Reader().observations
+    for observation in observations:
+        if observation["approach_id"] == "rule":
+            observation["value"] -= .5
+    events = [{"approach_id": "rule", "portfolio_id": "book_rule", "observation_id": "opening_execution", "observed_at": T0, "transaction_cost": .5,
+               "simulated_fills": [{"notional": 50}], "execution": {"before_value": 100, "after_value": 99.5}}]
+    result = summarize(registry(), Reader().runs, observations, [], events)
+    rule = next(b for b in result if b["approach_id"] == "rule")
+    assert rule["opening_value"] == 100 and rule["current_value"] == 101.5
+    assert rule["net_return"] == .015 and rule["execution_cost"] == .5
+    assert rule["opening_execution_event_id"] == "opening_execution"

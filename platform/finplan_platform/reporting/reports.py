@@ -239,6 +239,30 @@ def _compact_session_quotes(value: dict) -> list[dict]:
     return [{k: q[k] for k in keys if k in q} for q in quotes if isinstance(q, dict)]
 
 
+
+def _comparison_history(history: list[dict], market_calendar: str | None) -> tuple[list[dict], bool]:
+    if not market_calendar:
+        return history, False
+    states = [(o, *_session_proof({"quote_provenance": o.get("quote_provenance"), "market_session": o.get("market_session"),
+                                  "market_session_evidence": o.get("market_session_evidence")})) for o in history]
+    has_open = any(proven and sessions for _, sessions, proven in states)
+    # Expected closures remain visible, but do not make cash's extra known values
+    # an unequal window against an invested book awaiting the next real quote.
+    return ([o for o, sessions, proven in states if not (proven and not sessions)] if has_open else history), has_open
+
+
+def _opening_value(valid: list[dict], executions: list[dict] | None) -> tuple[float | None, str | None]:
+    if not valid:
+        return None, None
+    opening = _value(valid[0])
+    at = timestamp(valid[0]["observed_at"])
+    events = [e for e in executions or [] if e.get("execution", {}).get("before_value") is not None and timestamp(e["observed_at"]) == at]
+    if not events:
+        return opening, None
+    first = min(events, key=lambda e: (e.get("before_revision", 0), e["observation_id"]))
+    return float(first["execution"]["before_value"]), first["observation_id"]
+
+
 def summarize(approaches: list[dict], runs: list[dict], observations: list[dict], forecasts: list[dict], execution_events: list[dict] | None = None) -> list[dict]:
     books = []
     for approach in approaches:
@@ -256,8 +280,11 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
             fills_count = sum(len(e.get("simulated_fills", [])) for e in executions)
             turnover = sum(float(e.get("execution", {}).get("turnover", 0) or 0) for e in executions)
         history = sorted([o for o in observations if o.get("approach_id") == aid], key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
-        valid = [o for o in history if _valid(o)]
-        opening, current = (_value(valid[0]), _value(valid[-1])) if valid else (None, None)
+        all_valid = [o for o in history if _valid(o)]
+        comparison_history, has_open_session = _comparison_history(history, approach.get("market_calendar"))
+        valid = [o for o in comparison_history if _valid(o)]
+        opening, opening_event_id = _opening_value(valid, executions)
+        current = _value(valid[-1]) if valid else None
         # Net external flows are excluded from investment P&L. Prefer the common
         # evaluator's persisted time-weighted return when cash flows occurred.
         executed_notional = None
@@ -277,9 +304,9 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
             drawdown = max(drawdown, (peak - value) / peak if peak else 0)
         matched = [f for f in forecasts if f.get("approach_id") == aid and f.get("outcome_status") == "matched" and f.get("forecast_kind", "model_forecast") == "model_forecast"]
         failures = sum(r.get("status") in BAD_STATUSES or bool(r.get("evidence_error")) for r in selected)
-        observed_dates = {timestamp(o["observed_at"]).astimezone(EASTERN).date().isoformat() for o in valid}
+        observed_dates = {timestamp(o["observed_at"]).astimezone(EASTERN).date().isoformat() for o in all_valid}
         session_dates, session_proof_count = set(), 0
-        for observation in valid:
+        for observation in all_valid:
             proven_dates, proof = _session_proof({"quote_provenance": observation.get("quote_provenance"),
                                                  "market_session": observation.get("market_session"),
                                                  "market_session_evidence": observation.get("market_session_evidence")})
@@ -295,15 +322,17 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
             reasons.append("Fewer than two valid valuations")
         if failures or not selected:
             reasons.append("Missing, failed or unavailable approach evaluations")
-        if any(not _valid(o) for o in history):
+        if any(not _valid(o) for o in comparison_history):
             reasons.append("Missing/stale valuation slots")
+        if approach.get("market_calendar") and not has_open_session:
+            reasons.append("No verified open-session valuations; awaiting comparable market data")
         if ret is None:
             reasons.append("Comparable return unavailable")
         if not policy or not cohort:
             reasons.append("Comparison policy/cohort not declared")
         books.append({"approach_id": aid, "display_name": approach.get("display_name", aid),
                       "portfolio_id": approach.get("portfolio_id"), "family": approach.get("family"),
-                      "opening_value": opening, "current_value": current, "net_pnl": pnl, "net_return": ret,
+                      "opening_value": opening, "current_value": current, "opening_execution_event_id": opening_event_id, "net_pnl": pnl, "net_return": ret,
                       "max_drawdown": drawdown if valid else None,
                       "turnover": turnover, "executed_notional": executed_notional,
                       "turnover_definition": "absolute_executed_notional_divided_by_period_opening_value" if executions is not None else "legacy_sum_of_supplied_turnover",
@@ -313,12 +342,13 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
                       "recommendations": len(selected), "fills": fills_count,
                       "execution_event_ids": [e["observation_id"] for e in executions] if executions is not None else [],
                       "execution_accounting": "actual_execution_day_events" if executions is not None else "legacy_issue_day_fallback",
-                      "valuations": len(history), "valid_valuations": len(valid), "failure_rate": failures / len(selected) if selected else None,
+                      "valuations": len(history), "valid_valuations": len(all_valid), "comparison_valuations": len(valid),
+                      "expected_closed_observations": len(history)-len(comparison_history), "failure_rate": failures / len(selected) if selected else None,
                       "forecast_matches": len(matched), "mae": sum(f["absolute_error"] for f in matched) / len(matched) if matched else None,
                       "rmse": math.sqrt(sum(f["signed_error"] ** 2 for f in matched) / len(matched)) if matched else None,
-                      "coverage": len(valid) / len(history) if history else 0,
+                      "coverage": len(all_valid) / len(history) if history else 0,
                       "observed_dates": len(observed_dates), "observed_sessions": len(session_dates) if session_proof_count else None,
-                      "market_session_dates": sorted(session_dates), "market_session_proof_coverage": session_proof_count/len(valid) if valid else None,
+                      "market_session_dates": sorted(session_dates), "market_session_proof_coverage": session_proof_count/len(all_valid) if all_valid else None,
                       "window_start": valid[0]["observed_at"] if valid else None, "window_end": valid[-1]["observed_at"] if valid else None,
                       "comparison_policy_id": policy, "cohort_id": cohort, "observation_window": list(observation_key),
                       "ranking_blockers": reasons, "rank": None, "return_tied": False})
@@ -355,7 +385,8 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     registry = [{"comparison_policy_id": comparison_policy.get("comparison_policy_id", comparison_policy.get("policy_id")),
                  "cohort_id": comparison_policy.get("cohort_id"),
                  "starting_capital": comparison_policy.get("starting_capital", comparison_policy.get("initial_capital")),
-                 "investable_universe": comparison_policy.get("investable_universe", comparison_policy.get("universe")), **row}
+                 "investable_universe": comparison_policy.get("investable_universe", comparison_policy.get("universe")),
+                 "market_calendar": comparison_policy.get("market_calendar"), **row}
                 for row in _unique(registry, "approach_id")]
     if not registry:
         raise EvidenceError("A persisted approach registry is required")
@@ -578,14 +609,17 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                          and timestamp(o["observed_at"]) <= timestamp(run["decision_time"])
                          and timestamp(o["observed_at"]).astimezone(EASTERN).date() == timestamp(run["decision_time"]).astimezone(EASTERN).date()],
                         key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
+        before, _ = _comparison_history(before, known[run["approach_id"]].get("market_calendar"))
         run.update(portfolio_value_at_decision=None, daily_pnl=None, daily_return=None,
                    opening_valuation_id=None, valuation_id=None)
         if before:
             opening, current = before[0], before[-1]
+            opening_value, opening_event = _opening_value(before, [e for e in execution_events or [] if e["portfolio_id"] == run["portfolio_id"]])
             flows = sum(float(o.get("external_cash_flow", 0)) for o in before[1:])
-            pnl = _value(current) - _value(opening) - flows
+            pnl = _value(current) - opening_value - flows
             run.update(portfolio_value_at_decision=_value(current), daily_pnl=pnl,
-                       daily_return=current.get("time_weighted_return") if flows else (pnl/_value(opening) if _value(opening) else None),
+                       daily_return=current.get("time_weighted_return") if flows else (pnl/opening_value if opening_value else None),
+                       opening_execution_event_id=opening_event,
                        opening_valuation_id=opening["observation_id"], valuation_id=current["observation_id"])
         forecast = next((f for f in forecasts if f["run_id"] == run["run_id"]), None)
         run.update(forecast_outcome=forecast, expected_value=forecast.get("expected_value") if forecast else None,
@@ -611,7 +645,10 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     result = {"report_version": REPORT_VERSION, "experiment_id": experiment_id, "mode": mode,
               "start_day": start_day, "end_day": end_day or start_day, "timezone": "America/New_York",
               "generated_at": generated_at, "data_cutoff": latest, "finalized": finalized,
-              "period": "weekly" if len(days) == 7 else "daily", "window_complete": len(days) == 7 and finalized and not missing,
+              "period": "weekly" if len(days) == 7 else "daily",
+              "window_complete": bool(len(days) == 7 and finalized and not missing and first_slot
+                                      and timestamp(first_slot).astimezone(EASTERN).date() <= start
+                                      and timestamp(generated_at).astimezone(EASTERN).date() >= end),
               "comparison_policy": comparison_policy, "expected_slot_manifest_available": bool(first_slot),
               "renderer_checksum": checksum((Path(__file__).parent / "template.html").read_bytes() + (Path(__file__).parent / "report.js").read_bytes()),
               "ranking_rule": "Net realized return after common execution costs; then lower drawdown; then approach ID. Identical policy/universe/capital/observation windows only. Observed winner is not universal optimality.",
