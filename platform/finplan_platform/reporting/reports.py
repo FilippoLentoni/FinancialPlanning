@@ -20,6 +20,8 @@ from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from ..core.errors import PlatformError
+
 EASTERN = ZoneInfo("America/New_York")
 REPORT_VERSION = "modeling-report/1"
 BAD_STATUSES = {"failed", "unavailable", "skipped", "blocked", "running", "claimed", "pending"}
@@ -125,6 +127,10 @@ def _input_for_run(reader: EvidenceReader, run: dict) -> dict:
         raise EvidenceError("Captured input belongs to a different scheduled slot")
     if metadata.get("kind", "model_input") != "model_input":
         raise EvidenceError("Shared source bundle substituted for model-specific input")
+    # The scheduled opportunity and actual inference cutoff are distinct. A run
+    # at :05 must show its captured :05 payload, not falsely backdate it to :00.
+    run["decision_time"] = payload.get("decision_time", run["decision_time"])
+    run["availability_cutoff"] = payload.get("availability_cutoff", metadata.get("availability_cutoff", run.get("availability_cutoff", run["decision_time"])))
     cutoff = timestamp(run.get("availability_cutoff") or run["decision_time"])
     if timestamp(run["decision_time"]) < cutoff:
         raise EvidenceError("Availability cutoff follows decision time")
@@ -182,8 +188,10 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
             eligible.sort(key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
             if eligible:
                 matched = eligible[0]
-                error = _value(matched) - float(forecast["expected_value"])
-                row.update(outcome_status="matched", realized_value=_value(matched), signed_error=error,
+                flows = float(matched.get("net_external_cash_flows_since_decision", 0))
+                adjusted = _value(matched) - flows
+                error = adjusted - float(forecast["expected_value"])
+                row.update(outcome_status="matched", realized_value=_value(matched), flow_adjusted_realized_value=adjusted, net_external_cash_flows=flows, signed_error=error,
                            absolute_error=abs(error), matched_observation_id=matched["observation_id"],
                            observed_at=matched["observed_at"], quote_provenance=matched.get("quote_provenance"))
             else:
@@ -296,7 +304,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     for run in runs:
         run.setdefault("scheduled_slot", run.get("slot"))
         run["scheduled_slot"] = timestamp(run["scheduled_slot"]).isoformat()
-        run.setdefault("decision_time", run.get("slot", run.get("started_at")))
+        run.setdefault("decision_time", run.get("started_at", run.get("slot")))
         run.setdefault("availability_cutoff", run.get("slot", run["decision_time"]))
         if run.get("outcome") is not None:
             run["output"] = run["outcome"]
@@ -304,11 +312,11 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         if execution:
             details = execution.get("execution", {})
             run.update(fills=execution.get("simulated_fills", []),
-                       fill_status=execution.get("status"), fill_time=details.get("execution_at"),
+                       fill_status=execution.get("execution_status", execution.get("status")), fill_time=details.get("execution_at"),
                        execution_cost=details.get("transaction_cost"), turnover=details.get("turnover"),
                        decision_id=execution.get("decision_id"))
     for observation in observations:
-        payload = observation.get("payload", {})
+        payload = observation.get("payload") or {}
         # Envelope identities always win over decoded values.
         for key, value in payload.items():
             if key not in {"experiment_id", "approach_id", "portfolio_id", "observation_id", "observed_at"}:
@@ -332,8 +340,10 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             raise EvidenceError("Decision follows report data cutoff")
         try:
             inputs[run["run_id"]] = _input_for_run(reader, run)
-        except (EvidenceError, KeyError, ValueError) as error:
+        except (EvidenceError, PlatformError, KeyError, ValueError) as error:
             run["evidence_error"] = str(error)
+        if timestamp(run["decision_time"]) > timestamp(generated_at):
+            raise EvidenceError("Captured actual decision follows report cutoff")
         if hasattr(reader, "read_output") and run.get("output_checksum"):
             try:
                 output = reader.read_output(run["run_id"])
@@ -341,11 +351,11 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                 if checksum(raw) != run["output_checksum"] or json.loads(raw) != output["payload"]:
                     raise EvidenceError("Output checksum mismatch")
                 run["output"] = output["payload"]
-            except (EvidenceError, KeyError, ValueError) as error:
+            except (EvidenceError, PlatformError, KeyError, ValueError) as error:
                 run["evidence_error"] = str(error)
         output = run.get("output", {})
         if isinstance(output, dict):
-            for field in ("target_weights", "target_cash", "intents", "rationale", "citations", "fills", "execution_cost", "turnover", "model_cost", "model_cost_basis", "cash_weight", "forecast", "signal_status"):
+            for field in ("target_weights", "target_cash", "intents", "rationale", "citations", "fills", "execution_cost", "turnover", "model_cost", "model_cost_basis", "cash_weight", "forecast", "signal_status", "execution_status", "market_input_status", "price_as_of", "news_research_status", "native_input_status", "native_input_detail"):
                 if field in output:
                     run[field] = output[field]
         graph_ref = output.get("graph_sub_boundary_ref", output.get("captured_inputs_ref")) if isinstance(output, dict) else None
@@ -362,10 +372,14 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                 additional_inputs[run["run_id"]] = [{"kind": "graph_sub_boundary_inputs", "metadata": graph_ref,
                     "payload": payload, "checksum": graph_ref["checksum"], "size_bytes": len(raw),
                     "raw_base64": base64.b64encode(raw).decode()}]
-            except (EvidenceError, KeyError, ValueError) as error:
+            except (EvidenceError, PlatformError, KeyError, ValueError) as error:
                 run["evidence_error"] = str(error)
-        if run.get("forecast", {}).get("expected_value") is not None:
+        if output.get("usage") and run.get("model_cost") is None:
+            run["model_cost"] = output["usage"].get("cost_usd")
+            run["model_cost_basis"] = output["usage"].get("cost_basis", "observed" if run["model_cost"] is not None else "unavailable")
+        if (run.get("forecast") or {}).get("expected_value") is not None:
             forecast = dict(run["forecast"], approach_id=aid, portfolio_id=run["portfolio_id"], run_id=run["run_id"])
+            forecast.setdefault("forecast_id", forecast.get("forecast_checksum"))
             if not forecast.get("forecast_id") or not forecast.get("target_at"):
                 run["evidence_error"] = "Supplied forecast lacks immutable forecast_id/target_at"
             else:
@@ -377,7 +391,35 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             raise EvidenceError("Observation points to another approach's portfolio")
         if timestamp(observation["observed_at"]) > timestamp(generated_at):
             raise EvidenceError("Observation follows report cutoff")
+    ancillary = [o for o in observations if o.get("kind", "valuation") not in {"valuation", "opening", "baseline"}]
+    observations = [o for o in observations if o.get("kind", "valuation") in {"valuation", "opening", "baseline"}]
     forecasts = forecast_metrics(forecasts, observations, generated_at)
+    for forecast in forecasts:
+        source_run = next(r for r in runs if r["run_id"] == forecast["run_id"])
+        persisted = source_run.get("forecast_realization")
+        if persisted:
+            if persisted.get("forecast_checksum") != forecast.get("forecast_checksum") or persisted.get("run_id") != forecast["run_id"] or persisted.get("portfolio_id") != forecast["portfolio_id"]:
+                raise EvidenceError("Stored realization does not match frozen forecast/run/book")
+            if timestamp(persisted["observed_at"]) < timestamp(forecast["target_at"]) or timestamp(persisted["observed_at"]) > timestamp(generated_at):
+                raise EvidenceError("Stored realization falls outside horizon/report cutoff")
+            if forecast.get("matched_observation_id") and forecast["matched_observation_id"] != persisted["observation_id"]:
+                raise EvidenceError("Stored realization violates first-valid-observation alignment")
+            forecast.update(outcome_status="matched", realized_value=persisted["realized_value"],
+                            signed_error=persisted["signed_error"], absolute_error=persisted["absolute_error"],
+                            matched_observation_id=persisted["observation_id"], observed_at=persisted["observed_at"],
+                            quote_provenance=persisted.get("quote_provenance"), stored_realization=persisted,
+                            stored_realization_ref=source_run.get("forecast_realization_ref", source_run.get("realization_ref")))
+        matches = [o for o in ancillary if o.get("kind") == "forecast_match" and o.get("run_id") == forecast["run_id"]]
+        if matches:
+            if len(matches) != 1:
+                raise EvidenceError("Multiple immutable matches for one forecast")
+            stored = matches[0]
+            if forecast.get("forecast_checksum") and stored.get("forecast_checksum") != forecast["forecast_checksum"]:
+                raise EvidenceError("Persisted forecast match checksum mismatch")
+            if forecast.get("matched_observation_id") and stored.get("payload", {}).get("observation_id") != forecast["matched_observation_id"]:
+                raise EvidenceError("Persisted forecast alignment differs from report valuation")
+            forecast["stored_realization_observation_id"] = stored["observation_id"]
+            forecast["stored_realization"] = stored.get("payload", {})
     missing = [{"approach_id": aid, "scheduled_slot": slot, "status": "missing_slot"}
                for slot in sorted({r["scheduled_slot"] for r in runs}) for aid in known if (aid, slot) not in slots]
     # Expected hourly opportunities are defined by the persisted experiment policy,
@@ -390,7 +432,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             raise EvidenceError("Primary report requires declared common hourly cadence")
         current = timestamp(first_slot)
         lower = datetime.combine(start, time(), EASTERN).astimezone(timezone.utc)
-        upper = min(timestamp(generated_at), datetime.combine(end + timedelta(days=1), time(), EASTERN).astimezone(timezone.utc) - timedelta(microseconds=1))
+        upper = min(timestamp(generated_at) - timedelta(seconds=int(comparison_policy.get("decision_offset_seconds", 0))), datetime.combine(end + timedelta(days=1), time(), EASTERN).astimezone(timezone.utc) - timedelta(microseconds=1))
         if current < lower:
             current += timedelta(seconds=math.ceil((lower-current).total_seconds()/step)*step)
         while current <= upper:
@@ -422,6 +464,9 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             book["ranking_blockers"].append("Missing scheduled slots")
         book["rank"] = None
     latest = max([r["decision_time"] for r in runs] + [o["observed_at"] for o in observations], default=None, key=lambda x: timestamp(x) if x else datetime.min.replace(tzinfo=timezone.utc))
+    next_eod = datetime.combine(timestamp(generated_at).astimezone(EASTERN).date(), time(17), EASTERN)
+    if next_eod <= timestamp(generated_at):
+        next_eod += timedelta(days=1)
     result = {"report_version": REPORT_VERSION, "experiment_id": experiment_id, "mode": mode,
               "start_day": start_day, "end_day": end_day or start_day, "timezone": "America/New_York",
               "generated_at": generated_at, "data_cutoff": latest, "finalized": finalized,
@@ -430,18 +475,77 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "renderer_checksum": checksum((Path(__file__).parent / "template.html").read_bytes() + (Path(__file__).parent / "report.js").read_bytes()),
               "ranking_rule": "Net realized return after common execution costs; then lower drawdown; then approach ID. Identical policy/universe/capital/observation windows only. Observed winner is not universal optimality.",
               "registry": registry, "runs": sorted(runs, key=lambda r: (r["decision_time"], r["approach_id"])),
-              "inputs": inputs, "additional_inputs": additional_inputs, "observations": observations, "forecasts": forecasts,
+              "inputs": inputs, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "forecasts": forecasts,
               "leaderboard": leaderboard, "missing_slots": missing,
               "evidence_failures": [{"run_id": r["run_id"], "error": r["evidence_error"]} for r in runs if r.get("evidence_error")],
-              "next_daily_generation": datetime.combine(end, time(17), EASTERN).isoformat(),
-              "source_record_ids": {"runs": [r["run_id"] for r in runs], "observations": [o["observation_id"] for o in observations]}}
+              "next_daily_generation": next_eod.isoformat(),
+              "source_record_ids": {"runs": [r["run_id"] for r in runs], "observations": [o["observation_id"] for o in observations + ancillary]}}
     _safe_content(result)
     return result
 
 
+
+def consolidate(reports: list[dict]) -> dict:
+    """Combine isolated experiment cohorts without claiming cross-universe parity.
+
+    Captured inputs are validated by aggregate BEFORE display IDs are namespaced.
+    Original run/input/book/checksum/approach identities remain available verbatim.
+    """
+    if not reports or len(reports) > 8:
+        raise EvidenceError("Consolidation requires one through eight bounded experiments")
+    if len({r["experiment_id"] for r in reports}) != len(reports):
+        raise EvidenceError("Duplicate experiment in consolidated report")
+    keys = ("start_day", "end_day", "mode", "generated_at", "period", "timezone")
+    if any(any(r[k] != reports[0][k] for k in keys) for r in reports):
+        raise EvidenceError("Consolidated cohorts must share reporting window/cutoff/mode")
+    if len(reports) == 1:
+        return reports[0]
+    combined = dict(reports[0])
+    combined.update(registry=[], runs=[], observations=[], forecasts=[], missing_slots=[], evidence_failures=[],
+                    inputs={}, additional_inputs={}, ancillary_evidence=[], source_record_ids={"runs": [], "observations": []},
+                    experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
+                                  "expected_slot_manifest_available": r["expected_slot_manifest_available"]} for r in reports])
+    book_ids, run_ids = set(), set()
+    for report in reports:
+        experiment = report["experiment_id"]
+        for key in ("registry", "runs", "observations", "forecasts", "missing_slots"):
+            for original in report[key]:
+                row = dict(original)
+                aid = row["approach_id"]
+                row.update(source_approach_id=aid, approach_id=f"{experiment}::{aid}", experiment_id=experiment)
+                if key == "registry":
+                    if row["portfolio_id"] in book_ids:
+                        raise EvidenceError("Consolidated approaches share a portfolio")
+                    book_ids.add(row["portfolio_id"])
+                    row["display_name"] = f"{row.get('display_name', aid)} [{row.get('cohort_id') or experiment}]"
+                if key == "runs":
+                    if row["run_id"] in run_ids:
+                        raise EvidenceError("Run IDs overlap consolidated experiments")
+                    run_ids.add(row["run_id"])
+                combined[key].append(row)
+        combined["inputs"].update(report["inputs"])
+        combined["additional_inputs"].update(report.get("additional_inputs", {}))
+        combined["evidence_failures"].extend(report["evidence_failures"])
+        combined["ancillary_evidence"].extend(report.get("ancillary_evidence", []))
+        for key in ("runs", "observations"):
+            combined["source_record_ids"][key].extend(report["source_record_ids"][key])
+    combined["leaderboard"] = summarize(combined["registry"], combined["runs"], combined["observations"], combined["forecasts"])
+    for missing in combined["missing_slots"]:
+        book = next(b for b in combined["leaderboard"] if b["approach_id"] == missing["approach_id"])
+        if "Missing scheduled slots" not in book["ranking_blockers"]:
+            book["ranking_blockers"].append("Missing scheduled slots")
+        book["rank"] = None
+    cutoffs = [r["data_cutoff"] for r in reports if r["data_cutoff"]]
+    combined["data_cutoff"] = max(cutoffs, key=timestamp) if cutoffs else None
+    combined["window_complete"] = all(r["window_complete"] for r in reports)
+    combined["expected_slot_manifest_available"] = all(r["expected_slot_manifest_available"] for r in reports)
+    combined["finalized"] = all(r["finalized"] for r in reports)
+    return combined
+
+
 def csv_export(report: dict) -> str:
     stream = io.StringIO(newline="")
-    fields = ["run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "evidence_error"]
+    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "evidence_error"]
     writer = csv.DictWriter(stream, fields, extrasaction="ignore")
     writer.writeheader()
     for run in report["runs"]:

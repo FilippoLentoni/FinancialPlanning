@@ -13,6 +13,7 @@ From FinancialPlanning, using the repository environment:
 
 ```bash
 PYTHONPATH=platform .venv/bin/python scripts/modeling_report.py --experiment EXPERIMENT_ID
+PYTHONPATH=platform .venv/bin/python scripts/modeling_report.py --experiment EXPERIMENT_ID --include-experiment EXPERIMENT_ID-cohort8
 PYTHONPATH=platform .venv/bin/python scripts/modeling_report.py --experiment EXPERIMENT_ID --day YYYY-MM-DD --finalized
 PYTHONPATH=platform .venv/bin/python scripts/modeling_report.py --experiment EXPERIMENT_ID --day YYYY-MM-DD --weekly
 ```
@@ -101,6 +102,17 @@ maximum decline from the running NAV peak. Turnover and execution costs use the
 persisted evaluator output. Unknown execution/model cost stays unavailable, never
 an invented zero. Model costs remain separate from simulated transaction costs and
 carry an observed/estimated/unavailable basis.
+
+A consolidated report may include up to eight experiments using repeatable
+`--include-experiment` flags. Each experiment is independently read and validated
+before combining. Display approach IDs are namespaced by experiment, while original
+`source_approach_id`, run/input/book IDs, checksums and downloadable payloads remain
+unchanged. Five-asset and eight-asset cohorts appear in the same report with distinct
+books and cohort labels; they never share a performance rank. Non-valuation
+`forecast_match`, execution-disposition and execution-attempt evidence remains
+inspectable but does not become an extra equity point or a missing valuation slot.
+Durable realization references allow a revised historical decision-day report to
+show the original forecast's later matched outcome without rerunning its inputs.
 
 Ranks require identical declared cohort, universe, starting capital, comparison
 policy and complete observation timestamps. Missing/unavailable approaches are

@@ -277,3 +277,72 @@ def test_same_hour_different_timezone_spelling_cannot_duplicate_slot():
     reader.runs.append(alias)
     with pytest.raises(EvidenceError, match="permanent approach/slot"):
         report(reader)
+
+
+def test_consolidated_actual_cohorts_keep_inputs_original_and_never_cross_rank_universes():
+    from finplan_platform.reporting.reports import consolidate
+    first = report()
+    reader = Reader()
+    for run in reader.runs:
+        run["experiment_id"] = "eight"
+        old_rid, old_iid = run["run_id"], run["input_id"]
+        run["run_id"], run["input_id"], run["portfolio_id"] = "eight_"+old_rid, "eight_"+old_iid, "eight_"+run["portfolio_id"]
+        item = reader.inputs.pop(old_iid)
+        for layer in (item["metadata"], item["payload"]):
+            layer.update(run_id=run["run_id"], input_id=run["input_id"])
+        item["raw_bytes"] = canonical(item["payload"])
+        item["metadata"]["checksum"] = checksum(item["raw_bytes"])
+        reader.inputs[run["input_id"]] = item
+    for obs in reader.observations:
+        obs.update(experiment_id="eight", portfolio_id="eight_"+obs["portfolio_id"], observation_id="eight_"+obs["observation_id"])
+    reg = registry()
+    for a in reg:
+        a.update(portfolio_id="eight_"+a["portfolio_id"], investable_universe=["TEST", "SECOND"], cohort_id="eight")
+    second = aggregate(reader, experiment_id="eight", registry=reg, start_day=DAY, generated_at=T2, mode="controlled_replay")
+    merged = consolidate([first, second])
+    assert len(merged["registry"]) == 4 and len(merged["inputs"]) == 8
+    assert {b["cohort_id"] for b in merged["leaderboard"]} == {"cohort", "eight"}
+    assert sum(b["rank"] == 1 for b in merged["leaderboard"]) == 2
+    assert merged["inputs"]["eight_run_rule_0"]["payload"]["approach_id"] == "rule"
+    assert next(r for r in merged["runs"] if r["run_id"] == "eight_run_rule_0")["approach_id"] == "eight::rule"
+    assert next(r for r in merged["runs"] if r["run_id"] == "eight_run_rule_0")["source_approach_id"] == "rule"
+
+
+def test_actual_captured_inference_time_is_separate_from_hourly_slot_and_match_rows_not_valuations():
+    reader = Reader()
+    run = reader.runs[0]
+    actual = DAY+"T14:05:00+00:00"
+    run.pop("decision_time"); run.pop("availability_cutoff")
+    run["slot"] = T0; run["started_at"] = actual
+    item = reader.inputs[run["input_id"]]
+    item["payload"].update(decision_time=actual, availability_cutoff=actual)
+    item["payload"]["numeric"]["prepared"]["quote"] = {"available_at": actual, "price": 12}
+    item["raw_bytes"] = canonical(item["payload"]); item["metadata"]["checksum"] = checksum(item["raw_bytes"])
+    reader.observations.append({"experiment_id": "test", "approach_id": "cash", "portfolio_id": "book_cash", "observed_at": T1,
+                                "observation_id": "execution_disposition", "kind": "execution_disposition", "payload": {"status": "superseded", "value": None}})
+    result = report(reader)
+    assert result["evidence_failures"] == []
+    chosen = next(r for r in result["runs"] if r["run_id"] == "run_cash_0")
+    assert chosen["scheduled_slot"] == T0 and chosen["decision_time"] == actual and chosen["availability_cutoff"] == actual
+    assert len(result["observations"]) == 6 and len(result["ancillary_evidence"]) == 1
+    assert next(b for b in result["leaderboard"] if b["approach_id"] == "cash")["valuations"] == 3
+
+
+def test_forecast_errors_exclude_external_flows_and_historical_report_uses_durable_later_match():
+    reader = Reader()
+    reader.observations[-1].update(value=112, net_external_cash_flows_since_decision=10)
+    frozen = {"forecast_id": "f", "forecast_checksum": "sha256:f", "target_at": T2, "expected_value": 101, "baseline_value": 100, "units": "USD"}
+    reader.runs[2]["forecast"] = frozen
+    result = report(reader)
+    assert result["forecasts"][0]["signed_error"] == 1
+    assert result["forecasts"][0]["flow_adjusted_realized_value"] == 102
+    # A later report revision reads a durable match beyond the decision-day query,
+    # preserving the original input/forecast. It never fetches replacement data.
+    later = "2026-10-13T15:00:00+00:00"
+    frozen["target_at"] = later
+    reader.runs[2]["forecast_realization"] = {"forecast_checksum": "sha256:f", "run_id": "run_rule_0", "portfolio_id": "book_rule",
+        "observation_id": "later_obs", "observed_at": later, "realized_value": 104, "signed_error": 3, "absolute_error": 3,
+        "quote_provenance": {"provider": "controlled-test"}}
+    revised = aggregate(reader, experiment_id="test", registry=registry(), start_day=DAY, generated_at=later, mode="controlled_replay")
+    assert revised["forecasts"][0]["matched_observation_id"] == "later_obs"
+    assert revised["forecasts"][0]["expected_value"] == 101

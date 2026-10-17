@@ -29,7 +29,7 @@ async function main(){
     const payload=JSON.parse(bytes);
     if(payload.run_id!==undefined&&payload.run_id!==run.run_id)throw new Error('Downloaded run mismatch');
     if(payload.input_id!==undefined&&payload.input_id!==run.input_id)throw new Error('Downloaded input mismatch');
-    if(payload.approach_id!==undefined&&payload.approach_id!==run.approach_id)throw new Error('Downloaded approach mismatch');
+    if(payload.approach_id!==undefined&&payload.approach_id!==(run.source_approach_id||run.approach_id))throw new Error('Downloaded approach mismatch');
     if(payload.news?.consumed===false&&!text.includes('News not consumed'))throw new Error('News falsely attributed to model');
     if(payload.numeric?.prepared&&!text.includes('numeric')){/* actual values live under expandable numeric tables, inspected below */}
     await page.selectOption('#approachFilter',approach.approach_id);

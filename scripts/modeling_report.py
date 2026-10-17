@@ -10,12 +10,13 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "platform"))
-from finplan_platform.reporting.reports import EvidenceError, aggregate, write_report
+from finplan_platform.reporting.reports import EvidenceError, aggregate, consolidate, write_report
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment", required=True)
+    parser.add_argument("--include-experiment", action="append", default=[], help="Include another isolated cohort in this same consolidated report (repeatable)")
     parser.add_argument("--day", help="Reporting day in America/New_York (defaults to today)")
     parser.add_argument("--weekly", action="store_true", help="Rolling seven calendar days ending on --day")
     parser.add_argument("--finalized", action="store_true", help="Archive closing revision only after 17:00 America/New_York")
@@ -25,24 +26,23 @@ def main(argv=None):
     args = parser.parse_args(argv)
     from finplan_platform.core.modeling_evidence import ModelingEvidence
     evidence = ModelingEvidence.from_ec2(region="us-east-2")
-    registry = evidence.read_registry(args.experiment)
-    if not registry:
-        raise EvidenceError("No persisted approach registry exists for this experiment")
     now = datetime.now(timezone.utc)
     day = args.day or now.astimezone(ZoneInfo("America/New_York")).date().isoformat()
     end = datetime.fromisoformat(day).date()
     close = datetime.fromisoformat(day + "T17:00:00").replace(tzinfo=ZoneInfo("America/New_York"))
     if args.finalized and now < close and args.mode == "forward":
         raise EvidenceError("A forward day cannot be finalized before its 17:00 reporting cutoff")
-    policy = registry.get("comparison_policy", {})
-    approaches = []
-    for approach in registry["approaches"]:
-        approaches.append({"comparison_policy_id": policy.get("comparison_policy_id", policy.get("policy_id")),
-                           "cohort_id": policy.get("cohort_id"), "starting_capital": policy.get("starting_capital", policy.get("initial_capital")),
-                           "investable_universe": policy.get("investable_universe", policy.get("universe")), **approach})
-    report = aggregate(evidence, experiment_id=args.experiment, registry=approaches,
-                       start_day=(end-timedelta(days=6)).isoformat() if args.weekly else day,
-                       end_day=day, generated_at=now.isoformat(), finalized=args.finalized, mode=args.mode, comparison_policy=policy)
+    reports = []
+    for experiment in [args.experiment, *args.include_experiment]:
+        registry = evidence.read_registry(experiment)
+        if not registry:
+            raise EvidenceError(f"No persisted approach registry exists for {experiment}")
+        report = aggregate(evidence, experiment_id=experiment, registry=registry["approaches"],
+                           start_day=(end-timedelta(days=6)).isoformat() if args.weekly else day,
+                           end_day=day, generated_at=now.isoformat(), finalized=args.finalized, mode=args.mode,
+                           comparison_policy=registry.get("comparison_policy", {}))
+        reports.append(report)
+    report = consolidate(reports)
     result = write_report(report, args.output, artifact_store=None if args.no_s3_archive else evidence.store)
     print(json.dumps({"directory": result["directory"], "archive": result["archive"], "revision": result["revision"],
                       "runs": len(report["runs"]), "evidence_failures": report["evidence_failures"],
