@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { REQUIRED_SCHEMAS, PUBLISHED_TOOLS, bundledRoot, checkEmbeddedMatches, loadStore, runConformance, syntheticExceptions } from "../dist/node.js";
 import { CONTRACTS, PKG_DIR, vectors } from "./helpers.mjs";
 
@@ -155,4 +156,21 @@ test("CLI: conformance, validate, configuration-id, proxied-key, usage", () => {
   assert.equal(cli().status, 2);
   assert.equal(cli("bogus").status, 2);
   assert.equal(cli("--help").status, 0);
+});
+
+
+test("unlisted fixtures still enforce directory outcomes, matching Python conformance", () => {
+  const root = copyRoot("optional-case-record");
+  const casesPath = join(root, "conformance", "cases.yaml");
+  const data = parseYaml(readFileSync(casesPath, "utf8"));
+  const rel = "allocation/valid/sixty-forty.json";
+  data.cases = data.cases.filter((c) => c.fixture !== rel);
+  writeFileSync(casesPath, stringifyYaml(data));
+  assert.deepEqual(runConformance({ mode: "producer", root }).problems, []);
+  const fixturePath = join(root, "fixtures", rel);
+  const doc = JSON.parse(readFileSync(fixturePath, "utf8"));
+  writeFileSync(fixturePath, JSON.stringify({ ...doc, cash_weight: 5 }));
+  const result = runConformance({ mode: "producer", root });
+  assert.equal(result.ok, false);
+  assert.ok(result.problems.some((p) => p.subject === rel && /valid fixture fails/.test(p.message)));
 });
