@@ -12,7 +12,7 @@ the deployed ingestion function.
   through the deployed API; the record names no ``run_id`` (no job API request) and the research
   plan's version list is unchanged.
 * **UNI-05** (phase 2 environments): a synchronous scheduled ingestion of both datasets; the universe
-  snapshot has ``yfinance`` lineage, 5 tickers from 2010-10-01, ``approved`` under
+  snapshot has ``yfinance`` lineage, its configured instruments and common history start, ``approved`` under
   ``approval-v2-universe`` and both disclosures; the SPY ``etf-daily`` snapshot is still produced.
   The test prints the promotion evidence line ``PHASE2-EVIDENCE {...}`` for ``config/phase2-evidence.json``
   (UNI-06) with output capture disabled, so it appears in the stage's CodeBuild log.
@@ -39,7 +39,6 @@ SUITE = os.environ.get("FINPLAN_SUITE")
 SUITES = {"beta": "integration-beta", "gamma": "gamma"}
 pytestmark = pytest.mark.skipif(not ENV or SUITES.get(ENV) != SUITE, reason="deployed daily-loop tests run only in the pipeline's beta and gamma stages")
 
-UNIVERSE_TICKERS = {"VOO", "GOOGL", "NFLX", "AAPL", "NVDA"}
 OUTCOME_WAIT_SECONDS = 900
 
 
@@ -121,16 +120,20 @@ def _latest_approved_universe(t: Any, cfg: Any, *, required: bool = True) -> dic
     return snapshot
 
 
-def _assert_approved_universe(t: Any, snapshot: dict[str, Any], completed_cutoff: str) -> None:
+def _assert_approved_universe(t: Any, snapshot: dict[str, Any], completed_cutoff: str, cfg: Any) -> None:
+    from finplan_platform.core.calendar import calendar_for_provider
+    from finplan_platform.core.ingestion_universe import effective_history_start
+    expected_start = effective_history_start(cfg.universe, calendar_for_provider(cfg.provider)).isoformat()
+    tickers = set(cfg.universe.tickers)
     assert snapshot["lineage"]["provider"] == "yfinance"
-    assert snapshot["coverage"]["start"] == "2010-10-01"
+    assert snapshot["coverage"]["start"] == expected_start
     assert snapshot["status"] == "approved" and snapshot["approval_rule_version"] == "approval-v2-universe"
     assert snapshot["coverage"]["end"] <= completed_cutoff, "approved baseline contains sessions after the test cutoff"
     assert not set(snapshot.get("quality_flags", [])) & {"partial_response", "missing_sessions", "empty_response", "rejected_records"}, "blocking provider quality flags were approved"
     assert {d["kind"] for d in snapshot["bias_disclosures"]} == {"hindsight_selection", "survivorship"}
-    assert snapshot["observation_summary"]["instruments_expected"] == 5 == snapshot["observation_summary"]["instruments_complete"]
-    code, obs, _ = t.call("GET", f"/v1/snapshots/{snapshot['input_snapshot_id']}/observations?page_size=1&start_date=2010-10-01&end_date=2010-10-01")
-    assert code == 200 and {i["instrument_id"] for i in obs["instruments"]} == UNIVERSE_TICKERS
+    assert snapshot["observation_summary"]["instruments_expected"] == len(tickers) == snapshot["observation_summary"]["instruments_complete"]
+    code, obs, _ = t.call("GET", f"/v1/snapshots/{snapshot['input_snapshot_id']}/observations?page_size=1&start_date={expected_start}&end_date={expected_start}")
+    assert code == 200 and {i["instrument_id"] for i in obs["instruments"]} == tickers
 
 
 def _wait_outcome(t: Any, session_date: str, after: str, *, run_tag: str | None = None) -> dict[str, Any]:
@@ -201,7 +204,7 @@ def test_uni05_universe_snapshot_from_yfinance(dep: dict[str, Any], capsys: pyte
         assert all(result["new_snapshot"] is False for result in out.values())
         retained = _latest_approved_universe(t, cfg)
         assert before is not None and retained["input_snapshot_id"] == before["input_snapshot_id"]
-        _assert_approved_universe(t, retained, completed_cutoff)
+        _assert_approved_universe(t, retained, completed_cutoff, cfg)
         with capsys.disabled():
             print("\nUNIVERSE-FRESHNESS " + json.dumps({"status": "no_session", "new_snapshot": False, "approved_input_snapshot_id": retained["input_snapshot_id"], "approved_coverage_end": retained["coverage"]["end"]}, sort_keys=True), flush=True)
         return
@@ -216,11 +219,11 @@ def test_uni05_universe_snapshot_from_yfinance(dep: dict[str, Any], capsys: pyte
         assert snap["status"] == "committed" and blocking, (snap["status"], snap["quality_flags"], snap.get("quality_details"))
         retained = _latest_approved_universe(t, cfg)
         assert before is not None and retained["input_snapshot_id"] == before["input_snapshot_id"], "rejected provider data changed latest approved universe"
-        _assert_approved_universe(t, retained, completed_cutoff)
+        _assert_approved_universe(t, retained, completed_cutoff, cfg)
         with capsys.disabled():
             print("\nUNIVERSE-FRESHNESS " + json.dumps({"status": "provider_quality_rejected", "candidate_input_snapshot_id": sid, "quality_flags": snap["quality_flags"], "approved_input_snapshot_id": retained["input_snapshot_id"], "approved_coverage_end": retained["coverage"]["end"], "fresh_data_available": False}, sort_keys=True), flush=True)
         return
-    _assert_approved_universe(t, snap, completed_cutoff)
+    _assert_approved_universe(t, snap, completed_cutoff, cfg)
     evidence = {"input_snapshot_id": sid, "dataset_id": cfg.universe.dataset_id, "status": snap["status"], "approval_rule_version": snap["approval_rule_version"], "provider": "yfinance", "trigger": u.get("trigger")}
     with capsys.disabled():  # visible in the stage log (pytest -q captures passing tests' output)
         print("\nPHASE2-EVIDENCE " + json.dumps({ENV: evidence}, sort_keys=True), flush=True)

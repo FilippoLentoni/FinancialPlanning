@@ -6,7 +6,7 @@ import json
 import pytest
 
 from finplan_platform.core.config import EnvConfig, load_config
-from tests.integration.test_daily_loop_deployed import _scheduler_event, _target_session, test_uni05_universe_snapshot_from_yfinance as run_uni05
+from tests.integration.test_daily_loop_deployed import _scheduler_event, _target_session, _assert_approved_universe, test_uni05_universe_snapshot_from_yfinance as run_uni05
 
 DATASET = "finance/equity-etf-daily/research-universe"
 
@@ -41,19 +41,22 @@ def test_new_york_date_boundary_weekend_and_dst(wallclock, fire, expected):
 
 
 class UniverseIntegrationDouble:
-    def __init__(self, *, no_session=True, latest_changed=False, candidate_status="committed"):
+    def __init__(self, *, no_session=True, latest_changed=False, candidate_status="committed", configuration=None):
+        self.config=configuration or cfg()
+        count=len(self.config.universe.tickers)
+        start=self.config.universe.history_start
         self.no_session, self.latest_changed = no_session, latest_changed
         self.latest_reads = 0
         self.approved = {
             "input_snapshot_id": "snap_01KDVDP88REHGPBXFX6CHX92KS",
             "lineage": {"provider": "yfinance"},
-            "coverage": {"start": "2010-10-01", "end": "2026-10-08"},
+            "coverage": {"start": start, "end": "2026-10-08"},
             "status": "approved",
             "approval_rule_version": "approval-v2-universe",
             "bias_disclosures": [{"kind": "hindsight_selection"}, {"kind": "survivorship"}],
-            "observation_summary": {"instruments_expected": 5, "instruments_complete": 5},
+            "observation_summary": {"instruments_expected": count, "instruments_complete": count},
         }
-        self.candidate = {**self.approved, "input_snapshot_id": "snap_01KDVDP88REHGPBXFX6CHX92KT", "status": candidate_status, "quality_flags": ["partial_response", "rejected_records"], "coverage": {"start": "2010-10-01", "end": "2026-10-09"}}
+        self.candidate = {**self.approved, "input_snapshot_id": "snap_01KDVDP88REHGPBXFX6CHX92KT", "status": candidate_status, "quality_flags": ["partial_response", "rejected_records"], "coverage": {"start": start, "end": "2026-10-09"}}
 
     def invoke(self, **kwargs):
         event = json.loads(kwargs["Payload"])
@@ -70,7 +73,7 @@ class UniverseIntegrationDouble:
             latest = self.candidate if self.latest_changed and self.latest_reads > 1 else self.approved
             return 200, {"snapshot": latest}, {}
         if "/observations?" in path:
-            return 200, {"instruments": [{"instrument_id": name} for name in ("VOO", "GOOGL", "NFLX", "AAPL", "NVDA")]}, {}
+            return 200, {"instruments": [{"instrument_id": name} for name in self.config.universe.tickers]}, {}
         return 200, {"snapshot": self.candidate}, {}
 
 
@@ -92,3 +95,13 @@ def test_universe_check_refuses_provider_quality_flags_marked_approved(capsys):
     double = UniverseIntegrationDouble(no_session=False, candidate_status="approved")
     with pytest.raises(AssertionError, match="blocking provider quality"):
         run_uni05({"cfg": cfg(), "t": double, "lambda": double}, capsys)
+
+
+@pytest.mark.parametrize('environment',['beta','gamma'])
+def test_approved_universe_probe_tracks_each_environments_configured_assets_and_start(environment):
+    configuration=load_config(environment)
+    double=UniverseIntegrationDouble(configuration=configuration)
+    _assert_approved_universe(double,double.approved,'2026-10-08',configuration)
+    double.approved['observation_summary']['instruments_complete']-=1
+    with pytest.raises(AssertionError):
+        _assert_approved_universe(double,double.approved,'2026-10-08',configuration)

@@ -724,3 +724,13 @@ service limit and retain 512 bytes of reserve.
 `GET /v1/crypto-research/latest` serves fresh completed BTC/ETH hourly candles in beta through the same IAM authorization and environment boundaries. Data is collected separately from daily equities; see [hourly crypto research](hourly-crypto-research.md) for provenance, scheduling and simulated-capital scope.
 
 Paid ETF metadata beta routes (contracts 1.8.0): `POST /v1/research-news` for an operator-authenticated frozen import and `GET /v1/research-news/latest` for bounded point-in-time metadata. See [research-news-api.md](research-news-api.md).
+
+Numeric GDELT metadata (contracts 1.10.0, beta): `GET /v1/gdelt-metadata`
+accepts `symbols`, required `start_date` and `end_date`, optional `decision_at`
+and `availability_mode`. It returns at most thirty-one source days with full
+immutable documents and their checksums, explicit missing-day coverage, and
+actual central availability. Reader and model roles can read this route. The
+default `platform` mode enforces central availability; explicitly requested
+`historical_source_proxy` mode enforces the disclosed conservative archive
+availability proxy. These numeric derivatives have a distinct feature version
+and do not confer access to article text. See [gdelt-metadata.md](gdelt-metadata.md).

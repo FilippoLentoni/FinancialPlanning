@@ -85,7 +85,7 @@ class IngestionStack(PlatformStack):
         )
         self.role.add_managed_policy(iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole"))
         storage.grant_artifacts(self.role, read=("raw", "curated", "snapshots"), write=("raw", "curated", "snapshots"), tag=("snapshots",))
-        metadata.grant_metadata(self.role, read=("snapshot_catalog", "idempotency"), write=("snapshot_catalog", "idempotency", "audit_event"))
+        metadata.grant_metadata(self.role, read=("snapshot_catalog", "idempotency", "audit_event"), write=("snapshot_catalog", "idempotency", "audit_event"))
         self.role.add_to_principal_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],
@@ -215,6 +215,15 @@ class IngestionStack(PlatformStack):
 
         # Crypto research uses completed hourly UTC bars, independently of equity sessions.
         if env == "beta":
+            self.gdelt_schedule = scheduler.CfnSchedule(self, "DailyGdeltMetadataSchedule",
+                name=resource_name(env, "daily-gdelt-metadata"), description="GDELT released machine metadata before the daily price pipeline",
+                schedule_expression="cron(45 8 * * ? *)", schedule_expression_timezone=SCHEDULE_TIMEZONE,
+                flexible_time_window=scheduler.CfnSchedule.FlexibleTimeWindowProperty(mode="OFF"), state="ENABLED",
+                target=scheduler.CfnSchedule.TargetProperty(arn=self.function.function_arn, role_arn=self.schedule_role.role_arn,
+                    input='{"source":"finplan.gdelt-metadata","scheduled_at":"<aws.scheduler.scheduled-time>"}',
+                    retry_policy=scheduler.CfnSchedule.RetryPolicyProperty(maximum_event_age_in_seconds=1800, maximum_retry_attempts=2),
+                    dead_letter_config=scheduler.CfnSchedule.DeadLetterConfigProperty(arn=self.dlq.queue_arn)))
+            self.gdelt_schedule.add_metadata("logical-role", "daily-ingest-schedule")
             self.crypto_schedule = scheduler.CfnSchedule(self, "HourlyCryptoIngestSchedule",
                 name=resource_name(env, "hourly-crypto-ingest"), description="Hourly completed BTC/ETH research candles; no trading",
                 schedule_expression="cron(5 * * * ? *)", schedule_expression_timezone="UTC", state="ENABLED",

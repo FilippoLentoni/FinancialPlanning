@@ -1,0 +1,10 @@
+[Unit]
+Description=GDELT machine metadata before daily financial price ingestion
+
+[Timer]
+OnCalendar=*-*-* 08:45:00 America/New_York
+Persistent=false
+Unit=finplan-gdelt-metadata.service
+
+[Install]
+WantedBy=timers.target

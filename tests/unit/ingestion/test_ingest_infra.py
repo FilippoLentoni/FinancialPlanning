@@ -74,6 +74,16 @@ def test_configured_0930_fires_at_0930_new_york() -> None:
     assert param["Properties"]["Value"] == "09:30"
 
 
+def test_gdelt_metadata_runs_before_beta_price_ingestion_only(templates: dict[str, Any]) -> None:
+    for env in ("beta", "gamma", "prod"):
+        schedules = [s for s in _of(templates[env], "AWS::Scheduler::Schedule")
+                     if json.loads(s["Properties"]["Target"]["Input"]).get("source") == "finplan.gdelt-metadata"]
+        assert len(schedules) == (1 if env == "beta" else 0)
+        if schedules:
+            assert schedules[0]["Properties"]["ScheduleExpression"] == "cron(45 8 * * ? *)"
+            assert schedules[0]["Properties"]["ScheduleExpressionTimezone"] == "America/New_York"
+
+
 def test_dlq_alarm_and_async_failures_routed_to_the_dlq(templates: dict[str, Any]) -> None:
     t = templates["beta"]
     (q,) = _of(t, "AWS::SQS::Queue")
