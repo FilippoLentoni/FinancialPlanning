@@ -85,6 +85,8 @@ def _safe(payload: Any) -> None:
 
 
 class ModelingEvidence:
+    execution_events_supported = True
+
     def __init__(self, repo: MetadataRepository, store: ArtifactStore, *, principal: str = "authorized-beta-experiment-operator"):
         if repo.env != "beta":
             raise PlatformError.not_permitted("autonomous experiment evidence is beta only")
@@ -413,7 +415,14 @@ class ModelingEvidence:
         history_id = f"{old['portfolio_id']}:{expected_revision + 1:020d}"
         history = self._artifact("history", history_id + ":" + run_id, {"portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, "paper_state": dict(state), "recorded_at": recorded_at, "reason": "automatic_isolated_experiment", "decision_id": did, "run_id": run_id, "synthetic": True, "contract_version": "1.12.0"})
         new = {**old, "status": status, "execution_ref": ref}
-        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]})], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
+        # Issue day and execution day are independent. Publish an immutable event in
+        # the SAME ledger transaction, pointing at the original verified receipt.
+        # Reports can query Monday fills from Friday decisions without scanning runs
+        # or charging Friday for costs incurred on Monday. It is not another ledger.
+        event_at = _slot(execution.get("execution_at", recorded_at))
+        event_id = _id("mo", run_id, "paper_execution")
+        execution_event = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": event_id, "kind": "paper_execution", "experiment_id": old["experiment_id"], "approach_id": old["approach_id"], "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision + 1, "run_id": run_id, "input_id": old["input_id"], "decision_id": did, "decision_slot": old["slot"], "slot": event_at, "observed_at": event_at, "recorded_at": recorded_at, "observed_key": _index_time(event_at) + "#" + event_id, "execution_ref": ref, **ref, **self._keys(old["experiment_id"], old["approach_id"], event_at, event_id)}
+        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]}), PutNew("portfolio_observation", doc=execution_event, contract_version="1.12.0")], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
         return result
 
     def record_observation(self, experiment_id: str, approach_id: str, slot: str, portfolio_id: str, payload: Mapping[str, Any], observed_at: str, *, kind: str = "valuation") -> dict[str, Any]:
