@@ -168,7 +168,7 @@ def test_prod_storage_is_retained(foundation_synth: dict[str, Any]) -> None:
 @pytest.mark.parametrize("env", ENVS)
 def test_metadata_tables_on_demand_pitr_kms_tagged(foundation_synth: dict[str, Any], env: str) -> None:
     t = _tmpl(foundation_synth, env, "metadata")
-    expected_tables = {logical: spec for logical, spec in TABLES.items() if env == "beta" or logical not in ("portfolio_decision", "portfolio_history", "activity_event")}
+    expected_tables = {logical: spec for logical, spec in TABLES.items() if env == "beta" or logical not in ("portfolio_decision", "portfolio_history", "activity_event", "research_input", "research_run", "portfolio_observation")}
     t.resource_count_is("AWS::DynamoDB::Table", len(expected_tables))
     tables = _resources(foundation_synth, env, "metadata", "AWS::DynamoDB::Table")
     by_name = {v["Properties"]["TableName"]: v for v in tables.values()}

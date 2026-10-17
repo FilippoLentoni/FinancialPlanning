@@ -284,8 +284,10 @@ def table_policy_statements(*, env: str, logical: str, table_arn: str, arn_for: 
             "Condition": {"ArnNotLike": {"aws:PrincipalArn": [arn_for(_platform(env)), *operators]}},
         }
     ]
-    if logical in ("audit_event", "portfolio_history", "activity_event"):
+    if logical in ("audit_event", "portfolio_history", "activity_event", "research_input", "portfolio_observation"):
         st.append({"Sid": "DenyAuditMutation", "Effect": "Deny", "Principal": "*", "Action": list(AUDIT_MUTATION_ACTIONS), "Resource": resources})
+    if logical == "research_run":
+        st.append({"Sid": "DenyPermanentSlotDeletion", "Effect": "Deny", "Principal": "*", "Action": ["dynamodb:DeleteItem", "dynamodb:BatchWriteItem", "dynamodb:PartiQLDelete"], "Resource": resources})
     return st
 
 

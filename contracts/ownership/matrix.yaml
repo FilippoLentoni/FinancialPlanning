@@ -106,7 +106,7 @@ resources:
     reference: None directly; only through the plan API
     scope: environment
     resource_types: [AWS::DynamoDB::Table, AWS::DynamoDB::GlobalTable]
-    logical_roles: [portfolio-table, plan-table, plan-version-table, publication-table, execution-table, snapshot-catalog-table, staged-output-table, idempotency-table, audit-event-table, portfolio-decision-table, portfolio-history-table, activity-event-table]
+    logical_roles: [portfolio-table, plan-table, plan-version-table, publication-table, execution-table, snapshot-catalog-table, staged-output-table, idempotency-table, audit-event-table, portfolio-decision-table, portfolio-history-table, activity-event-table, research-input-table, research-run-table, portfolio-observation-table]
     decisions: [D1, D2]
 
   - id: platform-metadata-sweeper

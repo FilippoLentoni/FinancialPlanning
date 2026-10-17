@@ -178,6 +178,23 @@ TABLES: dict[str, TableSpec] = {
         indexes=(IndexSpec("portfolio-index", "portfolio_id", "activity_event_id"), IndexSpec("session-index", "session_id", "activity_event_id")),
         attribute_fields=("activity_event_id", "portfolio_id", "session_id"),
     ),
+    "research_input": TableSpec(
+        "research_input", "research-input-table", "input_id",
+        indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("approach-index", "approach_key", "time_key")),
+        attribute_fields=("input_id", "report_key", "approach_key", "time_key", "kind", "experiment_id", "approach_id"),
+    ),
+    "research_run": TableSpec(
+        "research_run", "research-run-table", "run_id",
+        head_attributes=("invocation_revision", "lease_owner", "lease_until"),
+        indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("approach-index", "approach_key", "time_key")),
+        mutable_fields=("status", "finished_at", "output_ref", "execution_ref"),
+        attribute_fields=("run_id", "report_key", "approach_key", "time_key", "status", "experiment_id", "approach_id", "portfolio_id"),
+    ),
+    "portfolio_observation": TableSpec(
+        "portfolio_observation", "portfolio-observation-table", "observation_id",
+        indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("portfolio-index", "portfolio_id", "time_key"), IndexSpec("approach-index", "approach_key", "time_key")),
+        attribute_fields=("observation_id", "report_key", "approach_key", "time_key", "portfolio_id", "experiment_id", "approach_id", "kind"),
+    ),
 }
 
 #: Allowed status transitions per table (contract lifecycle; MDS-04).
@@ -186,6 +203,7 @@ TRANSITIONS: dict[str, dict[str, frozenset[str]]] = {
     "snapshot_catalog": {"committed": frozenset({"approved", "expired"}), "approved": frozenset({"expired"}), "expired": frozenset()},
     # execution status is an open vocabulary in contracts 0.1/1.0; transitions are declared by the API module
     "execution": {},
+    "research_run": {"running": frozenset({"succeeded", "hold", "skipped", "failed", "unavailable", "reused"}), **{s: frozenset({"applied", "no_op", "pending_execution"}) for s in ("succeeded", "hold", "reused")}, "pending_execution": frozenset({"applied", "no_op"}), "applied": frozenset(), "no_op": frozenset(), "failed": frozenset(), "skipped": frozenset(), "unavailable": frozenset()},
     "portfolio_decision": {"proposed": frozenset({"accepted", "rejected"}), "accepted": frozenset(), "rejected": frozenset()},
 }
 
@@ -510,6 +528,7 @@ class HeadMove(Op):
     error: ErrorFactory | None = None
     #: Legacy rows have no optional head; opt-in initialization treats absence as revision zero.
     allow_missing_revision: bool = False
+    additional_condition: Cond | None = None
 
     def key(self) -> dict[str, Any]:
         return {"pk": self.record_id}
@@ -525,7 +544,10 @@ class HeadMove(Op):
             if self.expected_revision != 0:
                 raise PlatformError.validation("only revision zero may initialize a missing head", pointer="/expected_revision")
             revision_condition = revision_condition | Cond.not_exists(self.revision_attr)
-        cond = r.cond(Cond.exists("pk") & revision_condition)
+        full_condition = Cond.exists("pk") & revision_condition
+        if self.additional_condition is not None:
+            full_condition = full_condition & self.additional_condition
+        cond = r.cond(full_condition)
         out = {
             "TableName": names[self.table],
             "Key": _item_to_av(self.key()),

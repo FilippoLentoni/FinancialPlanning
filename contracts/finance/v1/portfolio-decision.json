@@ -10,7 +10,10 @@
     "algorithm_family": {
       "enum": [
         "reinforcement_learning",
-        "optimization"
+        "optimization",
+        "language_model",
+        "agentic",
+        "control"
       ]
     },
     "algorithm": {

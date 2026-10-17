@@ -1,0 +1,9 @@
+## Implementation
+- [x] Inventory existing ledger, storage policy, query and ownership contracts.
+- [x] Add beta-only evidence table/index IaC and ownership registrations without changing existing keys.
+- [x] Implement exact immutable source/input/output capture, permanent slots and bounded queries.
+- [x] Implement isolated authoritative book, decision/history commit with optimistic revisions and recoverable invocation leases.
+- [x] Add versioned honest model-family identifiers and reproducibly pinned wheel.
+- [x] Test exact input permanence, explicit failures, future availability, secret rejection, retry/lease recovery, concurrent revision and isolated authorization.
+- [ ] Central beta pipeline deployment and live data round trips (central owner).
+- [ ] Real hourly scheduler proofs and report explorer reconciliation (central owner/runtime/report owners).
