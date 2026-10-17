@@ -237,3 +237,9 @@ and downloads the original bytes. Changing selections during decompression canno
 replace a newer selection. Current browsers supporting `DecompressionStream` work
 from `file://`; Python export consumers can use `captured_input_bytes(report,input)`.
 Small inputs retain the compatible `raw_base64` original-byte representation.
+
+A provider-verified exact closing quote may be a `fresh_close` valuation after the
+session ends. Its persisted `market_session.status=completed`, actual session date
+and provider/source proof count as an observed session and retain the true close in
+comparison windows. `market_open` remains false; the reporting path does not create
+fills. Old `carried_closed` quotes remain stale and never become closing marks.

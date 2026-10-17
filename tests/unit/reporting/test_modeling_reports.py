@@ -457,3 +457,34 @@ def test_large_captured_input_portable_encoding_preserves_original_bytes_and_exp
     damaged['artifact_chunks'][captured['raw_chunks'][0]]['data'] = base64.b64encode(b'corrupt').decode()
     with pytest.raises(EvidenceError, match='compressed input chunk checksum'):
         captured_input_bytes(damaged, captured)
+
+
+def test_actual_fresh_close_is_a_session_valuation_without_off_session_fills():
+    from finplan_platform.reporting.reports import _compact_session_quotes
+    reader = Reader()
+    quote = {'market_open': False, 'status': 'fresh_close', 'quoted_at': T2,
+             'available_at': DAY+'T16:01:00+00:00',
+             'regular_session': {'start': T0, 'end': T2},
+             'market_session': {'status': 'completed', 'session_date': DAY,
+                                'source': 'controlled-provider-period-checksum'}}
+    for observation in reader.observations:
+        observation['quote_provenance'] = quote if observation['observed_at'] == T2 else {
+            'market_session': {'status': 'open', 'session_date': DAY, 'source': 'controlled-provider'}}
+        if observation['observed_at'] == T2:
+            observation['quote_status'] = 'fresh_close'
+    result = aggregate(reader, experiment_id='test', registry=[dict(a, market_calendar='XNYS') for a in registry()],
+                       start_day=DAY, generated_at=DAY+'T17:00:00+00:00', mode='controlled_replay')
+    assert all(b['valid_valuations'] == 3 and b['window_end'] == T2 for b in result['leaderboard'])
+    assert all(b['observed_sessions'] == 1 and b['fills'] == 0 for b in result['leaderboard'])
+    assert all(b['rank'] is not None for b in result['leaderboard'])
+    assert _compact_session_quotes({'current_quotes': {'quotes': [quote]}})[0]['market_session']['status'] == 'completed'
+    # The same after-close collection with only carried data does not become a
+    # fresh closing mark or a simulated trade merely because the session ended.
+    for observation in reader.observations:
+        if observation['observed_at'] == T2:
+            observation['quote_status'] = 'carried_closed'
+            observation['quote_provenance']['market_session']['status'] = 'closed'
+    stale = aggregate(reader, experiment_id='test', registry=[dict(a, market_calendar='XNYS') for a in registry()],
+                      start_day=DAY, generated_at=DAY+'T17:00:00+00:00', mode='controlled_replay')
+    assert all(b['valid_valuations'] == 2 and b['window_end'] == T1 for b in stale['leaderboard'])
+    assert all(b['fills'] == 0 for b in stale['leaderboard'])

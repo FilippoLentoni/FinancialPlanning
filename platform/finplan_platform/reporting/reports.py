@@ -223,7 +223,7 @@ def _value(obs: dict) -> float | None:
 
 def _valid(obs: dict) -> bool:
     return (_value(obs) is not None and obs.get("status", "valid") in {"valid", "success", "observed", "valued", "market_closed_cash"}
-            and obs.get("quote_status", "valid") in {"valid", "fresh", "not_required", "cash_only"}
+            and obs.get("quote_status", "valid") in {"valid", "fresh", "fresh_close", "not_required", "cash_only"}
             and obs.get("observation_kind", "valid") not in {"stale", "carried_forward", "pending", "missing"})
 
 
@@ -267,9 +267,9 @@ def _session_proof(value: Any) -> tuple[set[str], bool]:
     dates, proven = set(), False
     if isinstance(value, dict):
         session = value.get("market_session")
-        if isinstance(session, dict) and session.get("source") and session.get("status") in {"open", "closed"}:
+        if isinstance(session, dict) and session.get("source") and session.get("status") in {"open", "closed", "completed"}:
             proven = True
-            if session["status"] == "open" and session.get("session_date"):
+            if session["status"] in {"open", "completed"} and session.get("session_date"):
                 dates.add(session["session_date"])
         regular = value.get("regular_session") or {}
         if isinstance(value.get("market_open"), bool) and regular.get("start") and regular.get("end"):
@@ -294,7 +294,7 @@ def _compact_session_quotes(value: dict) -> list[dict]:
     quotes = (value.get("current_quotes") or {}).get("quotes", [])
     if isinstance(quotes, dict):
         quotes = list(quotes.values())
-    keys = ("instrument_id", "market_open", "regular_session", "quoted_at", "available_at", "retrieved_at", "status", "provider", "source_response_checksum")
+    keys = ("instrument_id", "market_open", "market_session", "regular_session", "quoted_at", "available_at", "retrieved_at", "status", "provider", "source_response_checksum")
     return [{k: q[k] for k in keys if k in q} for q in quotes if isinstance(q, dict)]
 
 
