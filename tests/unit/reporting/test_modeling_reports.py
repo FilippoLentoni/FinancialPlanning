@@ -267,3 +267,13 @@ def test_entire_missing_hour_is_visible_from_permanent_schedule_policy():
     assert len(result["missing_slots"]) == 2
     assert {r["scheduled_slot"] for r in result["missing_slots"]} == {T2}
     assert all(b["rank"] is None for b in result["leaderboard"])
+
+
+def test_same_hour_different_timezone_spelling_cannot_duplicate_slot():
+    reader = Reader()
+    alias = copy.deepcopy(reader.runs[0])
+    alias["run_id"] = "same_time_alias_run"
+    alias["scheduled_slot"] = T0.replace("+00:00", "Z")
+    reader.runs.append(alias)
+    with pytest.raises(EvidenceError, match="permanent approach/slot"):
+        report(reader)
