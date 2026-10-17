@@ -28,20 +28,24 @@
       "rejected_records_max_ratio": 0.0
     },
     "universe": {
-      "$comment": "Research universe (decision 17; change add-research-universe-and-daily-loop). Real data only through the yfinance provider in a phase 2 environment; tickers are configuration, never hard-coded.",
+      "$comment": "Selected eight-asset paper-research universe plus NFLX for original portfolio compatibility. Common price history begins at META listing; earlier immutable five-asset snapshots remain available. Beta only until coordinated model evaluation.",
       "kind": "equity-etf-daily",
       "subject": "research-universe",
       "instruments": [
-        {
-          "instrument_id": "VOO",
-          "kind": "etf"
-        },
         {
           "instrument_id": "GOOGL",
           "kind": "equity"
         },
         {
-          "instrument_id": "NFLX",
+          "instrument_id": "AMZN",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "NVDA",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "MSFT",
           "kind": "equity"
         },
         {
@@ -49,7 +53,19 @@
           "kind": "equity"
         },
         {
-          "instrument_id": "NVDA",
+          "instrument_id": "META",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "TSLA",
+          "kind": "equity"
+        },
+        {
+          "instrument_id": "VOO",
+          "kind": "etf"
+        },
+        {
+          "instrument_id": "NFLX",
           "kind": "equity"
         },
         {
@@ -58,7 +74,7 @@
           "return_assumption": "zero_nominal"
         }
       ],
-      "history_start": "2010-10-01",
+      "history_start": "2012-05-18",
       "currency": "USD",
       "adjustment_basis": "unadjusted",
       "return_basis": "adj_close",

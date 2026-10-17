@@ -38,6 +38,7 @@ from .conftest import FakeYF, config_with
 
 UNIVERSE = "finance/equity-etf-daily/research-universe"
 TICKERS = ("VOO", "GOOGL", "NFLX", "AAPL", "NVDA")
+SELECTED_TICKERS = ("GOOGL", "AMZN", "NVDA", "MSFT", "AAPL", "META", "TSLA", "VOO", "NFLX")
 SCHED = "2026-01-12T14:00:00Z"  # Monday 09:00 America/New_York -> target session Friday 2026-01-09
 
 
@@ -51,11 +52,12 @@ def test_both_datasets_configured_in_every_environment() -> None:
         assert cfg.dataset_id == "finance/etf-daily/SPY", env  # etf-daily unchanged
         u = cfg.universe
         assert u is not None and u.dataset_id == UNIVERSE
-        assert u.tickers == TICKERS
+        expected = SELECTED_TICKERS if env == "beta" else TICKERS
+        assert u.tickers == expected
         cash = [i for i in u.instruments if i["kind"] == "cash"]
         assert cash == [{"instrument_id": "USD_CASH", "kind": "cash", "return_assumption": "zero_nominal"}]
-        assert {i["instrument_id"]: i["kind"] for i in u.instruments if i["kind"] != "cash"} == {"VOO": "etf", "GOOGL": "equity", "NFLX": "equity", "AAPL": "equity", "NVDA": "equity"}
-        assert u.history_start == "2010-10-01" and u.return_basis == "adj_close"
+        assert {i["instrument_id"]: i["kind"] for i in u.instruments if i["kind"] != "cash"} == {s: "etf" if s == "VOO" else "equity" for s in expected}
+        assert u.history_start == ("2012-05-18" if env == "beta" else "2010-10-01") and u.return_basis == "adj_close"
         assert {d["kind"] for d in u.disclosures()} == {"hindsight_selection", "survivorship"}
         assert cfg.dataset_ids == ("finance/etf-daily/SPY", UNIVERSE)
 
@@ -99,7 +101,13 @@ def _data_view(env: str) -> dict[str, Any]:
 
 @pytest.mark.parametrize("env", ["gamma", "prod"])
 def test_data_parity_with_beta_decision_26(env: str) -> None:
-    assert _data_view(env) == _data_view("beta")
+    expected = _data_view("beta")
+    actual = _data_view(env)
+    # Selected eight-asset beta research is evaluated before independent promotion.
+    expected["ingest"].pop("universe")
+    actual["ingest"].pop("universe")
+    assert actual == expected
+    assert load_config(env).universe.tickers == TICKERS
 
 
 # ------------------------------------------------------------------ UNI-06
@@ -180,7 +188,8 @@ def _yf_deps(make_deps: Any, clock: Any, cfg: EnvConfig, lib: FakeYF, **kw: Any)
 
 
 def _small_cfg() -> EnvConfig:
-    return config_with(**{"ingest.universe.history_start": "2025-12-01"})
+    return config_with(**{"ingest.universe.history_start": "2025-12-01",
+                          "ingest.universe.instruments": list(load_config("gamma").universe.instruments)})
 
 
 # ------------------------------------------------------------------ UNI-02
@@ -198,8 +207,20 @@ def test_full_history_fetch_from_history_start_for_every_ticker(make_deps: Any, 
     assert snap["status"] == "approved" and snap["approval_rule_version"] == "approval-v2-universe"
 
 
-def test_effective_history_start_is_2010_10_01_on_xnys() -> None:
-    assert effective_history_start(load_config("beta").universe, xnys_calendar()) == date(2010, 10, 1)
+def test_common_eight_asset_history_begins_at_meta_listing_on_xnys() -> None:
+    assert effective_history_start(load_config("beta").universe, xnys_calendar()) == date(2012, 5, 18)
+    assert effective_history_start(load_config("gamma").universe, xnys_calendar()) == date(2010, 10, 1)
+
+
+def test_selected_eight_asset_snapshot_with_legacy_nflx_requires_every_asset(make_deps: Any, sctx: Any, at: Any, clock: Any) -> None:
+    at(SCHED)
+    cfg = config_with(**{"ingest.universe.history_start": "2025-12-01"})
+    lib = UniverseYF(_rows(date(2025, 12, 1), date(2026, 1, 9)))
+    deps = _yf_deps(make_deps, clock, cfg, lib)
+    response = run_ingestion(sctx(), {"dataset_id": UNIVERSE, "scheduled_time": SCHED}, deps=deps)
+    assert sorted(call["ticker"] for call in lib.history_calls) == sorted(SELECTED_TICKERS)
+    assert response["snapshot"]["status"] == "approved"
+    assert response["snapshot"]["observation_summary"]["instruments_complete"] == 9
 
 
 def test_split_continuity_keeps_unadjusted_ohlc_and_adj_close_basis(make_deps: Any, sctx: Any, at: Any, clock: Any) -> None:

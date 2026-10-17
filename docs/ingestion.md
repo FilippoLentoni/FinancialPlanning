@@ -4,6 +4,30 @@ How the platform turns provider data into immutable input snapshots (OpenSpec ch
 `add-platform-foundation`, spec `market-data-ingestion`, design P5, P6 and P6a, tasks 6.1 to
 6.18). Module docstrings hold the details; this page is the map and the decision record.
 
+The October 17 beta research universe covers GOOGL, AMZN, NVDA, MSFT, AAPL,
+META, TSLA and VOO, retaining NFLX so the original five-asset paper portfolio
+continues receiving prices. Models select their own supported subset from this
+approved superset. Gamma and prod retain their existing universe until evaluation
+and promotion. The common beta start is 2012-05-18, when
+[Meta began trading](https://about.fb.com/news/2012/05/facebook-announces-pricing-of-initial-public-offering/).
+No prelisting observations are invented or filled. Historical snapshots remain
+immutable and readable by identifier.
+
+Each 09:00 New York invocation refetches full completed-session history, adjusted
+close, OHLCV, dividends and splits, and stores raw responses, normalized series,
+snapshot payloads and their checksums. Daily retraining does not require one
+snapshot per historical session: a single approved history snapshot contains
+many ordered transitions. Historical prices refetched today are revised-vintage
+evidence, not proof of original historical availability. Forward daily snapshots
+preserve observed vintages and make future point-in-time evaluation possible.
+
+The operator's bounded news timer runs at 08:55 New York on actual XNYS session
+days, before the price invocation. NYSE's core session
+[opens at 09:30](https://www.nyse.com/trade/trading-information).
+News readiness must be checked from actual server-stamped availability, quality
+and rights, independently of price snapshot approval. Missing news remains
+missing; research-only deliveries cannot train the news-conditioned PPO.
+
 ## Decisions
 
 | Item | Decision | Status |
