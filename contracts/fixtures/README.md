@@ -47,6 +47,9 @@ listed below (the conformance hygiene check reads this list):
 - `budget-allocation/valid/defaults.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/valid/raised-ceiling-context.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
 - `budget-allocation/valid/user-adjusted-under-ceiling.json`: budget-allocation is a closed category -> USD map (the SSM value), so it has no 'synthetic' key
+- `native-input-ref/invalid/wrong-native-universe.json`: Reference-only source identity; market_data_synthetic=true explicitly labels these controlled fixtures and the referenced enclosing portfolio record carries synthetic=true.
+- `native-input-ref/invalid/wrong-source-kind.json`: Reference-only source identity; market_data_synthetic=true explicitly labels these controlled fixtures and the referenced enclosing portfolio record carries synthetic=true.
+- `native-input-ref/valid/native-crypto.json`: Reference-only source identity; market_data_synthetic=true explicitly labels these controlled fixtures and the referenced enclosing portfolio record carries synthetic=true.
 - `paper-portfolio-state/invalid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `paper-portfolio-state/valid/paper.json`: the closed paper-state/API schema uses paper-mode provenance instead of a top-level synthetic flag
 - `portfolio/invalid/missing-synthetic-flag.json`: the portfolio's own 'synthetic' field is the property under test, so this invalid fixture omits it

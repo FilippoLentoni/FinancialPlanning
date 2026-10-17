@@ -158,6 +158,25 @@ def diff_schema(name: str, old: Any, new: Any, root_new: dict[str, Any] | None =
         # The registered error-code list: "adding a code is a minor release".
         return "x-finplan-error-codes" in root_new and parts == ["$defs", "code"]
 
+    def guarded_new_property(node, previous, current):
+        """Prove a conditional cannot narrow any document accepted previously.
+
+        The old closed object excluded the new optional discriminator entirely.
+        Its absence branch may only repeat exact old property constraints.
+        Anything less precise remains a conservative breaking change.
+        """
+        if previous.get("additionalProperties") is not False or not isinstance(node, dict) or set(node) != {"if", "then", "else"}:
+            return False
+        condition = node["if"]
+        if not isinstance(condition, dict) or set(condition) != {"required"} or not isinstance(condition["required"], list) or len(condition["required"]) != 1:
+            return False
+        discriminator = condition["required"][0]
+        old_properties = previous.get("properties", {})
+        if discriminator in old_properties or discriminator not in current.get("properties", {}) or discriminator in current.get("required", []):
+            return False
+        otherwise = node["else"]
+        return isinstance(otherwise, dict) and set(otherwise) <= {"properties"} and all(name in old_properties and restriction == old_properties[name] for name, restriction in otherwise.get("properties", {}).items())
+
     def walk(o: Any, n: Any, parts: list[str]) -> None:
         if type(o) is not type(n):
             add(parts, BREAKING, "subschema changed form")
@@ -165,6 +184,9 @@ def diff_schema(name: str, old: Any, new: Any, root_new: dict[str, Any] | None =
         if not isinstance(o, dict):
             if o != n:
                 add(parts, BREAKING, "subschema changed")
+            return
+        if set(n) == {"anyOf"} and isinstance(n["anyOf"], list) and o in n["anyOf"]:
+            add(parts, ADDITIVE, "union retains the entire previous schema as an unchanged branch")
             return
         required_new = set(n.get("required", []) if isinstance(n.get("required"), list) else [])
         required_old = set(o.get("required", []) if isinstance(o.get("required"), list) else [])
@@ -194,6 +216,8 @@ def diff_schema(name: str, old: Any, new: Any, root_new: dict[str, Any] | None =
                         add(here + [d], ADDITIVE, f"definition '{d}' added")
                 elif key == "x-finplan-known-values" and _is_open_enum(n):
                     add(here, ADDITIVE, "known values registered for an open enum")
+                elif key == "allOf" and isinstance(n[key], list) and all(guarded_new_property(child, o, n) for child in n[key]):
+                    add(here, ADDITIVE, "conditional constraints apply only to a newly optional property excluded by the previous closed object")
                 elif key == "deprecated":
                     add(here, ANNOTATION, "marked deprecated")
                 else:
@@ -268,7 +292,9 @@ def diff_schema(name: str, old: Any, new: Any, root_new: dict[str, Any] | None =
             elif key in SINGLE_SUBSCHEMAS:
                 walk(ov, nv, here)
             elif key in LIST_SUBSCHEMAS and isinstance(ov, list) and isinstance(nv, list):
-                if len(ov) != len(nv):
+                if key == "allOf" and len(nv) > len(ov) and nv[:len(ov)] == ov and all(guarded_new_property(child, o, n) for child in nv[len(ov):]):
+                    add(here, ADDITIVE, "appended conditional constraints apply only to a newly optional property excluded by the previous closed object")
+                elif len(ov) != len(nv):
                     add(here, BREAKING, f"'{key}' changed from {len(ov)} to {len(nv)} subschemas")
                 else:
                     for i, (a, b) in enumerate(zip(ov, nv, strict=True)):

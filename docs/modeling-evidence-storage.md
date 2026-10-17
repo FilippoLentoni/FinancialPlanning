@@ -105,3 +105,20 @@ labeled experiment IDs. Gamma/prod metadata resources and access policies are
 unchanged. The contract 1.12.0 enum adds `language_model`, `agentic`, `control` to
 existing `reinforcement_learning`, `optimization`; callers must identify a real
 family rather than label an LLM an optimizer.
+
+Contract 1.13.0 adds `native_input_ref` for the existing platform BTC/ETH hourly
+source. These isolated experiment decisions carry `input_snapshot_id: null`
+because no daily snapshot was consumed. The reference identifies the already
+captured shared research input and its exact checksum, plus the original native
+platform dataset checksum, as-of and availability times, ordered universe and
+3600-second frequency. Proposal, execution receipt and history retain the same
+reference. Reads verify original bytes; neither a replacement dataset nor an
+invented snapshot is accepted. Provider provenance, chronological complete candles,
+source freshness, actual availability and book universe are checked before commit.
+Synthetic market inputs require an explicitly controlled replay source.
+
+This is an additive forward-only record form; no prior artifacts, keys or tables
+are migrated. Existing user-facing decision requests and explicit confirmations
+continue using real approved daily snapshots. The native form is available only
+through the owned isolated experiment path. The four repositories must pin the
+same 1.13.0 wheel before rollout. Historical 1.12.0 artifacts remain readable.

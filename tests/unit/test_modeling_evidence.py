@@ -228,3 +228,102 @@ def test_execution_events_account_actual_day_and_retry_never_duplicates(evidence
     assert event["payload"]["execution"]["turnover"]==.5
     assert event["observed_at"]==execution_at and event["recorded_at"]==recorded
     assert event["portfolio_revision"]==2
+
+
+def native_ready(e, *, mutate=None, trigger="controlled_replay"):
+    """Controlled native-hourly source, never a claimed live market snapshot."""
+    from datetime import datetime, timedelta, timezone
+    end=datetime(2026,1,17,12,tzinfo=timezone.utc)
+    stamp=lambda dt:dt.isoformat().replace('+00:00','Z')
+    universe=["BTC-USD","ETH-USD"]
+    native={"dataset_id":"coinbase-crypto-hourly-v1","dataset_checksum":"sha256:"+"abcd"*16,
+            "as_of":stamp(end),"available_at":stamp(end+timedelta(minutes=5)),"granularity_seconds":3600,
+            "products":universe,"market_data_synthetic":True,"sources":[],"contract_version":"1.7.0",
+            "bars":{p:[{"start":stamp(end-timedelta(hours=24-i)),"open":100.,"close":100.,"low":99.,"high":101.,"volume":100000.} for i in range(24)] for p in universe}}
+    source={"native_crypto_dataset":native,"investable_universe":universe,"checksum":native["dataset_checksum"],
+            "availability_cutoff":"2026-01-17T12:05:00Z","trigger":trigger}
+    if mutate:mutate(source)
+    at=source["availability_cutoff"]
+    book=e.ensure_portfolio("native-test","crypto_rule",1000.,universe,at)
+    shared=e.capture_shared_source("native-test",stamp(end),source,at)
+    supplied=e.capture_input("native-test","crypto_rule",stamp(end),{"availability_cutoff":at,"holdings":book,"numeric":{"prepared":{"native_source":native}},"news":{"consumed":False}},shared,at)
+    run=e.start_run("native-test","crypto_rule",stamp(end),supplied["input_id"],book["portfolio_id"],at,{"family":"optimization"})
+    e.finish_run(run["run_id"],{"status":"succeeded","target_weights":{"BTC-USD":.5,"ETH-USD":0.},"cash_weight":.5},at)
+    state={**book["paper_state"],"positions":[{"instrument_id":"BTC-USD","quantity":5.}],"cash_balance":499.5,"source":"paper_rebalance"}
+    execution={"market_session_valid":True,"evaluator_version":"controlled-native-common-kernel","quote_provenance":{"BTC-USD":{"frequency":"1h","source":"controlled_fixture"}},"execution_at":"2026-01-17T13:05:00Z","transaction_cost":.5,"before_value":1000.,"after_value":999.5,"reference_prices":{"BTC-USD":100.,"ETH-USD":100.},"reference_date":"2026-01-17","transaction_cost_bps":10.}
+    return book,shared,supplied,run,state,execution
+
+
+def test_native_input_identity_public_ledger_roundtrip_without_fabricated_snapshot(evidence):
+    from finplan_platform.core.config import load_config
+    from finplan_platform.core.services import Services
+    from finplan_platform.core.portfolio_lifecycle import get_decision,get_history
+    from finplan_platform.core.contract_io import require_valid
+    e=evidence;book,shared,supplied,run,state,execution=native_ready(e)
+    fills=[{"instrument_id":"BTC-USD","quantity":5.,"price":100.,"cost":.5}]
+    receipt=e.commit_paper_step(run["run_id"],1,state,fills,execution,"2026-01-17T13:05:00Z")
+    assert receipt["input_snapshot_id"] is None
+    expected={"input_id":shared["input_id"],"checksum":shared["checksum"],"source_type":"platform_crypto_hourly",
+              "dataset_id":"coinbase-crypto-hourly-v1","dataset_checksum":"sha256:"+"abcd"*16,
+              "as_of":"2026-01-17T12:00:00Z","available_at":"2026-01-17T12:05:00Z","granularity_seconds":3600,
+              "universe":["BTC-USD","ETH-USD"],"market_data_synthetic":True}
+    assert receipt["native_input_ref"]==expected
+    assert e.commit_paper_step(run["run_id"],1,state,fills,execution,"2026-01-17T14:05:00Z")==receipt
+    assert e.get_portfolio(book["portfolio_id"])["revision"]==2
+    svc=Services(cfg=load_config("beta"),repo=e.repo,artifacts=e.store);ctx=e._ctx("2026-01-17T13:05:00Z")
+    decision=get_decision(ctx,svc,receipt["decision_id"]);history=get_history(ctx,svc,book["portfolio_id"],2)
+    require_valid(decision,"api/portfolio-decision-response");require_valid(history,"api/portfolio-history-entry-response")
+    assert decision["decision"]["native_input_ref"]==history["history"]["native_input_ref"]==expected
+    assert decision["decision"]["input_snapshot_id"] is history["history"]["input_snapshot_id"] is None
+    assert e.read_input(shared["input_id"])["metadata"]["checksum"]==expected["checksum"]
+    assert e.read_run(run["run_id"])["execution"]["native_input_ref"]==expected
+
+
+@pytest.mark.parametrize("defect",["universe","frequency","gap","ohlc","checksum","stale","synthetic_forward","provider"])
+def test_native_input_identity_rejects_invalid_provenance_without_changing_book(evidence,defect):
+    def mutate(source):
+        native=source["native_crypto_dataset"]
+        if defect=="universe":source["investable_universe"]=["SPY"]
+        if defect=="frequency":native["granularity_seconds"]=60
+        if defect=="gap":native["bars"]["BTC-USD"].pop(1)
+        if defect=="ohlc":native["bars"]["BTC-USD"][0]["high"]=1.
+        if defect=="checksum":source["checksum"]="sha256:"+"bcde"*16
+        if defect=="stale":source["availability_cutoff"]="2026-01-17T12:26:00Z"
+        if defect in ("synthetic_forward","provider"):source["trigger"]="scheduled_hourly"
+        if defect=="provider":native["market_data_synthetic"]=False
+    book,shared,supplied,run,state,execution=native_ready(evidence,mutate=mutate)
+    with pytest.raises(PlatformError):evidence.commit_paper_step(run["run_id"],1,state,[{"instrument_id":"BTC-USD","quantity":5.,"price":100.,"cost":.5}],execution,"2026-01-17T13:05:00Z")
+    assert evidence.get_portfolio(book["portfolio_id"])["revision"]==1
+    assert not evidence.read_run(run["run_id"]).get("execution_ref")
+
+
+def test_native_input_identity_accepts_verified_provider_form_without_relabeling_it_a_snapshot(evidence):
+    def actual_provider_form(source):
+        source["native_crypto_dataset"]["market_data_synthetic"]=False
+        source["native_crypto_dataset"]["sources"]=[{"product":p,"provider":"coinbase_exchange_public","response_checksum":"sha256:"+"bcde"*16,"frozen_source_checksum":"sha256:"+"cdef"*16} for p in ("BTC-USD","ETH-USD")]
+    book,shared,supplied,run,state,execution=native_ready(evidence,mutate=actual_provider_form,trigger="scheduled_hourly")
+    result=evidence.commit_paper_step(run["run_id"],1,book["paper_state"],[],{**execution,"transaction_cost":0.,"after_value":1000.},"2026-01-17T13:05:00Z")
+    assert result["native_input_ref"]["market_data_synthetic"] is False
+    assert result["input_snapshot_id"] is None
+
+
+def test_user_facing_decision_request_does_not_accept_native_identity_or_null_snapshot():
+    from pathlib import Path
+    import copy
+    from finplan_platform.core.contract_io import require_valid
+    original=json.loads((Path(__file__).parents[2]/"contracts/fixtures/api/create-portfolio-decision-request/valid/synthetic-lifecycle.json").read_text())
+    require_valid(original,"api/create-portfolio-decision-request")
+    altered=copy.deepcopy(original);altered["input_snapshot_id"]=None
+    with pytest.raises(PlatformError):require_valid(altered,"api/create-portfolio-decision-request")
+    altered=copy.deepcopy(original);altered["native_input_ref"]={"source_type":"platform_crypto_hourly"}
+    with pytest.raises(PlatformError):require_valid(altered,"api/create-portfolio-decision-request")
+
+
+def test_noop_cannot_mint_cash_or_positions(evidence):
+    book,supplied,run=ready(evidence)
+    evidence.finish_run(run["run_id"],{"status":"hold","target_weights":{"SPY":0.},"cash_weight":1.},AT)
+    for state in ({**book["paper_state"],"cash_balance":1001.},
+                  {**book["paper_state"],"positions":[{"instrument_id":"SPY","quantity":1.}]}):
+        with pytest.raises(PlatformError,match="without fills"):
+            evidence.commit_paper_step(run["run_id"],1,state,[],{},LATER)
+    assert evidence.get_portfolio(book["portfolio_id"])["revision"]==1

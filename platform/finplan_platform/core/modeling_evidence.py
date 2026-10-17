@@ -14,7 +14,7 @@ import hashlib
 import json
 import math
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo
 
@@ -354,6 +354,41 @@ class ModelingEvidence:
             raise PlatformError.not_permitted("automatic experiment path requires an isolated synthetic book")
         return {"portfolio_id": portfolio_id, "revision": rec.attrs["paper_state_revision"], "paper_state": copy.deepcopy(rec.attrs["paper_state"]), **settings}
 
+    def _native_input_identity(self, source, shared_ref, run, book):
+        """Verify an already captured native source; never manufacture a snapshot ID."""
+        native = source.get("native_crypto_dataset")
+        if not isinstance(native, dict) or not shared_ref:
+            raise PlatformError.precondition("paper ledger requires approved snapshot or captured supported native input")
+        require_valid(native, "api/crypto-dataset-response")
+        shared = self.repo.require("research_input", shared_ref["input_id"]).doc
+        if shared["kind"] != "shared_source" or shared["experiment_id"] != run["experiment_id"] or shared["checksum"] != shared_ref["checksum"]:
+            raise PlatformError.precondition("native source reference does not match immutable shared input")
+        universe = ["BTC-USD", "ETH-USD"]
+        if native["dataset_id"] != "coinbase-crypto-hourly-v1" or native["products"] != universe or source.get("investable_universe") != universe or book["universe"] != universe or native["granularity_seconds"] != 3600 or source.get("checksum") != native["dataset_checksum"]:
+            raise PlatformError.precondition("native crypto dataset identity, universe or frequency is incompatible")
+        as_of, available, cutoff, started = map(_timestamp, (native["as_of"], native["available_at"], shared["availability_cutoff"], run["started_at"]))
+        if not as_of <= available <= cutoff <= started or as_of != _timestamp(run["slot"]) or not 0 <= (cutoff-as_of).total_seconds() <= 1200:
+            raise PlatformError.precondition("native crypto input is stale, future available or mismatched to its slot")
+        controlled = source.get("trigger") == "controlled_replay"
+        if native["market_data_synthetic"] and not controlled:
+            raise PlatformError.precondition("synthetic native prices cannot be forward evidence")
+        if not controlled:
+            provenance = native["sources"]
+            if len(provenance) != 2 or {p.get("product") for p in provenance} != set(universe) or any(p.get("provider") != "coinbase_exchange_public" or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(p.get("response_checksum", ""))) or not re.fullmatch(r"sha256:[0-9a-f]{64}", str(p.get("frozen_source_checksum", ""))) for p in provenance):
+                raise PlatformError.precondition("native crypto provider provenance is unavailable")
+        original_times = None
+        for instrument in universe:
+            rows = native["bars"][instrument]
+            times = [_timestamp(row["start"]) for row in rows]
+            if any(t.minute or t.second or t.microsecond for t in times) or times[-1] + timedelta(hours=1) != as_of or any(b-a != timedelta(hours=1) for a,b in zip(times,times[1:])) or (original_times is not None and times != original_times):
+                raise PlatformError.precondition("native crypto source candles are unaligned or incomplete")
+            if any(not row["low"] <= min(row["open"], row["close"]) <= max(row["open"], row["close"]) <= row["high"] for row in rows):
+                raise PlatformError.precondition("native crypto source prices are inconsistent")
+            original_times = times
+        identity = {"input_id": shared["input_id"], "checksum": shared["checksum"], "source_type": "platform_crypto_hourly", "dataset_id": native["dataset_id"], "dataset_checksum": native["dataset_checksum"], "as_of": _slot(native["as_of"]), "available_at": _slot(native["available_at"]), "granularity_seconds": 3600, "universe": universe, "market_data_synthetic": native["market_data_synthetic"]}
+        require_valid(identity, "native-input-ref")
+        return identity
+
     def commit_paper_step(self, run_id: str, expected_revision: int, state: Mapping[str, Any], fills: list[dict[str, Any]], execution: Mapping[str, Any], recorded_at: str) -> dict[str, Any]:
         """Commit common-evaluator output, NEVER issue orders or touch the user's book.
 
@@ -377,6 +412,11 @@ class ModelingEvidence:
         cash = state.get("cash_balance")
         if isinstance(cash, bool) or not isinstance(cash, (int, float)) or not math.isfinite(cash) or cash < -1e-7:
             raise PlatformError.validation("paper cash must remain finite and nonnegative")
+        if not fills:
+            prior = {p["instrument_id"]: p["quantity"] for p in book["paper_state"]["positions"]}
+            proposed = {p["instrument_id"]: p["quantity"] for p in state["positions"]}
+            if not math.isclose(cash, book["paper_state"]["cash_balance"], rel_tol=1e-12, abs_tol=1e-7) or any(not math.isclose(prior.get(i, 0), proposed.get(i, 0), rel_tol=1e-12, abs_tol=1e-10) for i in prior.keys() | proposed.keys()) or execution.get("transaction_cost", 0) != 0:
+                raise PlatformError.validation("no-op paper step cannot change cash or positions without fills")
         if fills and (execution.get("market_session_valid") is not True or not execution.get("evaluator_version") or not execution.get("quote_provenance")):
             raise PlatformError.precondition("fills require validated session, evaluator and eligible quote provenance")
         if fills:
@@ -393,8 +433,8 @@ class ModelingEvidence:
         shared_ref = captured["metadata"].get("shared_source_ref")
         source = self.read_input(shared_ref["input_id"])["payload"] if shared_ref else captured["payload"]
         snapshot_id = source.get("input_snapshot_id")
-        if not snapshot_id:
-            raise PlatformError.precondition("paper ledger requires captured approved input snapshot identity")
+        native_ref = self._native_input_identity(source, shared_ref, old, book) if snapshot_id is None else None
+        native_fields = {"native_input_ref": native_ref} if native_ref is not None else {}
         outcome = json.loads(self.read_artifact_bytes(old["output_ref"]))
         targets = outcome.get("target_weights", {})
         if isinstance(targets, list):
@@ -406,14 +446,14 @@ class ModelingEvidence:
             quantity = fill["quantity"]
             price = fill.get("reference_price", fill.get("price"))
             public_fills.append({"instrument_id": fill.get("instrument_id", fill.get("symbol")), "side": fill.get("side", "buy" if quantity >= 0 else "sell"), "quantity": abs(quantity), "reference_price": price, "notional": abs(fill.get("notional", quantity * price)), "transaction_cost": fill.get("transaction_cost", fill.get("cost", fill.get("fee", 0) + fill.get("spread_cost", 0) + fill.get("slippage_cost", 0)))})
-        result = {"run_id": run_id, "input_id": old["input_id"], "decision_id": did, "portfolio_id": old["portfolio_id"], "before_revision": expected_revision, "after_revision": expected_revision + 1, "paper_state": dict(state), "simulated_fills": public_fills, "execution": dict(execution), "recorded_at": recorded_at, "status": "accepted", "execution_status": status, "action": "accept", "transaction_cost": execution.get("transaction_cost", 0), "paper_execution": True, "reference_date": numerical_execution["reference_date"], "reference_prices": numerical_execution["reference_prices"], "input_snapshot_id": snapshot_id, "synthetic": True, "contract_version": "1.12.0", "automatic_experiment_policy": True, "confirmed_by_user": False, "execution_mode": "automatic_isolated_experiment_common_evaluator", "caller": self._ctx(recorded_at).caller.audit_view()}
+        result = {"run_id": run_id, "input_id": old["input_id"], "decision_id": did, "portfolio_id": old["portfolio_id"], "before_revision": expected_revision, "after_revision": expected_revision + 1, "paper_state": dict(state), "simulated_fills": public_fills, "execution": dict(execution), "recorded_at": recorded_at, "status": "accepted", "execution_status": status, "action": "accept", "transaction_cost": execution.get("transaction_cost", 0), "paper_execution": True, "reference_date": numerical_execution["reference_date"], "reference_prices": numerical_execution["reference_prices"], "input_snapshot_id": snapshot_id, **native_fields, "synthetic": True, "contract_version": "1.13.0", "automatic_experiment_policy": True, "confirmed_by_user": False, "execution_mode": "automatic_isolated_experiment_common_evaluator", "caller": self._ctx(recorded_at).caller.audit_view()}
         require_valid(result, "api/resolve-portfolio-decision-response")
         ref = self._artifact("execution", run_id, result)
-        decision = {"decision_id": did, "portfolio_id": old["portfolio_id"], "run_id": run_id, "input_id": old["input_id"], "input_snapshot_id": snapshot_id, "algorithm_family": old.get("metadata", {}).get("family", "control"), "algorithm": old["approach_id"], "portfolio_revision": expected_revision, "status": "accepted", "created_at": old["started_at"], "recommendation": outcome, "provenance": {"experiment_id": old["experiment_id"], "run_id": run_id, "input_checksum": old["input_checksum"]}, "execution": numerical_execution, "synthetic": True, "contract_version": "1.12.0", "automatic_experiment_policy": True}
+        decision = {"decision_id": did, "portfolio_id": old["portfolio_id"], "run_id": run_id, "input_id": old["input_id"], "input_snapshot_id": snapshot_id, **native_fields, "algorithm_family": old.get("metadata", {}).get("family", "control"), "algorithm": old["approach_id"], "portfolio_revision": expected_revision, "status": "accepted", "created_at": old["started_at"], "recommendation": outcome, "provenance": {"experiment_id": old["experiment_id"], "run_id": run_id, "input_checksum": old["input_checksum"]}, "execution": numerical_execution, "synthetic": True, "contract_version": "1.13.0", "automatic_experiment_policy": True}
         require_valid({**decision, "checksum": ref["checksum"]}, "portfolio-decision")
         proposal = self._artifact("decisions", did, decision)
         history_id = f"{old['portfolio_id']}:{expected_revision + 1:020d}"
-        history = self._artifact("history", history_id + ":" + run_id, {"portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, "paper_state": dict(state), "recorded_at": recorded_at, "reason": "automatic_isolated_experiment", "decision_id": did, "run_id": run_id, "synthetic": True, "contract_version": "1.12.0"})
+        history = self._artifact("history", history_id + ":" + run_id, {"portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, "paper_state": dict(state), "recorded_at": recorded_at, "reason": "automatic_isolated_experiment", "decision_id": did, "run_id": run_id, "input_id": old["input_id"], "input_snapshot_id": snapshot_id, **native_fields, "automatic_experiment_policy": True, "synthetic": True, "contract_version": "1.13.0"})
         new = {**old, "status": status, "execution_ref": ref}
         # Issue day and execution day are independent. Publish an immutable event in
         # the SAME ledger transaction, pointing at the original verified receipt.
@@ -422,7 +462,7 @@ class ModelingEvidence:
         event_at = _slot(execution.get("execution_at", recorded_at))
         event_id = _id("mo", run_id, "paper_execution")
         execution_event = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": event_id, "kind": "paper_execution", "experiment_id": old["experiment_id"], "approach_id": old["approach_id"], "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision + 1, "run_id": run_id, "input_id": old["input_id"], "decision_id": did, "decision_slot": old["slot"], "slot": event_at, "observed_at": event_at, "recorded_at": recorded_at, "observed_key": _index_time(event_at) + "#" + event_id, "execution_ref": ref, **ref, **self._keys(old["experiment_id"], old["approach_id"], event_at, event_id)}
-        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]}), PutNew("portfolio_observation", doc=execution_event, contract_version="1.12.0")], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
+        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]}), PutNew("portfolio_observation", doc=execution_event, contract_version="1.13.0")], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
         return result
 
     def record_observation(self, experiment_id: str, approach_id: str, slot: str, portfolio_id: str, payload: Mapping[str, Any], observed_at: str, *, kind: str = "valuation") -> dict[str, Any]:

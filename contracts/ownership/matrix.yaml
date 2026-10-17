@@ -181,7 +181,7 @@ resources:
     decisions: [D1, D4]
 
   - id: contract-package
-    resource: Contract package (schemas, fixtures, validators, conformance suite, release-manifest schema, SSM convention)
+    resource: Contract package (schemas, fixtures, validators, conformance suite, release-manifest schema, SSM convention, immutable native experiment input identity)
     owner: financialplanning
     consumers: [financialplanning, financemodel, financelambdastool, financeagent]
     reference: Pinned package version plus digest

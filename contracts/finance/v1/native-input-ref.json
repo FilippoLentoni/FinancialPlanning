@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.finplan.invalid/finance/v1/native-input-ref.json",
+  "title": "native-input-ref",
+  "description": "Immutable native crypto input identity for isolated synthetic experiments; never an invented daily snapshot.",
+  "type": "object",
+  "properties": {
+    "input_id": {
+      "type": "string",
+      "pattern": "^mi_[0-9a-f]{64}$"
+    },
+    "checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "source_type": {
+      "const": "platform_crypto_hourly"
+    },
+    "dataset_id": {
+      "const": "coinbase-crypto-hourly-v1"
+    },
+    "dataset_checksum": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/checksum"
+    },
+    "as_of": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "available_at": {
+      "$ref": "https://contracts.finplan.invalid/core/v1/common.json#/$defs/timestamp"
+    },
+    "granularity_seconds": {
+      "const": 3600
+    },
+    "universe": {
+      "const": [
+        "BTC-USD",
+        "ETH-USD"
+      ]
+    },
+    "market_data_synthetic": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "input_id",
+    "checksum",
+    "source_type",
+    "dataset_id",
+    "dataset_checksum",
+    "as_of",
+    "available_at",
+    "granularity_seconds",
+    "universe",
+    "market_data_synthetic"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "source_identity": {
+      "if": {
+        "required": [
+          "native_input_ref"
+        ]
+      },
+      "then": {
+        "properties": {
+          "input_snapshot_id": {
+            "type": "null"
+          },
+          "automatic_experiment_policy": {
+            "const": true
+          },
+          "synthetic": {
+            "const": true
+          }
+        },
+        "required": [
+          "input_snapshot_id",
+          "automatic_experiment_policy",
+          "synthetic",
+          "run_id",
+          "input_id"
+        ]
+      },
+      "else": {
+        "properties": {
+          "input_snapshot_id": {
+            "$ref": "https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"
+          }
+        }
+      }
+    }
+  }
+}

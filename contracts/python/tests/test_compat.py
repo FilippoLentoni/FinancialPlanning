@@ -141,3 +141,30 @@ def test_cli(capsys):
     assert compat.main(["--first-release"]) == 0
     with pytest.raises(SystemExit):
         compat.main([])
+
+
+def test_literal_retained_schema_union_is_additive():
+    old={"$ref":"https://contracts.finplan.invalid/core/v1/identifiers.json#/$defs/input_snapshot_id"}
+    new={"anyOf":[old,{"type":"null"}]}
+    assert {c.kind for c in diff_schema("example",old,new)}=={ADDITIVE}
+    assert BREAKING in {c.kind for c in diff_schema("example",old,{"anyOf":[{"type":"null"}]})}
+
+
+def test_optional_new_discriminator_constraint_is_proven_additive_only_for_old_closed_objects():
+    import copy
+    old={"type":"object","properties":{"input_snapshot_id":{"type":"string"}},"required":["input_snapshot_id"],"additionalProperties":False}
+    rule={"if":{"required":["native_input_ref"]},"then":{"properties":{"input_snapshot_id":{"type":"null"}},"required":["native_input_ref"]},"else":{"properties":{"input_snapshot_id":old["properties"]["input_snapshot_id"]}}}
+    new=copy.deepcopy(old);new["properties"]["native_input_ref"]={"type":"object"};new["allOf"]=[rule]
+    assert {c.kind for c in diff_schema("example",old,new)}=={ADDITIVE}
+    # Old documents could have carried the discriminator in an open object.
+    opened=copy.deepcopy(old);opened["additionalProperties"]=True
+    assert BREAKING in {c.kind for c in diff_schema("example",opened,new)}
+    existing=copy.deepcopy(new);existing["allOf"][0]["if"]={"required":["input_snapshot_id"]}
+    assert BREAKING in {c.kind for c in diff_schema("example",old,existing)}
+    narrowed=copy.deepcopy(new);narrowed["allOf"][0]["else"]["properties"]["input_snapshot_id"]={"type":"string","minLength":10}
+    assert BREAKING in {c.kind for c in diff_schema("example",old,narrowed)}
+    required=copy.deepcopy(new);required["required"].append("native_input_ref")
+    assert BREAKING in {c.kind for c in diff_schema("example",old,required)}
+    prior_conditional=copy.deepcopy(old);prior_conditional["allOf"]=[{"properties":{"input_snapshot_id":{"minLength":1}}}]
+    appended=copy.deepcopy(new);appended["allOf"]=prior_conditional["allOf"]+[rule]
+    assert {c.kind for c in diff_schema("example",prior_conditional,appended)}=={ADDITIVE}
