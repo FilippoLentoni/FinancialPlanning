@@ -297,7 +297,7 @@ class ModelingEvidence:
         actual = self.repo.require("portfolio_observation", payload.get("observation_id", "")).doc
         actual_payload = json.loads(self.read_artifact_bytes(actual))
         target = forecast.get("target_at", forecast.get("target_timestamp"))
-        if actual["portfolio_id"] != record.doc["portfolio_id"] or actual_payload.get("observation_kind") != "valid" or actual_payload.get("quote_status") != "fresh" or _timestamp(actual_payload["observed_at"]) < _timestamp(target):
+        if actual["portfolio_id"] != record.doc["portfolio_id"] or actual_payload.get("observation_kind") != "valid" or actual_payload.get("quote_status") != "fresh" or _timestamp(actual_payload["observed_at"]) < _timestamp(target) or _timestamp(actual_payload.get("value_as_of", actual_payload["observed_at"])) < _timestamp(target) or _timestamp(actual_payload.get("value_as_of", actual_payload["observed_at"])) > _timestamp(actual_payload["observed_at"]):
             raise PlatformError.validation("forecast match requires a valid fresh post-horizon book observation")
         realized = actual_payload["value"]
         flows = actual_payload.get("net_external_cash_flows_since_decision", 0)
