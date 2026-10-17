@@ -129,6 +129,7 @@ class StorageStack(PlatformStack):
                 account_root=account_root,
                 arn_for=role_arn_pattern,
                 consumers=consumers,
+                dev_desktop_roles=cfg.dev_desktop_role_names,
             ):
                 bucket.add_to_resource_policy(iam.PolicyStatement.from_json(stmt))
             # BucketPolicy is not taggable and references both the bucket and the key, so the

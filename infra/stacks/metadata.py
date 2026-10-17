@@ -53,7 +53,7 @@ class MetadataStack(PlatformStack):
             account_policy = iam.PolicyDocument(
                 statements=[
                     iam.PolicyStatement.from_json(s)
-                    for s in table_policy_statements(env=env, logical=logical, table_arn=f"arn:{partition}:dynamodb:{region}:{account}:table/{name}", arn_for=role_arn_pattern)
+                    for s in table_policy_statements(env=env, logical=logical, table_arn=f"arn:{partition}:dynamodb:{region}:{account}:table/{name}", arn_for=role_arn_pattern, dev_desktop_roles=cfg.dev_desktop_role_names)
                 ]
             )
             table = dynamodb.Table(

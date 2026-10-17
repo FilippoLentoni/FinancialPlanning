@@ -419,6 +419,8 @@ def resolve_role_class(principal_arn: str, cfg: Any) -> str | None:
     name = role_name_of(principal_arn)
     if not name:
         return None
+    if name in cfg.dev_desktop_role_names:
+        return "operator"
     patterns = {cls: cfg.principal_pattern(key) for cls, key in CONSUMER_CONFIG_KEYS.items()}
     for cls in ("website", "operator"):
         if fnmatch.fnmatchcase(name, patterns[cls]):

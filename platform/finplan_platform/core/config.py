@@ -99,6 +99,11 @@ ENV_CONFIG_SCHEMA: dict[str, Any] = {
         "$comment": {"type": "string"},
         "environment": {"enum": list(ENVIRONMENTS)},
         "region": {"type": "string", "pattern": "^[a-z]{2}(-gov)?-[a-z]+-[0-9]$"},
+        "dev_desktop_access": {
+            "type": "object", "additionalProperties": False, "required": ["role_names"],
+            "properties": {"role_names": {"type": "array", "uniqueItems": True,
+                "items": {"type": "string", "pattern": "^[A-Za-z0-9_+=,.@-]{1,64}$"}}},
+        },
         "phase": {"enum": [1, 2]},
         "ingest": {
             "type": "object",
@@ -316,6 +321,9 @@ def validate_config(doc: Any, *, env: str | None = None) -> list[ConfigProblem]:
     environment = doc.get("environment")
     if env is not None and environment != env:
         problems.append(ConfigProblem("/environment", f"file for {env!r} declares environment {environment!r}"))
+    access = doc.get("dev_desktop_access")
+    if environment != "beta" and isinstance(access, dict) and access.get("role_names"):
+        problems.append(ConfigProblem("/dev_desktop_access", "operator exceptions are beta-only"))
     phase = doc.get("phase")
     ingest = doc.get("ingest") if isinstance(doc.get("ingest"), dict) else {}
     provider = ingest.get("provider")
@@ -447,6 +455,11 @@ class EnvConfig:
     @property
     def env(self) -> str:
         return str(self.data["environment"])
+
+    @property
+    def dev_desktop_role_names(self) -> tuple[str, ...]:
+        """Exact operator role names, never enabled outside beta."""
+        return tuple(self.data.get("dev_desktop_access", {}).get("role_names", ())) if self.env == "beta" else ()
 
     @property
     def region(self) -> str:

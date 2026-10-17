@@ -102,7 +102,8 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
         statements.append({"Sid": "DenyNewsPublisherOtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE,
             "NotResource": ["execute-api:/*/POST/v1/research-news", "execute-api:/*/GET/v1/research-news/latest"],
             "Condition": {"ArnLike": {"aws:PrincipalArn": arn_for(f"finplan-{env}-financialplanning-research-news-publisher")}}})
-    allowed_patterns = [platform]
+    operators = [arn_for(name) for name in cfg.dev_desktop_role_names]
+    allowed_patterns = [platform, *operators]
     routes = tuple(r for r in ROUTES if cfg.env == "beta" or r.operation not in BETA_LIFECYCLE_OPERATIONS)
     for cls in CONSUMER_CLASSES:
         pattern = arn_for(cfg.principal_pattern(CONSUMER_CONFIG_KEYS[cls]))

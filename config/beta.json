@@ -1,6 +1,7 @@
 {
   "$comment": "Beta retains linked financial evidence for longitudinal paper-portfolio review. Staging uploads remain short-lived.",
   "environment": "beta",
+  "dev_desktop_access": {"role_names": ["finplan-devdesktop"]},
   "region": "us-east-2",
   "phase": 2,
   "ingest": {

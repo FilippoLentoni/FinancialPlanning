@@ -110,6 +110,7 @@ def bucket_policy_statements(
     account_root: str,
     arn_for: ArnFor,
     consumers: Mapping[str, str],
+    dev_desktop_roles: Iterable[str] = (),
 ) -> list[dict]:
     """All bucket policy statements for one bucket.
 
@@ -127,7 +128,8 @@ def bucket_policy_statements(
     sweeper = arn_for(_role(env, "metadata-sweeper"))
     importer = arn_for(_role(env, "plan-api-handler"))
 
-    allowed = [platform, operator]
+    operators = [arn_for(name) for name in dev_desktop_roles] if env == "beta" else []
+    allowed = [platform, operator, *operators]
     if role in ("snapshots", "outputs"):
         allowed.append(fm_job)
 
@@ -262,14 +264,15 @@ def bucket_policy_statements(
                 "Principal": "*",
                 "Action": "s3:GetObject*",
                 "Resource": f"{bucket_arn}/uploads/*",
-                "Condition": {"ArnNotLike": {"aws:PrincipalArn": [importer, operator]}},
+                "Condition": {"ArnNotLike": {"aws:PrincipalArn": [importer, operator, *operators]}},
             }
         )
     return st
 
 
-def table_policy_statements(*, env: str, logical: str, table_arn: str, arn_for: ArnFor) -> list[dict]:
+def table_policy_statements(*, env: str, logical: str, table_arn: str, arn_for: ArnFor, dev_desktop_roles: Iterable[str] = ()) -> list[dict]:
     """Resource policy statements for one metadata table (plus its indexes)."""
+    operators = [arn_for(name) for name in dev_desktop_roles] if env == "beta" else []
     resources = [table_arn, f"{table_arn}/index/*"]
     st: list[dict] = [
         {
@@ -278,7 +281,7 @@ def table_policy_statements(*, env: str, logical: str, table_arn: str, arn_for: 
             "Principal": "*",
             "Action": list(DYNAMODB_DATA_ACTIONS),
             "Resource": resources,
-            "Condition": {"ArnNotLike": {"aws:PrincipalArn": [arn_for(_platform(env))]}},
+            "Condition": {"ArnNotLike": {"aws:PrincipalArn": [arn_for(_platform(env)), *operators]}},
         }
     ]
     if logical in ("audit_event", "portfolio_history", "activity_event"):
