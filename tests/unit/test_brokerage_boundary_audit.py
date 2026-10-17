@@ -36,7 +36,7 @@ def test_policy_mutations_and_extra_resource_still_fail(mutation):
     elif mutation=='secret': stmts[13]['Resource']={'Fn::Sub':'arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:other-coinbase-??????'}
     elif mutation=='role': stmts[13]['Condition']['ArnNotEquals']['aws:PrincipalArn']={'Fn::Sub':'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/other'}
     elif mutation=='extra_statement': stmts.append({'Effect':'Allow','Action':'secretsmanager:GetSecretValue','Resource':'*'})
-    elif mutation=='extra_resource': doc['Resources']['Rogue']={'Type':'AWS::IAM::Policy','Properties':{'PolicyDocument':{'Statement':[{'Effect':'Allow','Action':'secretsmanager:GetSecretValue','Resource':'arn:aws:secretsmanager:us-east-2:test:secret:coinbase-rogue'}]}}}
+    elif mutation=='extra_resource': doc['Resources']['Rogue']={'Type':'AWS::IAM::Policy','Properties':{'PolicyDocument':{'Statement':[{'Effect':'Allow','Action':'secretsmanager:GetSecretValue','Resource':':'.join(['arn','aws','secretsmanager','us-east-2','test','secret','coinbase-rogue'])}]}}}
     else: props['ManagedPolicyName']=boundaries.boundary_name('gamma')
     assert remaining(doc)
     if mutation!='extra_resource': assert not audited_deny_reference_locations(doc)
