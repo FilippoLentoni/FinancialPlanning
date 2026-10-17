@@ -243,3 +243,6 @@ session ends. Its persisted `market_session.status=completed`, actual session da
 and provider/source proof count as an observed session and retain the true close in
 comparison windows. `market_open` remains false; the reporting path does not create
 fills. Old `carried_closed` quotes remain stale and never become closing marks.
+Forecast alignment also requires persisted `value_as_of` at/after the target:
+a 17:05 retrieval of an actual 16:00 close cannot realize a 16:30 forecast. Older
+observations without this field retain their original `observed_at` alignment rule.

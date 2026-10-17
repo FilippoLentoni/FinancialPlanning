@@ -245,7 +245,8 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
             row.update(outcome_status="pending", realized_value=None, next_eligible_observation=forecast["target_at"])
         else:
             eligible = [o for o in observations if o.get("portfolio_id") == forecast.get("portfolio_id") and _valid(o)
-                        and timestamp(forecast["target_at"]) <= timestamp(o["observed_at"]) <= timestamp(cutoff)]
+                        and timestamp(forecast["target_at"]) <= timestamp(o["observed_at"]) <= timestamp(cutoff)
+                        and timestamp(o.get("value_as_of") or o["observed_at"]) >= timestamp(forecast["target_at"])]
             eligible.sort(key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
             if eligible:
                 matched = eligible[0]
@@ -254,7 +255,7 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
                 error = adjusted - float(forecast["expected_value"])
                 row.update(outcome_status="matched", realized_value=_value(matched), flow_adjusted_realized_value=adjusted, net_external_cash_flows=flows, signed_error=error,
                            absolute_error=abs(error), matched_observation_id=matched["observation_id"],
-                           observed_at=matched["observed_at"], quote_provenance=matched.get("quote_provenance"))
+                           observed_at=matched["observed_at"], value_as_of=matched.get("value_as_of", matched["observed_at"]), quote_provenance=matched.get("quote_provenance"))
             else:
                 row.update(outcome_status="pending_market_data", realized_value=None, next_eligible_observation=forecast["target_at"])
         results.append(row)

@@ -488,3 +488,18 @@ def test_actual_fresh_close_is_a_session_valuation_without_off_session_fills():
                       start_day=DAY, generated_at=DAY+'T17:00:00+00:00', mode='controlled_replay')
     assert all(b['valid_valuations'] == 2 and b['window_end'] == T1 for b in stale['leaderboard'])
     assert all(b['fills'] == 0 for b in stale['leaderboard'])
+
+
+def test_after_close_collection_does_not_realize_a_later_than_close_forecast():
+    forecasts = [{'forecast_id': 'close-horizon', 'portfolio_id': 'book_rule',
+                  'target_at': DAY+'T16:30:00+00:00', 'expected_value': 102}]
+    closing = {'observation_id': 'close', 'portfolio_id': 'book_rule', 'value': 101,
+               'status': 'valued', 'quote_status': 'fresh_close',
+               'observed_at': DAY+'T17:05:00+00:00', 'value_as_of': T2}
+    cutoff = DAY+'T18:00:00+00:00'
+    assert forecast_metrics(forecasts, [closing], cutoff)[0]['outcome_status'] == 'pending_market_data'
+    later = dict(closing, observation_id='later', observed_at=cutoff, value_as_of=cutoff, value=103)
+    matched = forecast_metrics(forecasts, [closing, later], cutoff)[0]
+    assert matched['matched_observation_id'] == 'later' and matched['signed_error'] == 1
+    assert matched['value_as_of'] == cutoff
+    assert forecasts[0]['expected_value'] == 102
