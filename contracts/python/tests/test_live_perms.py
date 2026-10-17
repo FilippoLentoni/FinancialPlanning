@@ -8,6 +8,33 @@ import pytest
 from finplan_contracts import live_perms
 from finplan_contracts.live_perms import is_live_action, scan_document, scan_file, scan_paths
 
+
+def _brokerage_reader_template():
+    return {'Resources':{'ReadRole':{'Type':'AWS::IAM::Role','Properties':{
+        'RoleName':'finplan-beta-financeagent-brokerage-read-role',
+        'Tags':[{'Key':k,'Value':v} for k,v in {'project':'finplan','environment':'beta','owner-repo':'financeagent','logical-role':'brokerage-read-lambda'}.items()],
+        'Policies':[{'PolicyDocument':{'Statement':[{'Effect':'Allow','Action':['secretsmanager:GetSecretValue'],'Resource':{'Fn::Join':['',['arn:',{'Ref':'AWS::Partition'},':secretsmanager:',{'Ref':'AWS::Region'},':',{'Ref':'AWS::AccountId'},':secret:finplan/beta/financeagent/coinbase-brokerage-readonly-??????']]}}]}}]
+    }}}}
+
+
+def test_exact_beta_brokerage_reader_can_read_its_dedicated_secret():
+    doc=_brokerage_reader_template()
+    doc['Resources']['Gateway']={'Type':'AWS::BedrockAgentCore::Gateway','Properties':{'Tags':{'environment':'beta'}}}
+    assert scan_document(doc)==[]
+
+
+def test_brokerage_exception_rejects_role_action_secret_and_environment_mutations():
+    import copy
+    original=_brokerage_reader_template()
+    for mutation in ('role','action','secret','environment','wildcard_suffix'):
+        doc=copy.deepcopy(original);p=doc['Resources']['ReadRole']['Properties'];st=p['Policies'][0]['PolicyDocument']['Statement'][0]
+        if mutation=='role':p['RoleName']='finplan-beta-financeagent-runtime-role'
+        if mutation=='action':st['Action']=['secretsmanager:GetSecretValue','secretsmanager:PutSecretValue']
+        if mutation=='secret':st['Resource']['Fn::Join'][1][-1]=':secret:finplan/beta/financeagent/coinbase-brokerage-trading-??????'
+        if mutation=='environment':p['Tags'][1]['Value']='prod'
+        if mutation=='wildcard_suffix':st['Resource']['Fn::Join'][1][-1]=':secret:finplan/beta/financeagent/coinbase-brokerage-readonly-*'
+        assert any(f.rule=='live-secret' for f in scan_document(doc)),mutation
+
 POLICIES = Path(__file__).parent / "fixtures" / "policies"
 PASSING = sorted(POLICIES.glob("pass-*"))
 FAILING = {

@@ -22,6 +22,16 @@ def test_create_synthetic_portfolio_mints_id_with_revision_1(clients: Any) -> No
     assert validate(body, "portfolio").valid
 
 
+def test_model_reads_profile_metadata_without_state_write_permission(clients: Any) -> None:
+    _, created, _=clients.operator.post('/v1/portfolios',{'name':'Research profile','base_currency':'USD','synthetic':True,'idempotency_key':'profile-read','settings':{'paper_research_profile':{'instruments':['VOO','GOOGL']}}})
+    path=f"/v1/portfolios/{created['portfolio_id']}"
+    model=clients.as_principal(PRINCIPALS['fm_job_api'])
+    code, body, _=model.get(path)
+    assert code==200 and body['settings']['paper_research_profile']['instruments']==['VOO','GOOGL']
+    code, _, _=model.call('PUT',path+'/state',{})
+    assert code==403
+
+
 def test_non_synthetic_portfolio_is_not_permitted_and_writes_nothing(clients: Any, ddb: Any) -> None:
     code, body, _ = clients.website.post("/v1/portfolios", {"name": "Real", "base_currency": "USD", "synthetic": False, "idempotency_key": "pf-2"})
     assert code == 403 and body["code"] == "OPERATION_NOT_PERMITTED"

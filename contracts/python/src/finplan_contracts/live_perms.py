@@ -172,8 +172,32 @@ def _is_denied(action: str, denied: list[str]) -> bool:
     return any(fnmatch.fnmatchcase(action.lower(), d) for d in denied)
 
 
+def _readonly_brokerage_resources(doc: Any) -> set[str]:
+    """Exact beta-only credential-read exception, not a financial-secret keyword bypass.
+
+    Only the registered Lambda role's literal GetSecretValue statement can qualify.
+    Keep this alongside ownership metadata and negative mutation tests.
+    """
+    allowed=set()
+    if not isinstance(doc,dict):return allowed
+    for lid,resource in doc.get('Resources',{}).items():
+        if not isinstance(resource,dict) or resource.get('Type')!='AWS::IAM::Role':continue
+        props=resource.get('Properties',{})
+        tags={t.get('Key'):t.get('Value') for t in props.get('Tags',[]) if isinstance(t,dict)}
+        if props.get('RoleName')!='finplan-beta-financeagent-brokerage-read-role':continue
+        if any(tags.get(k)!=v for k,v in {'project':'finplan','environment':'beta','owner-repo':'financeagent','logical-role':'brokerage-read-lambda'}.items()):continue
+        for pi,policy in enumerate(props.get('Policies',[])):
+            for si,st in enumerate(policy.get('PolicyDocument',{}).get('Statement',[])):
+                if st.get('Effect')!='Allow' or _as_list(st.get('Action'))!=['secretsmanager:GetSecretValue'] or 'NotResource' in st or 'NotAction' in st:continue
+                exact={'Fn::Join':['',['arn:',{'Ref':'AWS::Partition'},':secretsmanager:',{'Ref':'AWS::Region'},':',{'Ref':'AWS::AccountId'},':secret:finplan/beta/financeagent/coinbase-brokerage-readonly-??????']]}
+                if _as_list(st.get('Resource'))==[exact]:
+                    allowed.add(f'/Resources/{lid}/Properties/Policies/{pi}/PolicyDocument/Statement/{si}/Resource')
+    return allowed
+
+
 def scan_document(doc: Any, name: str = "<document>") -> list[LivePermFinding]:
     findings: list[LivePermFinding] = []
+    readonly_resources=_readonly_brokerage_resources(doc)
     for ppath, policy in iter_policies(doc):
         denied = _denied_patterns(policy)
         for i, st in enumerate(_as_list(policy.get("Statement"))):
@@ -211,6 +235,8 @@ def scan_document(doc: Any, name: str = "<document>") -> list[LivePermFinding]:
                     findings.append(LivePermFinding("live-secret", name, f"/Resources/{lid}", f"declares a live-financial credential secret ({kw})"))
     seen = {(f.location, f.rule) for f in findings}
     for spath, s in _strings(doc):
+        if any(spath==prefix or spath.startswith(prefix+'/') for prefix in readonly_resources):
+            continue
         for m in _SECRET_REF.finditer(s):
             kw = _live_secret_keyword(m.group(0))
             if kw and not any(spath.startswith(loc.split(" ")[0]) and rule == "live-secret" for loc, rule in seen):

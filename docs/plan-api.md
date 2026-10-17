@@ -71,7 +71,7 @@ result.
 |---|---|---|---|---|---|
 | `GET /v1/crypto-research/latest` | get_crypto_dataset (beta only) | none | `api/crypto-dataset-response` | no | no |
 | `POST /v1/portfolios` | create synthetic portfolio | `api/create-portfolio-request` | `api/create-portfolio-response` | required | n/a |
-| `GET /v1/portfolios/{portfolio_id}` | portfolio read | path | `portfolio` | n/a | n/a |
+| `GET /v1/portfolios/{portfolio_id}` | portfolio read, including model API profile metadata | path | `portfolio` | n/a | n/a |
 | `POST /v1/portfolios/{portfolio_id}/decisions` | beta issued recommendation capture | `api/create-portfolio-decision-request` | `api/portfolio-decision-response` | required | saved holdings revision |
 | `GET /v1/portfolios/{portfolio_id}/decisions` | beta issued decision history | path/query | `api/list-portfolio-decisions-response` | n/a | n/a |
 | `GET /v1/portfolio-decisions/{decision_id}` | beta decision evidence | path | `api/portfolio-decision-response` | n/a | n/a |

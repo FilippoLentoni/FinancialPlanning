@@ -781,3 +781,7 @@ BLOCKER stop the named step until resolved.
 | OQ-13 | Which Bedrock model (or inference profile) in us-east-2 is the explanation model, and is model access enabled? | None (model-access enablement is a bootstrap step) | **RESOLVED 2026-10-07:** Claude Opus 5 via the US cross-region inference profile `us.anthropic.claude-opus-5` (verified ACTIVE in us-east-2, read-only), stored in `/finplan/<env>/financeagent/config/explanation-model-id`; cheaper model allowed in beta/gamma via the same key; cost controls and IAM in FinanceAgent; model access for Opus 5 enabled at bootstrap (D12) | Fixture provider in CI and until model access is enabled |
 
 Still open: OQ-6, OQ-8, OQ-9, OQ-10 and OQ-12.
+
+## Contract 1.9.0: beta research readiness
+
+Registers the Agent-owned read-only brokerage Lambda and Gateway. ENV-05 permits only its dedicated beta role, exact credential reference and GetSecretValue action; mutation tests retain rejection of broader roles, environments, secret names and write actions. Portfolio metadata GET admits the model API to honor isolated paper-profile universes; operator-only state writes remain unchanged.

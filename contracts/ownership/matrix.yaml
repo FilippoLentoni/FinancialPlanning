@@ -676,6 +676,26 @@ resources:
     logical_roles: [deploy-role, pipeline-role]
     decisions: [D1, D5, D6]
 
+  - id: financeagent-brokerage-read-lambda
+    resource: Dedicated beta-only View-only brokerage readiness Lambda and its scoped role/logs
+    owner: financeagent
+    consumers: [financeagent]
+    reference: Agent-owned brokerage Gateway target; no runtime credential access
+    scope: environment
+    resource_types: [AWS::Lambda::Function, AWS::Lambda::Permission, AWS::Logs::LogGroup, AWS::IAM::Role]
+    logical_roles: [brokerage-read-lambda]
+    decisions: [D1, D5]
+
+  - id: financeagent-brokerage-read-gateway
+    resource: Dedicated beta-only authenticated read-only brokerage Gateway and invoke role
+    owner: financeagent
+    consumers: [financeagent]
+    reference: Runtime environment and CloudFormation BrokerageGatewayUrl output
+    scope: environment
+    resource_types: [AWS::BedrockAgentCore::Gateway, AWS::BedrockAgentCore::GatewayTarget, AWS::IAM::Role]
+    logical_roles: [brokerage-read-gateway]
+    decisions: [D1, D5]
+
 # Account-level (`shared`) resources allowed by the environment-promotion spec ("Account-level shared
 # resources"): pipeline tooling, the project budget and its action, the contract registry, immutable
 # digest-addressed image repositories, and pre-existing third-party credential secrets referenced by name.
