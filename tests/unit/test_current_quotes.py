@@ -51,3 +51,16 @@ def test_actual_corporate_action_payload_is_retained_without_inventing_pay_date(
 def test_invalid_provider_identity_and_order_are_rejected(changes):
     with pytest.raises(ValueError):
         decode_quote("AAPL", raw(**changes), retrieved_at="1970-01-01T00:25:00Z")
+
+
+def test_actual_final_minute_remains_valid_close_without_offsession_fill_permission():
+    data = raw(timestamp=[1100,4940])
+    quote = decode_quote("AAPL", data, retrieved_at="1970-01-01T01:30:00Z")
+    assert quote["status"] == "fresh_close" and quote["market_open"] is False
+    assert quote["quoted_at"] == "1970-01-01T01:23:20Z"
+    assert quote["market_session"]["status"] == "completed"
+    # A partial final minute and an old close cannot be called the fresh close.
+    partial = decode_quote("AAPL", raw(timestamp=[1100,4930]), retrieved_at="1970-01-01T01:30:00Z")
+    assert partial["status"] == "carried_forward_closed_market"
+    old = decode_quote("AAPL", data, retrieved_at="1970-01-02T01:30:00Z")
+    assert old["status"] == "carried_forward_closed_market"

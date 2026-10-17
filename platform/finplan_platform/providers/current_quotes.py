@@ -15,6 +15,7 @@ import math
 import re
 import urllib.parse
 import urllib.request
+from zoneinfo import ZoneInfo
 
 
 def _stamp(at):
@@ -68,13 +69,21 @@ def decode_quote(symbol, raw, *, retrieved_at, cutoff=None, freshness_seconds=54
     regular_start, regular_end = period.get("start"), period.get("end")
     market_open = bool(regular_start and regular_end and regular_start <= eligible.timestamp() < regular_end)
     age = (eligible - quoted).total_seconds()
-    status = "fresh" if market_open and age <= freshness_seconds else "stale" if market_open else "carried_forward_closed_market"
+    completed_close = bool(not market_open and regular_start and regular_end
+                           and quoted.timestamp() == regular_end and retrieved.timestamp() >= regular_end
+                           and 0 <= age <= freshness_seconds)
+    status = "fresh" if market_open and age <= freshness_seconds else "stale" if market_open else "fresh_close" if completed_close else "carried_forward_closed_market"
     return {"instrument_id": symbol, "price": float(price), "currency": "USD", "quoted_at": _stamp(quoted),
             "retrieved_at": retrieved_at, "available_at": retrieved_at, "status": status,
             "bar_started_at": _stamp(datetime.fromtimestamp(timestamp, UTC)), "bar_ended_at": _stamp(quoted),
             "open": numeric_column("open"), "high": numeric_column("high"), "low": numeric_column("low"),
             "volume": numeric_column("volume"), "volume_units": "shares_during_actual_minute_bar",
             "freshness_seconds": age, "freshness_limit_seconds": freshness_seconds, "market_open": market_open,
+            "market_session": {"status": "completed" if completed_close else "open" if market_open else "closed",
+                "session_date": datetime.fromtimestamp(regular_start, UTC).astimezone(ZoneInfo("America/New_York")).date().isoformat() if regular_start else None,
+                "source": {"provider": "Yahoo Finance currentTradingPeriod regular; original response checksum",
+                           "checksum": "sha256:" + hashlib.sha256(raw).hexdigest(),
+                           "basis": "actual completed final minute at provider-declared regular session end" if completed_close else "provider-declared current session window"}},
             "provider": "Yahoo Finance public chart", "frequency": "1m", "price_basis": "unadjusted_last_completed_minute_close",
             "usage": "valuation_only_not_daily_model_input_or_execution_fill", "source_response_checksum": "sha256:" + hashlib.sha256(raw).hexdigest(),
             "regular_session": {"start": _stamp(datetime.fromtimestamp(regular_start, UTC)) if regular_start else None,
