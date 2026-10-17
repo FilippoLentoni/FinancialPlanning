@@ -458,6 +458,26 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             for aid in known:
                 if (aid, slot) not in slots and not any(m["approach_id"] == aid and m["scheduled_slot"] == slot for m in missing):
                     missing.append({"approach_id": aid, "scheduled_slot": slot, "status": "missing_slot"})
+    for run in runs:
+        before = sorted([o for o in observations if o["portfolio_id"] == run["portfolio_id"] and _valid(o)
+                         and timestamp(o["observed_at"]) <= timestamp(run["decision_time"])
+                         and timestamp(o["observed_at"]).astimezone(EASTERN).date() == timestamp(run["decision_time"]).astimezone(EASTERN).date()],
+                        key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
+        run.update(portfolio_value_at_decision=None, daily_pnl=None, daily_return=None,
+                   opening_valuation_id=None, valuation_id=None)
+        if before:
+            opening, current = before[0], before[-1]
+            flows = sum(float(o.get("external_cash_flow", 0)) for o in before[1:])
+            pnl = _value(current) - _value(opening) - flows
+            run.update(portfolio_value_at_decision=_value(current), daily_pnl=pnl,
+                       daily_return=current.get("time_weighted_return") if flows else (pnl/_value(opening) if _value(opening) else None),
+                       opening_valuation_id=opening["observation_id"], valuation_id=current["observation_id"])
+        forecast = next((f for f in forecasts if f["run_id"] == run["run_id"]), None)
+        run.update(forecast_outcome=forecast, expected_value=forecast.get("expected_value") if forecast else None,
+                   forecast_target=forecast.get("target_at") if forecast else None,
+                   forecast_status=forecast.get("outcome_status") if forecast else "unavailable",
+                   realized_value=forecast.get("realized_value") if forecast else None,
+                   signed_error=forecast.get("signed_error") if forecast else None)
     leaderboard = summarize(registry, runs, observations, forecasts)
     for missing_row in missing:
         book = next(b for b in leaderboard if b["approach_id"] == missing_row["approach_id"])
@@ -546,7 +566,7 @@ def consolidate(reports: list[dict]) -> dict:
 
 def csv_export(report: dict) -> str:
     stream = io.StringIO(newline="")
-    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "evidence_error"]
+    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
     writer = csv.DictWriter(stream, fields, extrasaction="ignore")
     writer.writeheader()
     for run in report["runs"]:

@@ -346,3 +346,18 @@ def test_forecast_errors_exclude_external_flows_and_historical_report_uses_durab
     revised = aggregate(reader, experiment_id="test", registry=registry(), start_day=DAY, generated_at=later, mode="controlled_replay")
     assert revised["forecasts"][0]["matched_observation_id"] == "later_obs"
     assert revised["forecasts"][0]["expected_value"] == 101
+
+
+def test_decision_rows_and_csv_include_reconciled_daily_values_and_forecast_outcomes():
+    import csv
+    import io
+    reader = Reader()
+    reader.runs[2]["forecast"] = {"forecast_id": "forecast", "target_at": T1, "expected_value": 100.5, "baseline_value": 100, "units": "USD"}
+    result = report(reader)
+    row = next(r for r in result["runs"] if r["run_id"] == "run_rule_1")
+    assert row["portfolio_value_at_decision"] == 101 and row["daily_pnl"] == 1 and row["daily_return"] == .01
+    assert row["valuation_id"] == "obs_rule_1" and row["opening_valuation_id"] == "obs_rule_0"
+    exported = list(csv.DictReader(io.StringIO(csv_export(result))))
+    forecast_row = next(r for r in exported if r["run_id"] == "run_rule_0")
+    assert forecast_row["expected_value"] == "100.5"
+    assert forecast_row["realized_value"] == "101.0" and forecast_row["signed_error"] == "0.5" and forecast_row["forecast_status"] == "matched"
