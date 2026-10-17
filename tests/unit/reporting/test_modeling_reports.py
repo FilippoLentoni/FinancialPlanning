@@ -503,3 +503,82 @@ def test_after_close_collection_does_not_realize_a_later_than_close_forecast():
     assert matched['matched_observation_id'] == 'later' and matched['signed_error'] == 1
     assert matched['value_as_of'] == cutoff
     assert forecasts[0]['expected_value'] == 102
+
+
+def _superseded_reader():
+    reader = Reader()
+    reader.execution_events_supported = True
+    run = reader.runs[2]
+    disposition = {'schema_version': 'modeling-execution-disposition/1', 'status': 'superseded',
+                   'run_id': run['run_id'], 'input_id': run['input_id'], 'experiment_id': 'test',
+                   'approach_id': 'rule', 'portfolio_id': run['portfolio_id'], 'decision_slot': T0,
+                   'replacement_run_id': 'run_rule_1', 'replacement_input_id': 'input_rule_1',
+                   'replacement_slot': T1, 'reason': 'Latest common-hourly policy supersedes the pending policy',
+                   'recorded_at': T1, 'ledger_committed': False, 'simulated_fills': []}
+    run.update(status='superseded', execution_disposition=disposition,
+               execution_disposition_ref={'artifact_key': 'modeling-evidence/v1/execution-disposition/original.json',
+                                          'checksum': checksum(canonical(disposition))},
+               outcome={'status': 'succeeded', 'target_weights': {'TEST': .5}, 'cash_weight': .5,
+                        'rationale': 'Original successful inference retained', 'usage': {'cost_usd': .17, 'cost_basis': 'observed'},
+                        'execution_status': 'pending_next_hourly_regular_session_quote'})
+    run.pop('model_cost')
+    reader.observations.append({'experiment_id': 'test', 'approach_id': 'rule', 'portfolio_id': 'book_rule',
+                                'run_id': run['run_id'], 'observation_id': 'immutable_disposition',
+                                'kind': 'execution_disposition', 'observed_at': T1, 'payload': disposition})
+    return reader
+
+
+def test_superseded_disposition_retains_recommendation_inputs_and_cost_without_fake_execution():
+    import csv
+    import io
+    reader = _superseded_reader()
+    original = copy.deepcopy(reader.runs[2]['outcome'])
+    receipt = {'run_id': 'run_rule_1', 'portfolio_id': 'book_rule', 'decision_id': 'actual_decision',
+               'simulated_fills': [{'notional': 50}], 'transaction_cost': .5,
+               'execution': {'execution_at': T1, 'before_value': 100, 'after_value': 99.5, 'turnover': .5}}
+    event = {'experiment_id': 'test', 'approach_id': 'rule', 'portfolio_id': 'book_rule', 'run_id': 'run_rule_1',
+             'decision_id': 'actual_decision', 'observation_id': 'actual_paper_execution', 'kind': 'paper_execution',
+             'observed_at': T1, 'payload': receipt}
+    reader.observations.extend([event, copy.deepcopy(event), copy.deepcopy(reader.observations[-1])])
+    result = report(reader)
+    row = next(r for r in result['runs'] if r['run_id'] == 'run_rule_0')
+    assert row['fill_status'] == 'superseded_not_executed' and row['execution_status'] == 'superseded'
+    assert row['fill_time'] is None and row['fills'] == [] and row['execution_cost'] == 0
+    assert row['target_weights'] == {'TEST': .5} and row['model_cost'] == .17
+    assert row['output'] == original and reader.runs[2]['outcome'] == original
+    assert result['inputs'][row['run_id']]['checksum'] == reader.inputs[row['input_id']]['metadata']['checksum']
+    assert len(result['runs']) == 4 and len(result['observations']) == 6
+    assert len(result['execution_events']) == 1 and len(result['ancillary_evidence']) == 2
+    book = next(b for b in result['leaderboard'] if b['approach_id'] == 'rule')
+    assert book['fills'] == 1 and book['execution_cost'] == .5 and book['turnover'] == .5
+    assert book['model_cost'] == .17 and book['recommendations'] == 2 and book['failure_rate'] == 0
+    assert not result['evidence_failures']
+    exported = next(r for r in csv.DictReader(io.StringIO(csv_export(result))) if r['run_id'] == row['run_id'])
+    assert exported['fill_status'] == 'superseded_not_executed'
+    assert json.loads(exported['execution_disposition'])['replacement_run_id'] == 'run_rule_1'
+    assert 'Not executed:' in html_export(result) and 'Replacement run' in html_export(result)
+
+
+@pytest.mark.parametrize('mutation,message', [
+    (lambda r: r['execution_disposition'].update(portfolio_id='another_book'), 'portfolio_id mismatch'),
+    (lambda r: r['execution_disposition'].update(ledger_committed=True), 'explicit superseded nonexecution'),
+    (lambda r: r.update(execution_ref={'checksum': 'actual_ledger'}), 'conflicts with committed'),
+    (lambda r: r.update(execution_disposition=None), 'disposition unavailable'),
+])
+def test_disposition_mismatch_or_claimed_ledger_action_remains_visible_coverage_error(mutation,message):
+    reader = _superseded_reader()
+    mutation(reader.runs[2])
+    result = report(reader)
+    assert any(message in e['error'] for e in result['evidence_failures'])
+    assert next(b for b in result['leaderboard'] if b['approach_id'] == 'rule')['rank'] is None
+
+
+def test_later_supersession_revises_cutoff_without_backdating_or_filling_original_decision():
+    reader = _superseded_reader()
+    later = '2026-10-13T14:00:00Z'
+    reader.runs[2]['execution_disposition']['recorded_at'] = later
+    result = aggregate(reader, experiment_id='test', registry=registry(), start_day=DAY,
+                       generated_at=later, mode='controlled_replay')
+    row = next(r for r in result['runs'] if r['run_id'] == 'run_rule_0')
+    assert result['data_cutoff'] == later and row['decision_time'] == T0
+    assert row['fill_time'] is None and row['execution_disposition_at'] == later

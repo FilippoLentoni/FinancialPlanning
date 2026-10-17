@@ -216,6 +216,43 @@ def _input_for_run(reader: EvidenceReader, run: dict, chunks: dict | None = None
     return _portable_capture(metadata, payload, raw, chunks)
 
 
+
+def _normalize_execution_disposition(run: dict, cutoff: str) -> None:
+    """A verified immutable nonexecution is distinct from a paper ledger receipt.
+
+    query_day/read_run verifies artifact bytes before exposing the decoded payload,
+    as it does for outcome/execution. Validate joins without a second S3 fetch.
+    Never turn supersession into a ledger event, fill time or portfolio revision.
+    """
+    ref, disposition = run.get("execution_disposition_ref"), run.get("execution_disposition")
+    if not ref and not disposition:
+        return
+    if not isinstance(ref, dict) or not ref.get("checksum") or not isinstance(disposition, dict):
+        raise EvidenceError("Immutable execution disposition unavailable")
+    if run.get("execution_ref") or run.get("execution"):
+        raise EvidenceError("Nonexecution disposition conflicts with committed paper execution")
+    if (disposition.get("schema_version") != "modeling-execution-disposition/1"
+            or disposition.get("status") != "superseded" or disposition.get("ledger_committed") is not False
+            or disposition.get("simulated_fills") != []):
+        raise EvidenceError("Execution disposition must be explicit superseded nonexecution")
+    for field in ("run_id", "input_id", "experiment_id", "approach_id", "portfolio_id"):
+        if disposition.get(field) != run.get(field):
+            raise EvidenceError(f"Execution disposition {field} mismatch")
+    if timestamp(disposition["decision_slot"]) != timestamp(run["scheduled_slot"]):
+        raise EvidenceError("Execution disposition belongs to another decision slot")
+    if (not disposition.get("replacement_run_id") or disposition["replacement_run_id"] == run["run_id"]
+            or not disposition.get("replacement_input_id") or not disposition.get("reason")
+            or timestamp(disposition["replacement_slot"]) <= timestamp(run["scheduled_slot"])):
+        raise EvidenceError("Execution disposition lacks a later replacement decision")
+    if timestamp(disposition["recorded_at"]) > timestamp(cutoff):
+        raise EvidenceError("Execution disposition follows report cutoff")
+    _safe_content(disposition)
+    run.update(fill_status="superseded_not_executed", execution_status="superseded", fill_time=None,
+               fills=[], execution_cost=0.0, turnover=0.0,
+               execution_cost_status="not_incurred_nonexecution_disposition",
+               execution_disposition_at=disposition["recorded_at"])
+
+
 def _value(obs: dict) -> float | None:
     raw = obs.get("value", obs.get("equity", obs.get("portfolio_value")))
     return float(raw) if raw is not None else None
@@ -534,6 +571,10 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             for field in ("target_weights", "target_cash", "intents", "rationale", "citations", "fills", "execution_cost", "turnover", "model_cost", "model_cost_basis", "cash_weight", "forecast", "signal_status", "execution_status", "market_input_status", "price_as_of", "news_research_status", "native_input_status", "native_input_detail"):
                 if field in output:
                     run[field] = output[field]
+        try:
+            _normalize_execution_disposition(run, generated_at)
+        except (EvidenceError, KeyError, ValueError) as error:
+            run["evidence_error"] = str(error)
         graph_ref = output.get("graph_sub_boundary_ref", output.get("captured_inputs_ref")) if isinstance(output, dict) else None
         if graph_ref:
             try:
@@ -695,7 +736,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             book["ranking_blockers"].append("Missing scheduled slots")
         book["rank"] = None
     latest = max([r["decision_time"] for r in runs] + [o["observed_at"] for o in observations + ancillary]
-                 + [r[k] for r in runs for k in ("finished_at", "fill_time") if r.get(k)]
+                 + [r[k] for r in runs for k in ("finished_at", "fill_time", "execution_disposition_at") if r.get(k)]
                  + [r["execution"]["recorded_at"] for r in runs if (r.get("execution") or {}).get("recorded_at")]
                  + [f["observed_at"] for f in forecasts if f.get("observed_at")], default=None, key=lambda x: timestamp(x) if x else datetime.min.replace(tzinfo=timezone.utc))
     next_eod = datetime.combine(timestamp(generated_at).astimezone(EASTERN).date(), time(17), EASTERN)
@@ -825,7 +866,7 @@ def consolidate(reports: list[dict]) -> dict:
 
 def csv_export(report: dict) -> str:
     stream = io.StringIO(newline="")
-    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
+    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "fill_status", "fill_time", "execution_status", "execution_disposition_at", "execution_disposition_ref", "execution_disposition", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
     writer = csv.DictWriter(stream, fields, extrasaction="ignore")
     writer.writeheader()
     for run in report["runs"]:
