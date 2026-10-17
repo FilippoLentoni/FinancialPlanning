@@ -215,3 +215,11 @@ latest-session market data became available.
   ownership matrix rows `ingestion-service` and `daily-scheduler` list the IAM role, log group,
   dead-letter queue and its policy, alarm and SSM reference parameters, so the ownership gate
   passes with no accepted problem.
+
+The deployed lifecycle suite publishes its consumer `integration-snapshot-id` only
+following an approval-verified API read. A phase 2 lifecycle probe may legitimately
+use a committed ten-day snapshot; in that case the suite resolves the dataset's
+latest approved snapshot instead. It validates the returned identifier, approval
+status and dataset before writing SSM. Missing or invalid approved data fails the
+stage and preserves the prior pointer; it never promotes a committed snapshot or
+relaxes FinanceModel's approval requirement.
