@@ -155,6 +155,8 @@ class ModelingEvidence:
             source = self.repo.require("research_input", shared_source_ref["input_id"]).doc
             if source["experiment_id"] != experiment_id or source["kind"] != "shared_source" or source["checksum"] != shared_source_ref["checksum"]:
                 raise PlatformError.validation("shared source does not belong to this experiment")
+            if "shared_source_checksum" in payload and payload["shared_source_checksum"] != source["checksum"]:
+                raise PlatformError.validation("model input shared source checksum does not match its authoritative source")
         iid = _id("mi", experiment_id, approach_id, slot, kind)
         ref = self._artifact("inputs", iid, payload)
         existing = self.repo.get("research_input", iid)
