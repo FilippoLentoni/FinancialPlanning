@@ -15,6 +15,7 @@ import json
 import math
 import os
 import re
+import tempfile
 from collections import Counter
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -232,7 +233,7 @@ def _normalize_execution_disposition(run: dict, cutoff: str) -> None:
     if run.get("execution_ref") or run.get("execution"):
         raise EvidenceError("Nonexecution disposition conflicts with committed paper execution")
     if (disposition.get("schema_version") != "modeling-execution-disposition/1"
-            or disposition.get("status") != "superseded" or disposition.get("ledger_committed") is not False
+            or disposition.get("status") not in {"superseded", "excluded_nontrading"} or disposition.get("ledger_committed") is not False
             or disposition.get("simulated_fills") != []):
         raise EvidenceError("Execution disposition must be explicit superseded nonexecution")
     for field in ("run_id", "input_id", "experiment_id", "approach_id", "portfolio_id"):
@@ -240,14 +241,22 @@ def _normalize_execution_disposition(run: dict, cutoff: str) -> None:
             raise EvidenceError(f"Execution disposition {field} mismatch")
     if timestamp(disposition["decision_slot"]) != timestamp(run["scheduled_slot"]):
         raise EvidenceError("Execution disposition belongs to another decision slot")
-    if (not disposition.get("replacement_run_id") or disposition["replacement_run_id"] == run["run_id"]
+    excluded = disposition["status"] == "excluded_nontrading"
+    if excluded:
+        if (disposition.get("reason_code") not in {"before_declared_comparison_horizon", "created_after_decision_slot_closed"}
+                or not disposition.get("registry_input_ref") or not disposition.get("reason")):
+            raise EvidenceError("Nontrading exclusion lacks declared comparison policy evidence")
+        run.update(comparison_eligible=False, comparison_exclusion_reason=disposition["reason"],
+                   comparison_exclusion_code=disposition["reason_code"])
+    elif (not disposition.get("replacement_run_id") or disposition["replacement_run_id"] == run["run_id"]
             or not disposition.get("replacement_input_id") or not disposition.get("reason")
             or timestamp(disposition["replacement_slot"]) <= timestamp(run["scheduled_slot"])):
         raise EvidenceError("Execution disposition lacks a later replacement decision")
     if timestamp(disposition["recorded_at"]) > timestamp(cutoff):
         raise EvidenceError("Execution disposition follows report cutoff")
     _safe_content(disposition)
-    run.update(fill_status="superseded_not_executed", execution_status="superseded", fill_time=None,
+    run.update(fill_status="excluded_nontrading" if excluded else "superseded_not_executed",
+               execution_status="excluded_nontrading" if excluded else "superseded", fill_time=None,
                fills=[], execution_cost=0.0, turnover=0.0,
                execution_cost_status="not_incurred_nonexecution_disposition",
                execution_disposition_at=disposition["recorded_at"])
@@ -275,7 +284,7 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
     for forecast in _unique(forecasts, "forecast_id"):
         row = dict(forecast)
         if forecast.get("comparison_eligible") is False:
-            row.update(outcome_status="interim_not_applied", realized_value=None, reason="Interim research does not trade or enter primary forecast rankings")
+            row.update(outcome_status="nontrading_not_applied" if forecast.get("comparison_exclusion_reason") else "interim_not_applied", realized_value=None, reason=forecast.get("comparison_exclusion_reason", "Interim research does not trade or enter primary forecast rankings"))
         elif forecast.get("expected_value") is None:
             row.update(outcome_status="unavailable", realized_value=None)
         elif timestamp(forecast["target_at"]) > timestamp(cutoff):
@@ -366,7 +375,9 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
         if approach.get("non_trading"):
             continue
         aid = approach["approach_id"]
-        selected = [r for r in runs if r["approach_id"] == aid]
+        all_selected = [r for r in runs if r["approach_id"] == aid]
+        selected = [r for r in all_selected if r.get("comparison_eligible") is not False]
+        coverage_runs = [r for r in all_selected if r.get("comparison_exclusion_code") != "before_declared_comparison_horizon"]
         executions = [e for e in execution_events if e["approach_id"] == aid] if execution_events is not None else None
         if executions is None:
             execution_cost = sum(float(r["execution_cost"]) for r in selected) if selected and all(r.get("execution_cost") is not None for r in selected) else None
@@ -376,7 +387,8 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
             execution_cost = sum(float(e["transaction_cost"]) for e in executions) if all(e.get("transaction_cost") is not None for e in executions) else None
             fills_count = sum(len(e.get("simulated_fills", [])) for e in executions)
             turnover = sum(float(e.get("execution", {}).get("turnover", 0) or 0) for e in executions)
-        history = sorted([o for o in observations if o.get("approach_id") == aid], key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
+        all_history = sorted([o for o in observations if o.get("approach_id") == aid], key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
+        history = [o for o in all_history if o.get("comparison_eligible") is not False]
         all_valid = [o for o in history if _valid(o)]
         comparison_history, has_open_session = _comparison_history(history, approach.get("market_calendar"))
         valid = [o for o in comparison_history if _valid(o)]
@@ -400,7 +412,7 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
             peak = max(peak, value)
             drawdown = max(drawdown, (peak - value) / peak if peak else 0)
         matched = [f for f in forecasts if f.get("approach_id") == aid and f.get("outcome_status") == "matched" and f.get("forecast_kind", "model_forecast") == "model_forecast"]
-        failures = sum(r.get("status") in BAD_STATUSES or bool(r.get("evidence_error")) for r in selected)
+        failures = sum(r.get("status") in BAD_STATUSES or bool(r.get("evidence_error")) or r.get("comparison_exclusion_code") == "created_after_decision_slot_closed" for r in coverage_runs)
         observed_dates = {timestamp(o["observed_at"]).astimezone(EASTERN).date().isoformat() for o in all_valid}
         session_dates, session_proof_count = set(), 0
         for observation in all_valid:
@@ -434,16 +446,17 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
                       "turnover": turnover, "executed_notional": executed_notional,
                       "turnover_definition": "absolute_executed_notional_divided_by_period_opening_value" if executions is not None else "legacy_sum_of_supplied_turnover",
                       "execution_cost": execution_cost,
-                      "model_cost": sum(float(r["model_cost"]) for r in selected) if selected and all(r.get("model_cost") is not None for r in selected) else None,
-                      "model_cost_basis": sorted({r.get("model_cost_basis", "unavailable") for r in selected}),
-                      "recommendations": len(selected), "fills": fills_count,
+                      "model_cost": sum(float(r["model_cost"]) for r in all_selected) if all_selected and all(r.get("model_cost") is not None for r in all_selected) else None,
+                      "comparison_model_cost": sum(float(r["model_cost"]) for r in selected) if selected and all(r.get("model_cost") is not None for r in selected) else None,
+                      "model_cost_basis": sorted({r.get("model_cost_basis", "unavailable") for r in all_selected}),
+                      "recommendations": len(all_selected), "comparison_recommendations": len(selected), "nontrading_recommendations": len(all_selected)-len(selected), "fills": fills_count,
                       "execution_event_ids": [e["observation_id"] for e in executions] if executions is not None else [],
                       "execution_accounting": "actual_execution_day_events" if executions is not None else "legacy_issue_day_fallback",
-                      "valuations": len(history), "valid_valuations": len(all_valid), "comparison_valuations": len(valid),
-                      "expected_closed_observations": len(history)-len(comparison_history), "failure_rate": failures / len(selected) if selected else None,
+                      "valuations": len(all_history), "nontrading_valuations": len(all_history)-len(history), "valid_valuations": len(all_valid), "comparison_valuations": len(valid),
+                      "expected_closed_observations": len(history)-len(comparison_history), "failure_rate": failures / len(coverage_runs) if coverage_runs else None,
                       "forecast_matches": len(matched), "mae": sum(f["absolute_error"] for f in matched) / len(matched) if matched else None,
                       "rmse": math.sqrt(sum(f["signed_error"] ** 2 for f in matched) / len(matched)) if matched else None,
-                      "coverage": len(all_valid) / len(history) if history else 0,
+                      "coverage": len(all_valid) / len(history) if history else None,
                       "observed_dates": len(observed_dates), "observed_sessions": len(session_dates) if session_proof_count else None,
                       "market_session_dates": sorted(session_dates), "market_session_proof_coverage": session_proof_count/len(all_valid) if all_valid else None,
                       "window_start": valid[0]["observed_at"] if valid else None, "window_end": valid[-1]["observed_at"] if valid else None,
@@ -483,7 +496,8 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                  "cohort_id": comparison_policy.get("cohort_id"),
                  "starting_capital": comparison_policy.get("starting_capital", comparison_policy.get("initial_capital")),
                  "investable_universe": comparison_policy.get("investable_universe", comparison_policy.get("universe")),
-                 "market_calendar": comparison_policy.get("market_calendar"), **row}
+                 "market_calendar": comparison_policy.get("market_calendar"),
+                 "comparison_horizon_start": comparison_policy.get("first_scheduled_slot", comparison_policy.get("scheduled_start_at")), **row}
                 for row in _unique(registry, "approach_id")]
     if not registry:
         raise EvidenceError("A persisted approach registry is required")
@@ -566,6 +580,10 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                 run["output"] = output["payload"]
             except (EvidenceError, PlatformError, KeyError, ValueError) as error:
                 run["evidence_error"] = str(error)
+        horizon = known[aid].get("comparison_horizon_start")
+        if horizon and timestamp(run["scheduled_slot"]) < timestamp(horizon):
+            run.update(comparison_eligible=False, comparison_exclusion_code="before_declared_comparison_horizon",
+                       comparison_exclusion_reason="Decision predates the declared comparison horizon; retained as nontrading evidence")
         output = run.get("output", {})
         if isinstance(output, dict):
             for field in ("target_weights", "target_cash", "intents", "rationale", "citations", "fills", "execution_cost", "turnover", "model_cost", "model_cost_basis", "cash_weight", "forecast", "signal_status", "execution_status", "market_input_status", "price_as_of", "news_research_status", "native_input_status", "native_input_detail"):
@@ -596,6 +614,8 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             forecast = dict(run["forecast"], approach_id=aid, portfolio_id=run["portfolio_id"], run_id=run["run_id"])
             if known[aid].get("non_trading"):
                 forecast.update(portfolio_id=run["forecast"].get("portfolio_id", run.get("reviewed_portfolio_id")), comparison_eligible=False)
+            if run.get("comparison_eligible") is False:
+                forecast.update(comparison_eligible=False, comparison_exclusion_reason=run.get("comparison_exclusion_reason"))
             forecast.setdefault("forecast_id", forecast.get("forecast_checksum"))
             if not forecast.get("forecast_id") or not forecast.get("target_at"):
                 run["evidence_error"] = "Supplied forecast lacks immutable forecast_id/target_at"
@@ -605,6 +625,9 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         source_run = next((r for r in runs if r["run_id"] == observation.get("run_id")), None)
         if source_run and source_run.get("market_session_evidence"):
             observation["market_session_evidence"] = source_run["market_session_evidence"]
+        horizon = known.get(observation.get("approach_id"), {}).get("comparison_horizon_start")
+        if source_run and source_run.get("comparison_eligible") is False or horizon and timestamp(observation["observed_at"]) < timestamp(horizon):
+            observation.update(comparison_eligible=False, comparison_exclusion_reason=source_run.get("comparison_exclusion_reason") if source_run else "Before declared comparison horizon")
         if observation.get("experiment_id") != experiment_id or observation.get("approach_id") not in known:
             raise EvidenceError("Observation outside selected experiment/registry")
         if observation.get("portfolio_id") != known[observation["approach_id"]]["portfolio_id"]:
@@ -644,6 +667,10 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     for forecast in forecasts:
         source_run = next(r for r in runs if r["run_id"] == forecast["run_id"])
         persisted = source_run.get("forecast_realization")
+        if forecast.get("comparison_eligible") is False:
+            if persisted:
+                forecast["stored_noncomparable_realization"] = persisted
+            continue
         if persisted:
             if persisted.get("forecast_checksum") != forecast.get("forecast_checksum") or persisted.get("run_id") != forecast["run_id"] or persisted.get("portfolio_id") != forecast["portfolio_id"]:
                 raise EvidenceError("Stored realization does not match frozen forecast/run/book")
@@ -668,7 +695,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             forecast["stored_realization_observation_id"] = stored["observation_id"]
             forecast["stored_realization"] = stored.get("payload", {})
     missing = [{"approach_id": aid, "scheduled_slot": slot, "status": "missing_slot"}
-               for slot in sorted({r["scheduled_slot"] for r in runs}) for aid in known if (aid, slot) not in slots]
+               for slot in sorted({r["scheduled_slot"] for r in runs if r.get("comparison_exclusion_code") != "before_declared_comparison_horizon"}) for aid in known if (aid, slot) not in slots]
     # Expected hourly opportunities are defined by the persisted experiment policy,
     # rather than trusting that at least one strategy wrote in every hour.
     expected = set()
@@ -706,6 +733,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                     missing.append({"approach_id": aid, "scheduled_slot": slot, "status": "missing_slot"})
     for run in runs:
         before = sorted([o for o in observations if o["portfolio_id"] == run["portfolio_id"] and _valid(o)
+                         and o.get("comparison_eligible") is not False
                          and timestamp(o["observed_at"]) <= timestamp(run["decision_time"])
                          and timestamp(o["observed_at"]).astimezone(EASTERN).date() == timestamp(run["decision_time"]).astimezone(EASTERN).date()],
                         key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
@@ -866,7 +894,7 @@ def consolidate(reports: list[dict]) -> dict:
 
 def csv_export(report: dict) -> str:
     stream = io.StringIO(newline="")
-    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "fill_status", "fill_time", "execution_status", "execution_disposition_at", "execution_disposition_ref", "execution_disposition", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
+    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "fill_status", "fill_time", "execution_status", "execution_disposition_at", "execution_disposition_ref", "execution_disposition", "comparison_eligible", "comparison_exclusion_code", "comparison_exclusion_reason", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
     writer = csv.DictWriter(stream, fields, extrasaction="ignore")
     writer.writeheader()
     for run in report["runs"]:
@@ -886,6 +914,15 @@ def html_export(report: dict) -> str:
 
 
 def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None) -> dict:
+    """Keep generated private exports private even for a permissive caller umask."""
+    previous = os.umask(0o077)
+    try:
+        return _write_report_private(report, output_dir, artifact_store=artifact_store)
+    finally:
+        os.umask(previous)
+
+
+def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any = None) -> dict:
     """Atomic mutable local aliases + immutable checksum-addressed revisions.
 
     S3 reports are written through the platform's existing write-once reports role.
@@ -897,14 +934,14 @@ def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None) 
     target = output_dir / ("replay" if report["mode"] == "controlled_replay" else "")
     if report["period"] == "weekly":
         target /= "weekly"
-    target.mkdir(parents=True, exist_ok=True)
+    target.mkdir(parents=True, exist_ok=True, mode=0o700)
     json_bytes = canonical(report)
     rendered_html = html_export(report).encode()
     revision = checksum(json_bytes + rendered_html).split(":")[1][:20]
     period_name = report["end_day"] if report["period"] == "daily" else f'{report["start_day"]}_{report["end_day"]}'
     safe_experiment = re.sub(r"[^A-Za-z0-9_.-]", "_", report["experiment_id"])
     archive = target / "archive" / period_name / revision
-    archive.mkdir(parents=True, exist_ok=True)
+    archive.mkdir(parents=True, exist_ok=True, mode=0o700)
     payloads = {"json": json_bytes, "csv": csv_export(report).encode(), "html": rendered_html}
     manifest = {"report_version": REPORT_VERSION, "experiment_id": report["experiment_id"], "revision": revision,
                 "generated_at": report["generated_at"], "data_cutoff": report["data_cutoff"], "mode": report["mode"],
@@ -913,11 +950,16 @@ def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None) 
     for extension, payload in payloads.items():
         filename = "manifest.json" if extension == "manifest.json" else "report." + extension
         path = archive / filename
+        if path.is_symlink():
+            raise EvidenceError("Generated private artifact must not be a symbolic link")
         if path.exists() and path.read_bytes() != payload:
             raise EvidenceError("Immutable report revision changed")
         if not path.exists():
             with path.open("xb") as file:
                 file.write(payload)
+        if path.stat().st_uid != os.getuid():
+            raise EvidenceError("Generated private artifact is not owned by the report user")
+        path.chmod(0o600)
         if artifact_store:
             key = f"modeling/v1/{safe_experiment}/{report['mode']}/{period_name}/{revision}/{filename}"
             artifact_store.put_once_or_verify("reports", key, payload, content_type={"html":"text/html", "csv":"text/csv"}.get(extension,"application/json"))
@@ -926,7 +968,21 @@ def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None) 
             continue
         for name in (f"{period_name}.{extension}", f"latest.{extension}"):
             path = target / name
-            temporary = path.with_name(path.name + f".{os.getpid()}.tmp")
-            temporary.write_bytes(payload)
-            os.replace(temporary, path)
+            if path.exists() and not path.is_symlink() and path.stat().st_uid != os.getuid():
+                raise EvidenceError("Generated private alias is not owned by the report user")
+            temporary = None
+            try:
+                # Exclusive unpredictable temp creation is0600 even if a prior
+                # caller left a permissive temporary file in this directory.
+                with tempfile.NamedTemporaryFile(dir=target, prefix="." + path.name + ".", suffix=".tmp", delete=False) as file:
+                    temporary = Path(file.name)
+                    os.fchmod(file.fileno(), 0o600)
+                    file.write(payload)
+                    file.flush()
+                    os.fsync(file.fileno())
+                os.replace(temporary, path)
+                path.chmod(0o600)
+            finally:
+                if temporary is not None and temporary.exists():
+                    temporary.unlink()
     return {"directory": str(target), "archive": str(archive), "revision": revision, "manifest": manifest}

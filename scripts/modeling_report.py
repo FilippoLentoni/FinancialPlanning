@@ -3,6 +3,7 @@
 from __future__ import annotations
 import argparse
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
@@ -14,6 +15,7 @@ from finplan_platform.reporting.reports import EvidenceError, aggregate, aggrega
 
 
 def main(argv=None):
+    os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment", required=True)
     parser.add_argument("--include-interim", action=argparse.BooleanOptionalAction, default=True, help="Include actual primary-experiment30-minute interim recommendations (default enabled); exclude from primary ranking")
