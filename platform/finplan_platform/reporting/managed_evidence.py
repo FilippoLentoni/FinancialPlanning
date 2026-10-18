@@ -2,6 +2,7 @@
 from __future__ import annotations
 import base64
 import json
+from finplan_contracts.canonical import canonicalize
 from .reports import EvidenceError, checksum, canonical, timestamp, _safe_content, _portable_capture
 
 PROTOCOL='finplan-managed-inference-evidence/1'
@@ -32,7 +33,7 @@ def collect(report):
         if timestamp(row['observed_at'])>timestamp(report['generated_at']):raise EvidenceError('Managed worker receipt follows report cutoff')
         for cost in report.get('ancillary_evidence',[]):
             if str(cost.get('kind','')).startswith('managed_model_cost:') and (cost.get('payload')or{}).get('event_id')==event['cost_event_id']:
-                if checksum(canonical(cost['payload']))!=event.get('cost_event_checksum'):
+                if cost.get('checksum')!=event.get('cost_event_checksum'):
                     raise EvidenceError('Managed original inference/cost event link checksum mismatch')
         prior=events.get(event_id)
         if prior:
@@ -85,7 +86,7 @@ def collect(report):
                 for pin in ('approved_by','approved_at'):
                     if pin in (payload.get('approval')or{}) and payload['approval'][pin]!=(event.get('approval')or{}).get(pin):
                         raise EvidenceError('Managed original worker input approval differs')
-            if kind=='role_input' and payload.get('messages_checksum')!=checksum(canonical(payload.get('messages'))):
+            if kind=='role_input' and payload.get('messages_checksum')!=checksum(canonicalize(payload.get('messages'))):
                 raise EvidenceError('Managed original role messages checksum mismatch')
             responses=[p for _,_,_,p,_ in decoded if p.get('input_ref')==ref or p.get('invocation_input_ref')==ref]
             for response in responses:

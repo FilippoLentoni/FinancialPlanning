@@ -9,7 +9,7 @@ from finplan_platform.reporting import refresh
 
 FIXTURES=Path(__file__).resolve().parents[2]/'fixtures'/'reporting'/'managed-inference'
 def fixture(name='success'):
-    return json.loads((FIXTURES/('qwen-'+name+'.json')).read_bytes())
+    return json.loads((FIXTURES/((name if name.startswith('jev-')else'qwen-'+name)+'.json')).read_bytes())
 def observation(event,oid='controlled-worker-observation'):
     return {'observation_id':oid,'kind':'managed_inference_evidence:'+event['managed_run_id'],'slot':event['occurred_at'],'observed_at':'2026-07-12T15:00:00Z','checksum':checksum(canonical(event)),**{k:event[k]for k in('experiment_id','approach_id','portfolio_id')},'payload':event}
 def report(event):
@@ -43,10 +43,14 @@ def test_identical_duplicate_worker_event_not_extra_decision_or_cost():
     assert data['runs']==[] and 'managed_cost_events'not in data
 
 
-def test_strong_gsi_lag_receipts_cost_and_original_worker_archive_before_ack(repo,artifacts,tmp_path,monkeypatch):
+@pytest.mark.parametrize('producer_name',['failed','jev-success'])
+def test_strong_gsi_lag_receipts_cost_and_original_worker_archive_before_ack(repo,artifacts,tmp_path,monkeypatch,producer_name):
     from finplan_platform.core.modeling_evidence import ModelingEvidence
     from finplan_platform.core.repository import PutNew
-    producer=fixture('failed');event=producer['inference_evidence'];cost=producer['cost_event'];backend=ModelingEvidence(repo,artifacts)
+    producer=fixture(producer_name);event=producer['inference_evidence'];cost=producer['cost_event'];backend=ModelingEvidence(repo,artifacts)
+    from zoneinfo import ZoneInfo
+    from finplan_platform.reporting.reports import timestamp
+    reporting_day=timestamp(event['occurred_at']).astimezone(ZoneInfo('America/New_York')).date().isoformat()
     seed=backend.ensure_portfolio(event['experiment_id'],event['approach_id'],1000,['SPY'],'2026-07-11T00:00:00Z')
     source=repo.require('portfolio',seed['portfolio_id'])
     # Controlled original producer uses its own fixed synthetic book ID. Seed the
@@ -57,17 +61,17 @@ def test_strong_gsi_lag_receipts_cost_and_original_worker_archive_before_ack(rep
     queue=tmp_path/'queue';tasks=[]
     for payload,kind in [(cost,'managed_model_cost:'),(event,'managed_inference_evidence:')]:
         receipt=backend.record_observation(event['experiment_id'],event['approach_id'],payload['occurred_at'],event['portfolio_id'],payload,'2026-07-12T15:00:00Z',kind=kind+event['managed_run_id'])
-        task={'protocol':refresh.DAILY,'experiment_id':event['experiment_id'],'reporting_day':'2026-07-11','event_id':payload['event_id'],'observation_id':receipt['observation_id'],'checksum':receipt['checksum']};refresh.put_task(queue,task)
+        task={'protocol':refresh.DAILY,'experiment_id':event['experiment_id'],'reporting_day':reporting_day,'event_id':payload['event_id'],'observation_id':receipt['observation_id'],'checksum':receipt['checksum']};refresh.put_task(queue,task)
     tasks,_=refresh.read_tasks(queue,[event['experiment_id']]);receipts=refresh.verify_receipts(backend,tasks)
     original=repo.query_index
     monkeypatch.setattr(repo,'query_index',lambda table,*a,**kw:([],None)if table=='portfolio_observation'else original(table,*a,**kw))
-    data=aggregate(backend,experiment_id=event['experiment_id'],registry=registry,start_day='2026-07-11',generated_at='2026-07-13T16:00:00Z',mode='controlled_replay',required_observations=receipts)
+    data=aggregate(backend,experiment_id=event['experiment_id'],registry=registry,start_day=reporting_day,generated_at='2026-07-13T16:00:00Z',mode='controlled_replay',required_observations=receipts)
     refresh.ensure_in_report(data,tasks)
     assert len(data['managed_inference_events'])==1 and len(data['managed_cost_events'])==1
     assert data['runs']==[]and data['observations']==[]and backend.get_portfolio(event['portfolio_id'])['revision']==1
     written=write_report(data,tmp_path/'reports',update_latest=False)
-    assert '2026-07-11'in written['aliases_published']
-    exported=decode_transport(json.loads((Path(written['directory'])/'2026-07-11.json').read_bytes()))
+    assert reporting_day in written['aliases_published']
+    exported=decode_transport(json.loads((Path(written['directory'])/(reporting_day+'.json')).read_bytes()))
     for original,layer in zip(event['artifacts'],exported['additional_inputs'][event['event_id']]):assert captured_input_bytes(exported,layer)==base64.b64decode(original['raw_base64'])
     refresh.acknowledge(tasks);assert not list(queue.glob('*.json'))
 
@@ -81,7 +85,7 @@ def test_role_response_cannot_be_attributed_to_a_different_actual_request():
 def test_inference_cost_link_cannot_point_to_replaced_event():
     producer=fixture();event=producer['inference_evidence'];data=report(event)
     cost=producer['cost_event'];cost['job_state']='replaced'
-    data['ancillary_evidence'].append({'kind':'managed_model_cost:'+event['managed_run_id'],'payload':cost})
+    data['ancillary_evidence'].append({'kind':'managed_model_cost:'+event['managed_run_id'],'payload':cost,'checksum':checksum(canonical(cost))})
     with pytest.raises(EvidenceError,match='cost event link'):collect(data)
 
 
@@ -105,3 +109,15 @@ def test_same_binding_worker_input_cannot_use_other_approved_worker(field):
     payload[field]={'approved_by':'other-approver'}if field=='approval'else'other-worker-pin'
     raw=canonical(payload);original.update(raw_base64=base64.b64encode(raw).decode(),checksum=checksum(raw),size_bytes=len(raw));original['ref'].update(checksum=checksum(raw),size_bytes=len(raw))
     with pytest.raises(EvidenceError,match='worker input'):collect(report(event))
+
+
+def test_actual_jev_producer_public_request_and_private_numeric_layers_are_preserved():
+    event=fixture('jev-success')['inference_evidence'];data=collect(report(event));model=data['managed_inference_events'][0]
+    assert model['model_success']and len(model['artifact_summaries'])==5
+    transported=decode_transport(encode_transport(data))
+    for original,layer in zip(event['artifacts'],transported['additional_inputs'][event['event_id']]):
+        assert captured_input_bytes(transported,layer)==base64.b64decode(original['raw_base64'])
+    actual=next(json.loads(base64.b64decode(a['raw_base64']))for a in event['artifacts']if json.loads(base64.b64decode(a['raw_base64'])).get('kind')=='invocation_input')
+    assert actual['supplied_layer']=='public_request_only'and actual['public_request']and actual['local_transformation']
+    summary=next(a for a in model['artifact_summaries']if a['kind']=='invocation_input')
+    assert summary['consumption_status']=='input_with_original_response_receipt'
