@@ -415,6 +415,53 @@ class ModelingEvidence:
             return json.loads(self.read_artifact_bytes(current["execution_disposition_ref"]))
         return payload
 
+    def read_action_blocker(self, ref: Mapping[str, Any], *, experiment_id: str, approach_id: str, portfolio_id: str, through: str) -> dict[str, Any]:
+        """Resolve only an original owned action attempt, never caller artifact paths."""
+        if not isinstance(ref, Mapping) or set(ref) != {"observation_id", "checksum"}:
+            raise PlatformError.validation("action blocker requires an observation ID and checksum")
+        metadata = self.repo.require("portfolio_observation", ref["observation_id"]).doc
+        identity = (experiment_id, approach_id, portfolio_id)
+        if metadata.get("kind") != "execution_attempt" or tuple(metadata.get(k) for k in ("experiment_id", "approach_id", "portfolio_id")) != identity or metadata.get("checksum") != ref["checksum"]:
+            raise PlatformError.validation("action blocker observation belongs to another scope/checksum")
+        payload = json.loads(self.read_artifact_bytes(metadata))
+        if payload.get("status") != "PENDING_ACTION_DATA" or not isinstance(payload.get("corporate_action_evidence"), list) or not payload["corporate_action_evidence"] or any(not isinstance(item, Mapping) or not item for item in payload["corporate_action_evidence"]) or not payload.get("run_id"):
+            raise PlatformError.validation("action blocker must retain actual unresolved action evidence")
+        origin = self.read_run_header(payload["run_id"])
+        if tuple(origin.get(k) for k in ("experiment_id", "approach_id", "portfolio_id")) != identity:
+            raise PlatformError.validation("action blocker origin run belongs to another book")
+        cutoff = _timestamp(through)
+        times = [metadata["observed_at"], origin["started_at"]]
+        times += [payload[k] for k in ("observed_at", "recorded_at") if k in payload]
+        if any(_timestamp(at) > cutoff for at in times):
+            raise PlatformError.validation("action blocker was not available at the requested cutoff")
+        return {"ref": {"observation_id": metadata["observation_id"], "checksum": metadata["checksum"]}, "metadata": metadata, "payload": payload}
+
+    def latch_action_blocker(self, frontier_run_id: str, ref: Mapping[str, Any], recorded_at: str) -> dict[str, Any]:
+        """Permanently fail closed on an unreconciled held-asset action.
+
+        The pointer is an internal book head, independent of ledger revision and
+        immutable frontier bytes. There is deliberately no automatic clear API.
+        Latch immediately after capturing the action, before any cleanup attempt.
+        """
+        recorded_at = _slot(recorded_at)
+        origin = self.read_run_header(frontier_run_id)
+        if _timestamp(origin["started_at"]) > _timestamp(recorded_at):
+            raise PlatformError.validation("action latch origin was not yet available")
+        book = self.get_portfolio(origin["portfolio_id"])
+        if (book["experiment_id"], book["approach_id"]) != (origin["experiment_id"], origin["approach_id"]):
+            raise PlatformError.not_permitted("action latch does not own an isolated book")
+        result = self.read_action_blocker(ref, experiment_id=origin["experiment_id"], approach_id=origin["approach_id"], portfolio_id=origin["portfolio_id"], through=recorded_at)
+        if book.get("unresolved_action_ref"):
+            if book["unresolved_action_ref"] != result["ref"]:
+                raise PlatformError.immutable("unresolved action latch cannot be replaced or cleared")
+            return result
+        try:
+            self.repo.commit([HeadMove("portfolio", record_id=origin["portfolio_id"], expected_revision=0, revision_attr="unresolved_action_revision", allow_missing_revision=True, set_attrs={"unresolved_action_ref": result["ref"], "unresolved_action_recorded_at": recorded_at}, additional_condition=Cond.not_exists("unresolved_action_ref"))], audit=[audit_event(self._ctx(recorded_at), record_id=origin["portfolio_id"], record_type="portfolio", operation="latch_unreconciled_paper_action", new={"unresolved_action_ref": result["ref"]}, run_id=frontier_run_id)])
+        except PlatformError:
+            if self.get_portfolio(origin["portfolio_id"]).get("unresolved_action_ref") != result["ref"]:
+                raise
+        return result
+
     def read_execution_frontier(self, run_id: str) -> dict[str, Any] | None:
         """Strongly read a small cleanup proof, never the model input/output."""
         header = self.read_run_header(run_id)
@@ -424,9 +471,16 @@ class ModelingEvidence:
         payload = json.loads(self.read_artifact_bytes(ref))
         if payload.get("schema_version") != "modeling-execution-frontier/2" or payload.get("frontier_run_id") != run_id or any(payload.get(field) != header[field] for field in ("experiment_id", "approach_id", "portfolio_id")) or _timestamp(payload["covered_through_slot"]) != _timestamp(header["slot"]):
             raise PlatformError.validation("execution frontier proof belongs to another run/book")
+        book = self.get_portfolio(header["portfolio_id"])
+        sticky = book.get("unresolved_action_ref")
+        if payload.get("unresolved_action_ref") and payload["unresolved_action_ref"] != sticky:
+            raise PlatformError.validation("execution frontier action pointer differs from authoritative book latch")
+        if sticky:
+            self.read_action_blocker(sticky, experiment_id=header["experiment_id"], approach_id=header["approach_id"], portfolio_id=header["portfolio_id"], through=max(payload["recorded_at"], book["unresolved_action_recorded_at"], key=_timestamp))
+            payload = {**payload, "unresolved_action_ref": sticky, "unresolved_action_ref_source": "authoritative_portfolio_action_head", "unresolved_action_recorded_at": book["unresolved_action_recorded_at"]}
         return payload
 
-    def record_execution_frontier(self, frontier_run_id: str, pending_run_id: str | None, recorded_at: str, *, previous_frontier_run_id: str | None = None) -> dict[str, Any]:
+    def record_execution_frontier(self, frontier_run_id: str, pending_run_id: str | None, recorded_at: str, *, previous_frontier_run_id: str | None = None, unresolved_action_ref: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Checkpoint all older execution candidates except one explicit pending run.
 
         The first proof checks bounded metadata history; later proofs check only
@@ -439,6 +493,8 @@ class ModelingEvidence:
         """
         recorded_at = _slot(recorded_at)
         frontier = self.read_run_header(frontier_run_id)
+        if unresolved_action_ref is not None:
+            self.latch_action_blocker(frontier_run_id, unresolved_action_ref, recorded_at)
         existing = self.read_execution_frontier(frontier_run_id)
         if existing:
             return existing
@@ -513,6 +569,8 @@ class ModelingEvidence:
         if cursor:
             raise PlatformError.precondition("execution frontier metadata exceeds bounded 10000 rows; cleanup checkpoint not advanced")
         payload = {"schema_version": "modeling-execution-frontier/2", "frontier_run_id": frontier_run_id, "experiment_id": frontier["experiment_id"], "approach_id": frontier["approach_id"], "portfolio_id": frontier["portfolio_id"], "covered_through_slot": frontier["slot"], "pending_run_id": pending_run_id, "previous_frontier_ref": previous_ref, "registry_input_ref": policy["registry_input_ref"], "comparison_policy_checksum": policy["comparison_policy_checksum"], "strong_scheduled_slot_count": expected_count, "checked_headers": sorted(checked.values(), key=lambda row: (_timestamp(row["slot"]), row["run_id"])), "recorded_at": recorded_at, "ledger_committed": False, "semantics": "Every declared scheduled slot was strongly checked; older execution candidates are resolved except the explicit pending pointer; original inference and forecasts remain unchanged"}
+        if book.get("unresolved_action_ref"):
+            payload["unresolved_action_ref"] = book["unresolved_action_ref"]
         ref = self._artifact("execution-frontiers", frontier_run_id, payload)
         try:
             self.repo.commit([HeadMove("research_run", record_id=frontier_run_id, expected_revision=0, revision_attr="execution_frontier_revision", allow_missing_revision=True, set_attrs={"execution_frontier_ref": ref}, additional_condition=Cond.not_exists("execution_frontier_ref"))], audit=[audit_event(self._ctx(recorded_at), record_id=frontier_run_id, record_type="research_run", operation="checkpoint_execution_cleanup", new={"pending_run_id": pending_run_id, "covered_through_slot": frontier["slot"]})])
@@ -521,7 +579,7 @@ class ModelingEvidence:
             if not existing:
                 raise
             return existing
-        return payload
+        return self.read_execution_frontier(frontier_run_id)
 
     def query_pending_forecasts(self, experiment_id: str, through: str, *, page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
         """Due unmatched forecasts independent of decision age; no historic table scan."""
@@ -625,7 +683,7 @@ class ModelingEvidence:
         # Book inception is immutable metadata, unlike paper_state.as_of (the
         # latest rebalance/mark). Action eligibility must never infer acquisition
         # from an advancing state timestamp or a caller's settings.
-        return {"portfolio_id": portfolio_id, "revision": rec.attrs["paper_state_revision"], "paper_state": copy.deepcopy(rec.attrs["paper_state"]), **settings, "created_at": rec.doc.get("created_at")}
+        return {"portfolio_id": portfolio_id, "revision": rec.attrs["paper_state_revision"], "paper_state": copy.deepcopy(rec.attrs["paper_state"]), **settings, "created_at": rec.doc.get("created_at"), **({"unresolved_action_ref": copy.deepcopy(rec.attrs["unresolved_action_ref"]), "unresolved_action_recorded_at": rec.attrs["unresolved_action_recorded_at"]} if rec.attrs.get("unresolved_action_ref") else {})}
 
     def _native_input_identity(self, source, shared_ref, run, book):
         """Verify an already captured native source; never manufacture a snapshot ID."""
@@ -678,6 +736,8 @@ class ModelingEvidence:
         book = self.get_portfolio(old["portfolio_id"])
         if (book["experiment_id"], book["approach_id"]) != (old["experiment_id"], old["approach_id"]):
             raise PlatformError.not_permitted("run does not own isolated book")
+        if book.get("unresolved_action_ref"):
+            raise PlatformError.precondition("isolated book has unresolved corporate action data")
         if expected_revision != old["portfolio_revision"] or expected_revision != book["revision"]:
             raise PlatformError.conflict("isolated paper holdings revision changed")
         policy = self._registered_execution_policy(old["experiment_id"])
@@ -738,7 +798,7 @@ class ModelingEvidence:
         event_at = _slot(execution.get("execution_at", recorded_at))
         event_id = _id("mo", run_id, "paper_execution")
         execution_event = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": event_id, "kind": "paper_execution", "experiment_id": old["experiment_id"], "approach_id": old["approach_id"], "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision + 1, "run_id": run_id, "input_id": old["input_id"], "decision_id": did, "decision_slot": old["slot"], "slot": event_at, "observed_at": event_at, "recorded_at": recorded_at, "observed_key": _index_time(event_at) + "#" + event_id, "execution_ref": ref, **ref, **self._keys(old["experiment_id"], old["approach_id"], event_at, event_id)}
-        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]}), PutNew("portfolio_observation", doc=execution_event, contract_version="1.13.0")], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
+        self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}, additional_condition=Cond.not_exists("unresolved_action_ref")), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]}), PutNew("portfolio_observation", doc=execution_event, contract_version="1.13.0")], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
         return result
 
     def record_observation(self, experiment_id: str, approach_id: str, slot: str, portfolio_id: str, payload: Mapping[str, Any], observed_at: str, *, kind: str = "valuation") -> dict[str, Any]:
