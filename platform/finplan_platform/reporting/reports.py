@@ -1065,35 +1065,33 @@ def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any
         if path.exists() and path.read_bytes() != payload:
             raise EvidenceError("Immutable report revision changed")
         if not path.exists():
-            with path.open("xb") as file:
-                file.write(payload)
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(dir=archive, prefix=".immutable-", delete=False) as file:
+                    temporary = Path(file.name)
+                    os.fchmod(file.fileno(), 0o600)
+                    file.write(payload);file.flush();os.fsync(file.fileno())
+                try:
+                    os.link(temporary, path)
+                except FileExistsError:
+                    if path.is_symlink() or path.read_bytes() != payload:
+                        raise EvidenceError("Immutable report revision changed concurrently")
+            finally:
+                if temporary is not None and temporary.exists():temporary.unlink()
         if path.stat().st_uid != os.getuid():
             raise EvidenceError("Generated private artifact is not owned by the report user")
         path.chmod(0o600)
+        with path.open("rb") as durable_file:
+            os.fsync(durable_file.fileno())
         if artifact_store:
             key = f"modeling/v1/{safe_experiment}/{report['mode']}/{period_name}/{revision}/{filename}"
             artifact_store.put_once_or_verify("reports", key, payload, content_type={"html":"text/html", "csv":"text/csv"}.get(extension,"application/json"))
-    for extension, payload in payloads.items():
-        if extension == "manifest.json":
-            continue
-        names = [f"{period_name}.{extension}"] + ([f"latest.{extension}"] if update_latest else [])
-        for name in names:
-            path = target / name
-            if path.exists() and not path.is_symlink() and path.stat().st_uid != os.getuid():
-                raise EvidenceError("Generated private alias is not owned by the report user")
-            temporary = None
-            try:
-                # Exclusive unpredictable temp creation is0600 even if a prior
-                # caller left a permissive temporary file in this directory.
-                with tempfile.NamedTemporaryFile(dir=target, prefix="." + path.name + ".", suffix=".tmp", delete=False) as file:
-                    temporary = Path(file.name)
-                    os.fchmod(file.fileno(), 0o600)
-                    file.write(payload)
-                    file.flush()
-                    os.fsync(file.fileno())
-                os.replace(temporary, path)
-                path.chmod(0o600)
-            finally:
-                if temporary is not None and temporary.exists():
-                    temporary.unlink()
-    return {"directory": str(target), "archive": str(archive), "revision": revision, "manifest": manifest}
+    from .publication import publish, PublicationError, _sync
+    # A durable publication intent must never precede its immutable source bytes.
+    for directory in (archive, archive.parent, archive.parent.parent, target):
+        _sync(directory)
+    try:
+        publication = publish(target, archive, manifest, report, period_name, update_latest=update_latest)
+    except PublicationError as error:
+        raise EvidenceError(str(error)) from error
+    return {"directory": str(target), "archive": str(archive), "revision": revision, "manifest": manifest, **publication}
