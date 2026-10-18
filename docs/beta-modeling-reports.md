@@ -310,9 +310,16 @@ without misrepresenting the current partial day. Both retain immutable revisions
 
 Local acceptance artifacts are under `.worktmp/report-resilience/` (kept separate
 from forward reports). The actual manual271-input export was11,578,567bytes before
-packing and2,206,400bytes after packing. A same-source-corpus two-slot byte-edit
-projection gave143.3MiB wire/233.5MiB decoded transport for168slots; this is an
-estimate, excludes real8-asset/crypto/news-churn growth and is not live performance.
+packing and2,206,400bytes after packing. The earlier same-source-corpus two-slot projection was superseded by the changing
+actual01/02-based168-hour capacity fixture. Its baseline byte-page encoder was
+correctly REJECTED at220,737,498 wire bytes by the unchanged150MiB publication
+limit. The source fixture contains46,704 decisions,50,400 distinct ancillary
+records and1,008 controlled crypto execution receipts. It changes identities,
+timestamps, news contexts and five fixture-day numerical variants; this is a
+capacity test, not financial performance or scheduled execution. The subsequent
+bounded fragment/one-plain-base implementation and final measured result are
+documented in `modeling-report-byte-pages.md`; no earlier projection establishes
+weekly capacity.
 The controlled277-book×168-slot cardinality fixture contains46,536 original input
 artifacts and valuation/status rows. It encoded to61,886,046bytes (142,526,604decoded)
 in97.8seconds with2.11GiB producer peak RSS. Its cold Chromium heap after collection

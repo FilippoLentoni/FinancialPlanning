@@ -89,6 +89,23 @@ class PageStore:
         return b''.join(parts)
 
 
+    def token(self, value):
+        if isinstance(value,list) and len(value)==2:return self.read('lexeme',*value)
+        if not isinstance(value,dict) or set(value)!={'parts','size_bytes','checksum'}:
+            raise ValueError('Invalid original token fragment reference')
+        size=integer(value['size_bytes'],'token size')
+        if size>ARTIFACT_BYTES:raise ValueError('Original token exceeds artifact bound')
+        parts=value['parts']
+        if not isinstance(parts,list) or not parts or len(parts)>ARTIFACT_BYTES//4096+1 or any(not isinstance(v,list) or len(v)!=2 for v in parts):
+            raise ValueError('Invalid original token fragments')
+        if any(not 0<integer(v[1],'fragment size')<=4096 for v in parts):raise ValueError('Invalid original token fragment size')
+        if sum(integer(v[1],'fragment size')for v in parts)!=size:
+            raise ValueError('Original token fragment size mismatch')
+        raw=b''.join(self.read('lexeme',*v)for v in parts)
+        if sha(raw)!=value['checksum']:raise ValueError('Original token fragment checksum mismatch')
+        return raw
+
+
 class PageChunks(dict):
     def __init__(self, values, page_store):
         super().__init__(values)
@@ -112,6 +129,38 @@ def packed_pages(blob):
 
 def encoded_memory(value):
     return sys.getsizeof(value) + sum(sys.getsizeof(v) for v in value) if isinstance(value,list) else sys.getsizeof(value)
+
+
+class BuilderBudget:
+    """Shared allocation estimate for freshly created lexical/index dictionaries."""
+    def __init__(self): self.used = 0
+
+    def reserve(self, amount):
+        self.used += amount
+        if self.used > MAX_BUILDER_MEMORY_BYTES:
+            raise ValueError('Report byte dictionary exceeds explicit1GiB builder-memory budget; no evidence truncated')
+
+
+class BuilderChunks(dict):
+    def __init__(self, source=None, budget=None):
+        super().__init__(source or {})
+        self.budget = budget or BuilderBudget()
+        # Existing source entries are referenced; the newly owned table is counted.
+        self.budget.reserve(sys.getsizeof(self))
+
+    def __setitem__(self, key, value):
+        if key in self:
+            if self[key] != value: raise ValueError('Original chunk identity cannot be overwritten')
+            return
+        # Fixed field names/encoding literals are module-owned constants; checksum
+        # references the SAME cid string as the key. Count each new allocation once.
+        fields={'encoding','checksum','size_bytes','compressed_checksum','data'}
+        owned=sum(sys.getsizeof(v) for k,v in value.items() if k not in ('encoding','checksum'))
+        owned+=sum(sys.getsizeof(k) for k in value if k not in fields)
+        self.budget.reserve(sys.getsizeof(key) + sys.getsizeof(value) + owned)
+        before=sys.getsizeof(self)
+        super().__setitem__(key, value)
+        self.budget.reserve(sys.getsizeof(self)-before)
 
 
 class PageWriter:
@@ -143,12 +192,12 @@ def page_columnar(columnar):
     from .transport import _decode_lexeme, canonical
     if columnar.get('transport_codec') == PAGE_CODEC: return columnar
     result = dict(columnar)
+    templates=result.pop('_index_templates',{})
     # Retain only normalized strings that need exact original-token reuse.
     # Stream all other raw tokens directly into pages, never a whole raw pool.
     wanted = {canonical(value): value for value in columnar['strings']}
-    matches = {}; ranges = []
-    builder_bytes = (sys.getsizeof(columnar['artifact_lexemes']) +
-                     sys.getsizeof(wanted) + sum(sys.getsizeof(k)+96 for k in wanted))
+    matches = {}; ranges = []; fragments = {}
+    builder_bytes = (sys.getsizeof(wanted) + sum(sys.getsizeof(k)+96 for k in wanted))
     def reserve(page):
         nonlocal builder_bytes
         builder_bytes += sys.getsizeof(page['data']) + 384
@@ -163,24 +212,56 @@ def page_columnar(columnar):
         else:raise ValueError('Invalid legacy original lexeme')
         raw = _decode_lexeme(value)
         if len(raw)>ARTIFACT_BYTES:raise ValueError('Original lexeme exceeds32MiB artifact bound')
-        # Existing encoded entry + new range/list/int overhead. One raw token
+        # Existing encoded source objects are referenced, never copied here.
+        # Count NEW range/list/int overhead. One raw token
         # exists transiently; PageWriter holds only1MiB uncompressed at a time.
-        builder_bytes += encoded_memory(value) + 192
+        builder_bytes += 192
         if builder_bytes + sys.getsizeof(raw) > MAX_BUILDER_MEMORY_BYTES:
             raise ValueError('Report byte dictionary exceeds explicit1GiB builder-memory budget; no evidence truncated')
         if raw in wanted: matches[wanted[raw]] = index
-        ranges.append([writer.append(raw), len(raw)])
+        if len(raw)<4096:
+            ranges.append([writer.append(raw), len(raw)])
+        else:
+            parts=[];builder_bytes+=384
+            for start in range(0,len(raw),4096):
+                part=raw[start:start+4096];key=(len(part),hashlib.sha256(part).digest())
+                if key not in fragments:
+                    builder_bytes+=192
+                    fragments[key]=writer.append(part)
+                builder_bytes+=96
+                if builder_bytes+sys.getsizeof(raw)>MAX_BUILDER_MEMORY_BYTES:
+                    raise ValueError('Report byte dictionary exceeds explicit1GiB builder-memory budget; no evidence truncated')
+                parts.append([fragments[key],len(part)])
+            ranges.append({'parts':parts,'size_bytes':len(raw),'checksum':sha(raw)})
     result['artifact_lexemes'] = ranges
     result['lexeme_pages'] = writer.finish()
     result['strings'] = [{'$lex': matches[value]} if value in matches else value
                          for value in columnar['strings']]
-    del wanted, matches
+    del wanted, matches, fragments
+    from . import index_delta
+    rows={row[0]:row for row in columnar['artifact_chunk_values']}
+    bases={};cache=OrderedDict();cache_bytes=0
+    # Plain-base index cache is bounded independently of original-byte pages.
+    cache_limit=min(16*1024*1024,MAX_BUILDER_MEMORY_BYTES//16) if templates else 0
+    builder_bytes+=cache_limit+sys.getsizeof(rows)+sys.getsizeof(templates)
+    builder_bytes+=sum(sys.getsizeof(v)for v in {id(v):v for v in templates.values()}.values())
+    def base_values(cid):
+        nonlocal cache_bytes
+        if cid in cache:cache.move_to_end(cid);return cache[cid]
+        source=rows[cid];decoder=zlib.decompressobj(16+zlib.MAX_WBITS)
+        raw=decoder.decompress(base64.b64decode(source[2],validate=True),source[1]+1)
+        if not decoder.eof or decoder.unused_data or len(raw)!=source[1] or sha(raw)!=cid:raise ValueError('Plain delta base checksum mismatch')
+        values=index_delta.decode(raw);amount=sys.getsizeof(values)+128
+        cache[cid]=values;cache_bytes+=amount
+        while cache_bytes>cache_limit:
+            _,old=cache.popitem(last=False);cache_bytes-=sys.getsizeof(old)+128
+        return values
     writer = PageWriter(reserve); chunks = []
     for cid, size, encoded in columnar['artifact_chunk_values']:
         size = integer(size, 'original index chunk size')
         if size > ARTIFACT_BYTES: raise ValueError('Original index chunk exceeds32MiB bound before expansion')
         if not isinstance(encoded,str) or len(encoded)>2*(ARTIFACT_BYTES+65536): raise ValueError('Compressed original index chunk exceeds bound')
-        builder_bytes += sys.getsizeof(encoded) + sys.getsizeof(cid) + 384
+        builder_bytes += 384
         if builder_bytes > MAX_BUILDER_MEMORY_BYTES: raise ValueError('Report byte dictionary exceeds explicit1GiB builder-memory budget; no evidence truncated')
         compressed = base64.b64decode(encoded, validate=True)
         if len(compressed)>ARTIFACT_BYTES+65536:raise ValueError('Compressed original index chunk exceeds bound')
@@ -188,13 +269,36 @@ def page_columnar(columnar):
         raw = decoder.decompress(compressed, ARTIFACT_BYTES+1)
         if len(raw) != size or not decoder.eof or decoder.unused_data or sha(raw) != cid:
             raise ValueError('Original index chunk checksum mismatch before paging')
-        chunks.append([cid, size, writer.append(raw)])
+        context=templates.get(cid);base_cid=bases.get(context) if context else None
+        candidate=None
+        if base_cid:
+            try:
+                target=index_delta.decode(raw)
+                candidate=index_delta.patch(base_values(base_cid),target)
+            except ValueError:candidate=None
+        if candidate is not None and len(gzip.compress(candidate,compresslevel=6,mtime=0))+64<len(compressed):
+            chunks.append([cid,size,writer.append(candidate),'sparse-index-delta/1',len(candidate),base_cid])
+        else:
+            chunks.append([cid,size,writer.append(raw)])
+            if context and context not in bases:bases[context]=cid;builder_bytes+=192
+
+    # The original base CID already occurs in this same immutable table. Store
+    # its integer reference rather than repeating a distant random SHA string.
+    chunk_indices={row[0]:index for index,row in enumerate(chunks)}
+    builder_bytes+=sys.getsizeof(chunk_indices)+len(chunk_indices)*96
+    if builder_bytes>MAX_BUILDER_MEMORY_BYTES:raise ValueError('Report byte dictionary exceeds explicit1GiB builder-memory budget; no evidence truncated')
+    for row in chunks:
+        if len(row)==6:row[5]=chunk_indices[row[5]]
     result['artifact_chunk_values'] = chunks
     result['index_pages'] = writer.finish()
     result['transport_codec'] = PAGE_CODEC
     result['limits'] = {**result['limits'], 'max_decoded_page_bytes': PAGE_BYTES,
                         'decoded_page_cache_bytes': PAGE_CACHE_BYTES}
-    return result
+    def allocate(amount):
+        nonlocal builder_bytes
+        builder_bytes+=amount
+        if builder_bytes>MAX_BUILDER_MEMORY_BYTES:raise ValueError('Report byte dictionary exceeds explicit1GiB builder-memory budget; no evidence truncated')
+    return compact_metadata(result, reserve=reserve, allocate=allocate)
 
 
 def restore_page_strings(encoded, store):
@@ -208,10 +312,46 @@ def restore_page_strings(encoded, store):
             raise ValueError('Invalid normalized byte-page string reference')
         index = integer(value['$lex'], 'lexeme index')
         if index >= len(tokens): raise ValueError('Normalized lexeme index outside pool')
-        offset, size = tokens[index]
-        pending.append((integer(offset, 'offset'), integer(size, 'size'), position))
-    for offset, size, position in sorted(pending):
-        text = json.loads(store.read('lexeme', offset, size))
+        token=tokens[index]
+        if isinstance(token,dict) and (not isinstance(token.get('parts'),list) or not token['parts']):raise ValueError('Invalid normalized token fragments')
+        offset=token['parts'][0][0] if isinstance(token,dict) else token[0]
+        pending.append((integer(offset, 'offset'), index, position))
+    for offset, index, position in sorted(pending):
+        text = json.loads(store.token(tokens[index]))
         if not isinstance(text, str): raise ValueError('Normalized reference is not an original JSON string')
         strings[position] = text
     return strings
+
+
+def compact_metadata(columnar, *, reserve=None, allocate=None):
+    """Page original descriptor bytes and delta-code monotone lexical offsets."""
+    from .descriptor_table import encode
+    result=dict(columnar)
+    if allocate is None:
+        budget=BuilderBudget();allocate=budget.reserve
+        reserve=lambda page:allocate(sys.getsizeof(page['data'])+384)
+    if 'artifact_chunk_table' not in result:
+        rows=result['artifact_chunk_values']
+        if all(rows[i][2]>=rows[i-1][2] for i in range(1,len(rows))):
+            # Old JSON/string-base descriptors remain readable. Normalize those
+            # references without changing either original checksum.
+            normalized=rows
+            if any(len(row)==6 and isinstance(row[5],str) for row in rows):
+                allocate(len(rows)*192)
+                indices={row[0]:i for i,row in enumerate(rows)}
+                normalized=[[*row[:5],indices[row[5]]] if len(row)==6 and isinstance(row[5],str) else row for row in rows]
+            result['artifact_chunk_table']=encode(normalized,reserve=reserve)
+            result.pop('artifact_chunk_values')
+    if 'artifact_lexeme_offsets' not in result:
+        previous=0; tokens=[]
+        allocate(len(result['artifact_lexemes'])*192)
+        for value in result['artifact_lexemes']:
+            if isinstance(value,list):
+                offset,size=value; offset=integer(offset,'lexical offset');size=integer(size,'lexical token size')
+                if size>ARTIFACT_BYTES:raise ValueError('Original lexical token exceeds artifact bound')
+                if offset<previous or offset>0xffffffff:raise ValueError('Invalid original lexical offset order')
+                tokens.append([offset-previous,size]);previous=offset
+            else:tokens.append(value)
+        result['artifact_lexemes']=tokens
+        result['artifact_lexeme_offsets']='small-range-delta/1'
+    return result
