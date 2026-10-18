@@ -529,3 +529,20 @@ retain their numeric meaning. JSON-valued cells preserve the same values; JSON
 spacing and equivalent numeric formatting can differ. A new renderer revision
 binds its current embedded client checksum while retaining the original model
 input/output bytes and model/source versions.
+
+All report CLI jobs targeting the same output root take a nonblocking private
+`.render.lock` before AWS reads and aggregation. Contention returns75 through
+the existing bounded retry path; model, research and snapshot jobs do not take
+this lock. This prevents simultaneous hourly, closing and weekly builders from
+retaining duplicate large read models. The separate publication lock still
+protects immutable revisions and monotonic HTML/CSV/JSON aliases.
+
+The CLI owns its ephemeral read model: it freezes CSV, completes lossless
+compaction, then releases the original in-memory row/capture containers before
+outer encoding. Library `write_report` callers retain their original mapping by
+default. Temporary64KiB input staging uses gzip level1 to reduce local CPU;
+final artifact bytes, original SHA checks, final compression and all size limits
+remain unchanged. Read-only weekly generation has its own declared1500-second
+child deadline (3050-second two-window service); native model/paid-compute
+900-second controls remain separate. Capacity acceptance requires measured
+whole-job completion and exact downloads, not a small-fixture extrapolation.

@@ -53,6 +53,7 @@ def pack_bytes(raw, pool):
 def pack_transient_bytes(raw, pool):
     """Fast bounded ORIGINAL-byte staging before the final lexical dictionary pass.
 
+    Temporary gzip level1 reduces local CPU; final page/wire compression is unchanged.
     Fixed64KiB chunks avoid a Python per-byte CDC pass which final compaction
     immediately discards. The portable encoding/checksums are unchanged; final
     self-contained cross-run/cohort dedup still uses original lexical bytes.
@@ -63,7 +64,7 @@ def pack_transient_bytes(raw, pool):
     for start in range(0,max(1,len(raw)),65536):
         part=raw[start:start+65536];cid=sha(part)
         if cid not in pool:
-            compressed=gzip.compress(part,compresslevel=6,mtime=0)
+            compressed=gzip.compress(part,compresslevel=1,mtime=0)
             pool[cid]={'encoding':'gzip+base64','checksum':cid,'size_bytes':len(part),
                        'compressed_checksum':sha(compressed),'data':base64.b64encode(compressed).decode()}
         refs.append(cid)
