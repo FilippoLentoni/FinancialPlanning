@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from datetime import datetime
+from datetime import datetime, date
 from .transport import decode_transport
 
 LIMIT = 151 * 1024 * 1024
@@ -57,6 +57,8 @@ def _moment(value, *, allow_missing=False):
     return at.timestamp()
 
 def _head(target, archive, manifest, report):
+    if any(p.is_symlink() for p in (archive,archive.parent,archive.parent.parent)):
+        raise PublicationError('Symbolic-link report archive is unsafe')
     return {'protocol':'finplan-report-publication/1', 'archive':str(archive.relative_to(target)),
             'manifest_checksum':_sha(_read(archive/'manifest.json')), 'revision':manifest['revision'],
             'mode':report['mode'], 'period':report['period'], 'start_day':report['start_day'], 'end_day':report['end_day'],
@@ -95,6 +97,17 @@ def _legacy(target, name):
     if not all(p.exists() for p in paths): raise PublicationError('Incomplete legacy report aliases require repair')
     payloads = {ext:_read(target/(name+'.'+ext)) for ext in EXTENSIONS}
     report = decode_transport(json.loads(payloads['json']))
+    if report.get('mode') not in ('forward','controlled_replay') or report.get('period') not in ('daily','weekly'):
+        raise PublicationError('Invalid legacy report period/mode')
+    for field in ('start_day','end_day'):
+        value=report.get(field)
+        if not isinstance(value,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',value):
+            raise PublicationError('Invalid legacy report date')
+        try:date.fromisoformat(value)
+        except ValueError as error:raise PublicationError('Invalid legacy report date') from error
+    duration=(date.fromisoformat(report['end_day'])-date.fromisoformat(report['start_day'])).days
+    if not 0<=duration<=6 or report['period']=='daily' and duration!=0:
+        raise PublicationError('Invalid legacy report window')
     revision = hashlib.sha256(payloads['json']+payloads['html']).hexdigest()[:20]
     period = report['end_day'] if report['period']=='daily' else report['start_day']+'_'+report['end_day']
     archive = target/'archive'/period/revision
@@ -141,13 +154,14 @@ def publish(target: Path, archive: Path, manifest: dict, report: dict, period_na
         if heads.stat().st_uid != os.getuid(): raise PublicationError('Publication heads are not owned')
         heads.chmod(0o700)
         journal = target/'.report-publication.pending.json'
+        recovered=False
         if journal.exists():
             pending = _json(journal)
             if pending.get('protocol') != 'finplan-report-publication/1' or not isinstance(pending.get('updates'),dict) or not 1<=len(pending['updates'])<=2:
                 raise PublicationError('Invalid report publication recovery journal')
             for name in pending['updates']:
                 if name!='latest' and not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:_\d{4}-\d{2}-\d{2})?',name):raise PublicationError('Unsafe report publication alias name')
-            _finish(target, heads, pending)
+            _finish(target, heads, pending);recovered=True
         incoming = _head(target,archive,manifest,report);_verify(target,incoming)
         updates={}
         for name in [period_name]+(['latest'] if update_latest else []):
@@ -164,6 +178,6 @@ def publish(target: Path, archive: Path, manifest: dict, report: dict, period_na
         if updates:
             pending={'protocol':'finplan-report-publication/1','updates':updates}
             _atomic(journal,_canonical(pending));_finish(target,heads,pending)
-        return {'aliases_published':list(updates), 'publication_recovered':True}
+        return {'aliases_published':list(updates), 'publication_recovered':recovered}
     finally:
         fcntl.flock(fd,fcntl.LOCK_UN);os.close(fd)
