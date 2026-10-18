@@ -37,6 +37,10 @@ class EvidenceError(ValueError):
     """Stored evidence cannot safely be represented as a completed evaluation."""
 
 
+class PublicationDeferred(EvidenceError):
+    """A newer mutable head won; retain repair tasks and retry with a new clock."""
+
+
 class EvidenceReader(Protocol):
     def query_day(self, experiment_id: str, day: str, *, kind: str, page_size: int = 100, next_token: str | None = None) -> tuple[list[dict], str | None]: ...
     def read_input(self, input_id: str) -> dict: ...

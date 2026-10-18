@@ -477,3 +477,11 @@ should use the immutable archive path/manifest for a single revision. After a
 crash, invoke the normal report command to recover the small pending publication
 before using the mutable aliases. No original captured input or archived report
 is rewritten by this recovery.
+
+
+If a concurrent newer publication prevents a dated late-cost repair alias from
+being published, its immutable archive is retained and the task is not
+acknowledged. The CLI returns75 (`PublicationDeferred`) so the job wrapper can
+retry only this report command after30seconds with a fresh generated timestamp,
+within its existing900second deadline. Integrity/unsafe-evidence failures remain
+nonretryable exit2. No financial or model invocation is repeated by this retry.
