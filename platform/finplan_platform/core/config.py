@@ -88,6 +88,7 @@ _CONSUMERS = (
 _days = {"type": "integer", "minimum": 1, "maximum": 3650}
 _days_or_null = {"type": ["integer", "null"], "minimum": 1, "maximum": 3650}
 _pos = {"type": "number", "exclusiveMinimum": 0}
+_hhmm = {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
 
 ENV_CONFIG_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -196,6 +197,22 @@ ENV_CONFIG_SCHEMA: dict[str, Any] = {
                         },
                     },
                 },
+            },
+        },
+        # beta modeling competition pipeline (infra/stacks/modeling.py); beta only
+        "modeling_competition": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["experiment_id", "symbols", "decision_times", "research_times", "eod_time", "weekly_time", "runner_function_logical"],
+            "properties": {
+                "$comment": {"type": "string"},
+                "experiment_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,62}$"},
+                "symbols": {"type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": True, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9.]{0,9}$"}},
+                "decision_times": {"type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": True, "items": _hhmm},
+                "research_times": {"type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": True, "items": _hhmm},
+                "eod_time": _hhmm,
+                "weekly_time": _hhmm,
+                "runner_function_logical": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,40}$"},
             },
         },
         # post-ingestion daily recommendation trigger (daily-recommendation-trigger)
@@ -324,6 +341,16 @@ def validate_config(doc: Any, *, env: str | None = None) -> list[ConfigProblem]:
     access = doc.get("dev_desktop_access")
     if environment != "beta" and isinstance(access, dict) and access.get("role_names"):
         problems.append(ConfigProblem("/dev_desktop_access", "operator exceptions are beta-only"))
+    if environment != "beta" and doc.get("modeling_competition") is not None:
+        problems.append(ConfigProblem("/modeling_competition", "the modeling competition pipeline is beta-only"))
+    mc = doc.get("modeling_competition") if isinstance(doc.get("modeling_competition"), dict) else None
+    if mc is not None:
+        for key in ("decision_times", "research_times"):
+            times = mc.get(key)
+            if isinstance(times, list) and len({str(t)[:2] for t in times}) != len(times):
+                problems.append(ConfigProblem(f"/modeling_competition/{key}", "one slot per hour: the times share a cron expression's minute"))
+            if isinstance(times, list) and len({str(t)[3:] for t in times}) > 1:
+                problems.append(ConfigProblem(f"/modeling_competition/{key}", "all times must share the same minute (one cron schedule)"))
     phase = doc.get("phase")
     ingest = doc.get("ingest") if isinstance(doc.get("ingest"), dict) else {}
     provider = ingest.get("provider")
@@ -512,6 +539,11 @@ class EnvConfig:
         """Every dataset served by this environment (``etf-daily`` first, then the universe)."""
         u = self.universe
         return (self.dataset_id,) + ((u.dataset_id,) if u else ())
+
+    @property
+    def modeling_competition(self) -> Mapping[str, Any] | None:
+        """Beta modeling competition pipeline settings; always ``None`` outside beta."""
+        return self.data.get("modeling_competition") if self.env == "beta" else None
 
     @property
     def daily_trigger(self) -> Mapping[str, Any] | None:

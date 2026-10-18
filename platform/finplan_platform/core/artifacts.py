@@ -51,6 +51,7 @@ __all__ = [
     "check_upload_grant",
     "sha256_checksum",
     "WRITE_ONCE_PREFIXES",
+    "MUTABLE_PREFIXES",
     "SNAPSHOT_STATUS_TAG",
     "key_plan_content",
     "key_plan_export",
@@ -76,6 +77,10 @@ WRITE_ONCE_PREFIXES: dict[str, tuple[str, ...]] = {
     "raw": ("uploads/excel/", "research-news/v1/", "gdelt-metadata/v1/", "gdelt-intraday/v1/"),
     "curated": ("research-news/v1/", "gdelt-metadata/v1/", "gdelt-intraday/v1/"),
 }
+#: bucket role -> key prefixes that are NOT write-once: stable, overwritten human-friendly
+#: views of the beta modeling reports (every view also exists as an immutable revision).
+#: The bucket policy exempts exactly these prefixes from ``DenyPutWithoutIfNoneMatch``.
+MUTABLE_PREFIXES: dict[str, tuple[str, ...]] = {"reports": ("modeling-views/",)}
 _SHA_PREFIX = "sha256:"
 _META_SHA = "sha256"
 
@@ -288,6 +293,18 @@ class ArtifactStore:
                 assert existing is not None
                 return StoredArtifact(role, key, existing.checksum, existing.size_bytes, existing.content_type, False, existing.metadata)
             raise
+
+    def put_mutable(self, role: str, key: str, body: bytes, content_type: str = "application/json") -> StoredArtifact:
+        """Unconditional overwrite, allowed only under :data:`MUTABLE_PREFIXES` (stable report views)."""
+        if not any(key.startswith(p) for p in MUTABLE_PREFIXES.get(role, ())):
+            raise ValueError(f"{role}/{key} is write-once; only {MUTABLE_PREFIXES.get(role, ())} may be overwritten")
+        if not isinstance(body, (bytes, bytearray)):
+            raise TypeError("artifact body must be bytes")
+        digest = hashlib.sha256(body).digest()
+        meta = {_META_SHA: digest.hex()}
+        self._s3.put_object(Bucket=self.bucket(role), Key=key, Body=bytes(body), ContentType=content_type,
+                            ChecksumSHA256=base64.b64encode(digest).decode("ascii"), Metadata=meta, **self._sse())
+        return StoredArtifact(role, key, _SHA_PREFIX + digest.hex(), len(body), content_type, True, meta)
 
     def put_tags(self, role: str, key: str, tags: Mapping[str, str]) -> None:
         """Replace an object's tags (snapshot approval mirror). Tags are not artifact content."""

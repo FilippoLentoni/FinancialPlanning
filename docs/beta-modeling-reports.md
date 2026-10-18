@@ -7,6 +7,48 @@ the explorer/table interactions only. All report figures originate in the bounde
 `ModelingEvidence.query_day` DynamoDB read path and checksum-verified immutable S3
 artifacts. Reporting cannot make an unavailable model or stale quote succeed.
 
+## Deployed beta pipeline (beta-competition-v1)
+
+Since 2026-10-18 the beta competition runs in AWS, not on the dev box
+(`infra/stacks/modeling.py`, stack `finplan-beta-financialplanning-modeling`, beta only via
+`config/beta.json` `modeling_competition`). EventBridge Scheduler (America/New_York, Monday to
+Friday, flexible window off, one retry, 30 minute maximum event age) passes
+`<aws.scheduler.scheduled-time>` as the slot:
+
+| Time (New York) | Target | Steps |
+|---|---|---|
+| 09:45, 15:45 | state machine `modeling-decision` | `CollectQuotes` (modeling-sources `quotes`) -> `RunModels` (`finplan-beta-financemodel-forward-runner` `{"action":"run"}`) -> `Report` (modeling-report `current`); a runner failure still renders the report, then fails the execution |
+| 09:00, 15:00 | state machine `modeling-research` | `CollectResearch` (modeling-sources `research`) -> `PrepareLLMPrompt` (runner `{"action":"prepare_llm_prompt"}`) |
+| 17:00 | Lambda `modeling-report` `eod` | finalized day report and the day review |
+| Friday 17:25 | Lambda `modeling-report` `weekly` and `closed_week` | rolling and closed seven-day windows |
+
+The reports bucket is write-once except for the `modeling-views/` prefix (bucket policy
+`DenyPutWithoutIfNoneMatch` uses `NotResource` for it in beta). Every view is a copy of an
+immutable revision, and `head.json` names that revision:
+
+```
+modeling/v1/<experiment>/forward/<period>/<revision>/report.html|csv|json|manifest.json   immutable
+modeling/v1/<experiment>/review/<day>/<digest>/review.json|md                           immutable
+modeling-views/v1/<experiment>/latest/report.html|csv|json, manifest.json, head.json   newest daily
+modeling-views/v1/<experiment>/daily/<NY-date>/...                                       per day
+modeling-views/v1/<experiment>/weekly/<from>_<to>/... and weekly/latest/...               weekly
+modeling-views/v1/<experiment>/review/<NY-date>.md|json                                  day review
+```
+
+A view never regresses to an older period, an older data cutoff, or a non-final revision of
+a finalized day. To open the latest report (the presigned URL embeds no credentials beyond
+its signature and expires):
+
+```bash
+BUCKET=$(aws ssm get-parameter --region us-east-2 --name /finplan/beta/financialplanning/config/bucket-reports --query Parameter.Value --output text)
+aws s3 presign "s3://$BUCKET/modeling-views/v1/beta-competition-v1/latest/report.html" --region us-east-2 --expires-in 3600
+aws s3 cp "s3://$BUCKET/modeling-views/v1/beta-competition-v1/review/YYYY-MM-DD.md" - --region us-east-2
+```
+
+Manual runs go through the deployed functions (for example
+`aws lambda invoke --function-name finplan-beta-financialplanning-modeling-report --payload '{"mode":"current"}' --cli-binary-format raw-in-base64-out out.json --region us-east-2`);
+`{"mode":"preflight"}` / `{"action":"preflight"}` only read.
+
 ## Run and inspect
 
 From FinancialPlanning, using the repository environment:

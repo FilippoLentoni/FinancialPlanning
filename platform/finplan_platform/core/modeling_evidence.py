@@ -1033,14 +1033,27 @@ class ModelingEvidence:
 
     @classmethod
     def from_ec2(cls, *, region: str = "us-east-2") -> "ModelingEvidence":
-        """Resolve the existing approved reports bucket/KMS through SSM and S3."""
+        """Resolve the existing approved reports bucket/KMS through SSM and S3.
+
+        Inside a platform Lambda the deploy-time ``FINPLAN_BUCKET_REPORTS`` and
+        ``FINPLAN_KMS_KEY_ARN`` environment values are used instead (no SSM or bucket
+        encryption read); ``FINPLAN_ENV`` must then be ``beta``.
+        """
         if region != "us-east-2":
             raise PlatformError.not_permitted("experiment backend is beta us-east-2 only")
+        import os
+
         import boto3
         from .aws_clients import s3_client
-        ssm = boto3.client("ssm", region_name=region)
-        name = ssm.get_parameter(Name="/finplan/beta/financialplanning/config/bucket-reports")["Parameter"]["Value"]
         s3 = s3_client(region)
-        encryption = s3.get_bucket_encryption(Bucket=name)["ServerSideEncryptionConfiguration"]["Rules"][0]["ApplyServerSideEncryptionByDefault"]
+        name = os.environ.get("FINPLAN_BUCKET_REPORTS")
+        if name:
+            if os.environ.get("FINPLAN_ENV", "beta") != "beta":
+                raise PlatformError.not_permitted("autonomous experiment evidence is beta only")
+            encryption = {"KMSMasterKeyID": os.environ.get("FINPLAN_KMS_KEY_ARN")} if os.environ.get("FINPLAN_KMS_KEY_ARN") else {}
+        else:
+            ssm = boto3.client("ssm", region_name=region)
+            name = ssm.get_parameter(Name="/finplan/beta/financialplanning/config/bucket-reports")["Parameter"]["Value"]
+            encryption = s3.get_bucket_encryption(Bucket=name)["ServerSideEncryptionConfiguration"]["Rules"][0]["ApplyServerSideEncryptionByDefault"]
         principal = boto3.client("sts", region_name=region).get_caller_identity()["Arn"]
         return cls(MetadataRepository(boto3.client("dynamodb", region_name=region), "beta"), ArtifactStore(s3, {"reports": name}, kms_key_id=encryption.get("KMSMasterKeyID")), principal=principal, mirror_content=True)

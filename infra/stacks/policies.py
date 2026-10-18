@@ -109,8 +109,13 @@ def bucket_policy_statements(
     arn_for: ArnFor,
     consumers: Mapping[str, str],
     dev_desktop_roles: Iterable[str] = (),
+    mutable_prefixes: Iterable[str] = (),
 ) -> list[dict]:
     """All bucket policy statements for one bucket.
+
+    ``mutable_prefixes`` (beta reports bucket only, ``core.artifacts.MUTABLE_PREFIXES``): key
+    prefixes exempt from ``DenyPutWithoutIfNoneMatch`` (stable modeling report views); the
+    statement then uses ``NotResource``. Deletes stay denied everywhere.
 
     ``consumers`` maps consumer keys (``financemodel_job``, ``operator``, ...) to role-name
     patterns from the environment configuration. ``arn_for(pattern)`` turns a role-name
@@ -160,18 +165,23 @@ def bucket_policy_statements(
     ]
 
     prefixes = WRITE_ONCE.get(role, ())
+    mutable = sorted(set(mutable_prefixes))
+    if mutable and prefixes != ("",):
+        raise ValueError("mutable prefixes are only supported on a wholly write-once bucket")
     if prefixes:
         resources = [f"{bucket_arn}/{p}*" for p in prefixes]
-        st.append(
-            {
-                "Sid": "DenyPutWithoutIfNoneMatch",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:PutObject",
-                "Resource": resources,
-                "Condition": {"Null": {"s3:if-none-match": "true"}},
-            }
-        )
+        put_deny: dict = {
+            "Sid": "DenyPutWithoutIfNoneMatch",
+            "Effect": "Deny",
+            "Principal": "*",
+            "Action": "s3:PutObject",
+            "Resource": resources,
+            "Condition": {"Null": {"s3:if-none-match": "true"}},
+        }
+        if mutable:
+            del put_deny["Resource"]
+            put_deny["NotResource"] = [f"{bucket_arn}/{p}*" for p in mutable]
+        st.append(put_deny)
         delete = {
             "Sid": "DenyDeleteImmutableArtifacts",
             "Effect": "Deny",

@@ -130,6 +130,31 @@
     "max_runtime_seconds": 1800,
     "compute_class": "cpu"
   },
+  "modeling_competition": {
+    "$comment": "Beta-only modeling competition (infra/stacks/modeling.py): 10 synthetic $100k paper portfolios on 8 instruments. FinancialPlanning collects quotes/research and renders reports; the FinanceModel runner finplan-beta-financemodel-<runner_function_logical> runs the models. Times are America/New_York, Monday to Friday.",
+    "experiment_id": "beta-competition-v1",
+    "symbols": [
+      "AAPL",
+      "AMZN",
+      "GOOGL",
+      "META",
+      "MSFT",
+      "NVDA",
+      "TSLA",
+      "VOO"
+    ],
+    "decision_times": [
+      "09:45",
+      "15:45"
+    ],
+    "research_times": [
+      "09:00",
+      "15:00"
+    ],
+    "eod_time": "17:00",
+    "weekly_time": "17:25",
+    "runner_function_logical": "forward-runner"
+  },
   "consumer_principals": {
     "financemodel_job": {
       "ssm_key": "/finplan/beta/financemodel/job/job-role-ref",

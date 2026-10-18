@@ -16,11 +16,15 @@ A bundle is the directory a zip Lambda runs from (``/var/task``). Per function i
 * the platform package ``finplan_platform`` (with its shipped calendar data, the build-time
   ``exchange_calendars`` XNYS calendar among them);
 * ``config/`` (``FINPLAN_CONFIG_DIR=/var/task/config``);
+* for the modeling functions only, the beta modeling CLIs as a ``scripts`` package
+  (:data:`MODELING_SCRIPTS`; ``BundleSpec.scripts``);
 * ``bundle-manifest.json``: function, handler, extras, target platform, file count, unzipped size.
 
 Functions and extras (:data:`FUNCTIONS`): ``ingestion`` and ``plan-api`` get the ``providers``
 extra (``yfinance``, ``exchange-calendars``); the plan API needs it too because it runs
-``POST /v1/ingestions`` in process. ``sweeper`` gets the base dependencies only.
+``POST /v1/ingestions`` in process. ``sweeper`` gets the base dependencies only; so do
+``daily-trigger`` and the two modeling functions (``modeling-sources``, ``modeling-report``),
+which also carry the modeling CLIs.
 
 Before the 2026-10-07 fix the deployed functions were the bare ``platform/`` source tree
 (~150 KB) and failed at init with ``No module named 'finplan_contracts'``. The build stage now
@@ -87,17 +91,31 @@ class BundleSpec:
     extras: tuple[str, ...] = ()
     #: extra top-level entries this function's bundle must carry
     requires: tuple[str, ...] = ()
+    #: repository ``scripts/<name>.py`` modules copied into the bundle's ``scripts`` package
+    #: (the modeling Lambdas wrap the beta modeling CLIs instead of re-implementing them)
+    scripts: tuple[str, ...] = ()
+
+    @property
+    def group(self) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Functions with the same group get byte-identical bundles."""
+        return (self.extras, self.scripts)
 
     @property
     def module(self) -> str:
         return self.handler.rsplit(".", 1)[0]
 
 
+#: the beta modeling CLIs the modeling Lambdas run in process
+MODELING_SCRIPTS = ("collect_modeling_sources", "modeling_report", "modeling_day_review")
+
 FUNCTIONS: dict[str, BundleSpec] = {
     "plan-api": BundleSpec("finplan_platform.handlers.api.handler", ("providers",), ("yfinance", "exchange_calendars")),
     "ingestion": BundleSpec("finplan_platform.handlers.ingest.handler", ("providers",), ("yfinance", "exchange_calendars", "pandas", "numpy")),
     "sweeper": BundleSpec("finplan_platform.handlers.sweep.handler"),
     "daily-trigger": BundleSpec("finplan_platform.handlers.daily_trigger.handler"),
+    # beta modeling competition (infra/stacks/modeling.py): both wrap scripts/ CLIs
+    "modeling-sources": BundleSpec("finplan_platform.handlers.modeling.sources_handler", (), ("scripts",), MODELING_SCRIPTS),
+    "modeling-report": BundleSpec("finplan_platform.handlers.modeling.report_handler", (), ("scripts",), MODELING_SCRIPTS),
 }
 
 
@@ -177,11 +195,17 @@ def build_bundle(
         shutil.rmtree(cache, ignore_errors=True)
     shutil.copytree(root / "platform" / "finplan_platform", dest / "finplan_platform", ignore=_IGNORE)
     shutil.copytree(root / "config", dest / "config", ignore=_IGNORE)
+    if spec.scripts:
+        (dest / "scripts").mkdir()
+        (dest / "scripts" / "__init__.py").write_bytes(b"")
+        for name in spec.scripts:
+            shutil.copyfile(root / "scripts" / f"{name}.py", dest / "scripts" / f"{name}.py")
     size, files = bundle_size(dest)
     manifest = {
         "function": function,
         "handler": spec.handler,
         "extras": list(spec.extras),
+        **({"scripts": list(spec.scripts)} if spec.scripts else {}),
         "python_version": PYTHON_VERSION,
         "python_platform": python_platform or "host",
         "files": files,
@@ -200,11 +224,11 @@ def build_all(root: Path, out: Path, *, functions: Mapping[str, BundleSpec] = FU
     byte-identical bundles (installed once, then copied; the manifest lists every function of the
     group), so the cloud assembly holds one code asset per distinct bundle."""
     out.mkdir(parents=True, exist_ok=True)
-    groups: dict[tuple[str, ...], list[str]] = {}
+    groups: dict[tuple[tuple[str, ...], tuple[str, ...]], list[str]] = {}
     for name, spec in functions.items():
-        groups.setdefault(spec.extras, []).append(name)
+        groups.setdefault(spec.group, []).append(name)
     result: dict[str, dict[str, Any]] = {}
-    for extras, names in groups.items():
+    for _group, names in groups.items():
         first = out / names[0]
         for name in names:
             shutil.rmtree(out / name, ignore_errors=True)
@@ -236,6 +260,9 @@ def verify_bundle(path: Path, spec: BundleSpec | None = None, *, limit: int = LA
         handler_file = path / (spec.module.replace(".", "/") + ".py")
         if not handler_file.is_file():
             problems.append(f"handler module {spec.module} missing")
+        for name in spec.scripts:
+            if not (path / "scripts" / f"{name}.py").is_file():
+                problems.append(f"script module scripts/{name}.py missing")
     calendars = path / "finplan_platform" / "data" / "calendars"
     if not any(calendars.glob("xnys-exchange_calendars-*.json")):
         problems.append("the build-time XNYS calendar (finplan_platform/data/calendars) is missing")

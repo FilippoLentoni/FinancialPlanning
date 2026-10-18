@@ -33,6 +33,7 @@ from aws_cdk import aws_s3 as s3
 from aws_cdk import aws_ssm as ssm
 from constructs import Construct
 
+from finplan_platform.core.artifacts import MUTABLE_PREFIXES
 from finplan_platform.core.config import BUCKET_ROLES, EnvConfig
 
 from .common import PlatformStack, role_arn_pattern, ssm_name, tag_role
@@ -130,6 +131,8 @@ class StorageStack(PlatformStack):
                 arn_for=role_arn_pattern,
                 consumers=consumers,
                 dev_desktop_roles=cfg.dev_desktop_role_names,
+                # stable modeling report views (beta modeling competition only)
+                mutable_prefixes=MUTABLE_PREFIXES.get(role, ()) if cfg.modeling_competition else (),
             ):
                 bucket.add_to_resource_policy(iam.PolicyStatement.from_json(stmt))
             # BucketPolicy is not taggable and references both the bucket and the key, so the

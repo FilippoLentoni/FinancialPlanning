@@ -38,10 +38,10 @@ def local_bundles(tmp_path_factory: pytest.TempPathFactory) -> tuple[Path, dict[
 
 # ------------------------------------------------------------------ bundle builder
 def test_every_function_has_a_bundle_spec_matching_the_stacks() -> None:
-    assert set(lambda_bundle.FUNCTIONS) == {"plan-api", "ingestion", "sweeper", "daily-trigger"}
+    assert set(lambda_bundle.FUNCTIONS) == {"plan-api", "ingestion", "sweeper", "daily-trigger", "modeling-sources", "modeling-report"}
     for name in ("plan-api", "ingestion"):
         assert "providers" in lambda_bundle.FUNCTIONS[name].extras
-    for stack, function, handler in (("api", "plan-api", "handlers.api.handler"), ("ingestion", "ingestion", "handlers.ingest.handler"), ("metadata", "sweeper", "handlers.sweep.handler"), ("daily_trigger", "daily-trigger", "handlers.daily_trigger.handler")):
+    for stack, function, handler in (("api", "plan-api", "handlers.api.handler"), ("ingestion", "ingestion", "handlers.ingest.handler"), ("metadata", "sweeper", "handlers.sweep.handler"), ("daily_trigger", "daily-trigger", "handlers.daily_trigger.handler"), ("modeling", "modeling-sources", "handlers.modeling.sources_handler"), ("modeling", "modeling-report", "handlers.modeling.report_handler")):
         src = (ROOT / "infra" / "stacks" / f"{stack}.py").read_text(encoding="utf-8")
         assert f'lambda_code("{function}")' in src and handler in src
         assert lambda_bundle.FUNCTIONS[function].handler.endswith(handler)
@@ -84,6 +84,10 @@ def test_functions_with_the_same_extras_share_one_identical_bundle(local_bundles
     assert manifests["plan-api"] == manifests["ingestion"] and set(manifests["plan-api"]["functions"]) == {"plan-api", "ingestion"}
     assert (out / "plan-api" / lambda_bundle.MANIFEST).read_bytes() == (out / "ingestion" / lambda_bundle.MANIFEST).read_bytes()
     assert manifests["sweeper"]["unzipped_bytes"] < manifests["ingestion"]["unzipped_bytes"]
+    # the modeling functions share one bundle that also carries the modeling CLIs; the sweeper's does not
+    assert manifests["modeling-sources"] == manifests["modeling-report"] and manifests["modeling-report"]["scripts"] == list(lambda_bundle.MODELING_SCRIPTS)
+    assert {p.name for p in (out / "modeling-report" / "scripts").iterdir()} == {"__init__.py", *(f"{n}.py" for n in lambda_bundle.MODELING_SCRIPTS)}
+    assert not (out / "sweeper" / "scripts").exists() and "scripts" not in manifests["sweeper"]
 
 
 def test_source_tree_is_not_a_bundle() -> None:
@@ -129,7 +133,8 @@ def test_release_synth_uses_the_bundles_and_the_gate_checks_them(local_bundles: 
     monkeypatch.setenv(BUNDLE_DIR_ENV, str(local_bundles[0]))
     asm = synth(tmp_path / "cdk.out", envs=["beta"])
     assets = build_gates.lambda_code_assets(asm)
-    assert len(assets) == 2  # plan-api+ingestion share one bundle; the sweeper has its own
+    # plan-api+ingestion share one bundle; the sweeper (and daily trigger) one; the beta modeling functions one
+    assert len(assets) == 3
     assert all((p / "finplan_contracts").is_dir() for p in assets.values())
     (res,) = build_gates.run_gates(build_gates.GateContext(root=ROOT, assembly=asm), only=["lambda-bundle"])
     # host-platform bundles are importable here but are not the Lambda arm64 target
