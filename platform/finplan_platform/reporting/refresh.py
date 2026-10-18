@@ -67,10 +67,13 @@ def verify_receipts(evidence,tasks):
         row=evidence.repo.require('portfolio_observation',oid).doc
         if row.get('experiment_id')!=task['experiment_id']or row.get('checksum')!=task['checksum']:raise EvidenceError('Refresh receipt strong metadata identity/checksum mismatch')
         kind=str(row.get('kind',''))
-        if kind!='managed_model_cost'and not kind.startswith('managed_model_cost:'):raise EvidenceError('Refresh receipt is not an immutable managed cost event')
+        inference=kind.startswith('managed_inference_evidence:')
+        if kind!='managed_model_cost'and not kind.startswith('managed_model_cost:')and not inference:raise EvidenceError('Refresh receipt is not an immutable managed cost/inference event')
         raw=evidence.read_artifact_bytes(row)
         if checksum(raw)!=task['checksum']:raise EvidenceError('Refresh receipt original artifact checksum mismatch')
         payload=json.loads(raw)
+        expected='finplan-managed-inference-evidence/1'if inference else'finplan-managed-model-cost/1'
+        if payload.get('protocol',payload.get('schema_version'))!=expected:raise EvidenceError('Refresh receipt event protocol mismatch')
         day=timestamp(row['slot']).astimezone(ZoneInfo('America/New_York')).date().isoformat()
         if payload.get('event_id')!=task['event_id']or payload.get('experiment_id')!=task['experiment_id']or timestamp(payload['occurred_at'])!=timestamp(row['slot']):raise EvidenceError('Refresh receipt event binding mismatch')
         if task['protocol']==DAILY and day!=task['reporting_day']:raise EvidenceError('Refresh receipt actual occurrence day mismatch')
@@ -82,11 +85,11 @@ def verify_receipts(evidence,tasks):
 
 
 def ensure_in_report(report,tasks):
-    events={e['event_id']:e for e in report.get('managed_cost_events',[])}
+    events={e['event_id']:e for field in('managed_cost_events','managed_inference_events')for e in report.get(field,[])}
     for record in tasks:
         task=record['task'];event=events.get(task['event_id'])
         if not event or not event.get('counted_in_reporting_window')or not any(s.get('observation_id')==task['observation_id']and s.get('checksum')==task['checksum']for s in event['evidence_sources']):
-            raise EvidenceError('Requested exact managed cost receipt is not present in archived report')
+            raise EvidenceError('Requested exact managed cost/inference receipt is not present in archived report')
 
 
 def acknowledge(tasks):

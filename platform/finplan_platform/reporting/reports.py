@@ -883,7 +883,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                                       and timestamp(first_slot).astimezone(EASTERN).date() <= start
                                       and timestamp(generated_at).astimezone(EASTERN).date() >= end),
               "comparison_policy": comparison_policy, "expected_slot_manifest_available": bool(first_slot),
-              "renderer_checksum": checksum((Path(__file__).parent / "template.html").read_bytes() + (Path(__file__).parent / "report.js").read_bytes()),
+              "renderer_checksum": checksum(b"".join((Path(__file__).parent / name).read_bytes() for name in ("template.html", "report.js", "managed_evidence.js", "page_codec.js") if (Path(__file__).parent / name).exists())),
               "ranking_rule": "Observed shared-window net realized return after common execution costs; then shared-mark drawdown; then approach ID. Identical policy/universe/initial capital and actual observation intersection only. Full calendar coverage/failures remain visible; observed winner is not universal optimality.",
               "registry": registry, "runs": sorted(runs, key=lambda r: (r["decision_time"], r["approach_id"])),
               "inputs": inputs, "artifact_chunks": artifact_chunks, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "managed_cost_events": managed_cost_events, "forecasts": forecasts,
@@ -893,6 +893,8 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "source_record_ids": {"runs": [r["run_id"] for r in runs], "observations": [o["observation_id"] for o in observations + ancillary]}}
     if hasattr(reader, "io_status"):
         result["report_io"] = reader.io_status()
+    from .managed_evidence import collect as collect_managed_inference
+    collect_managed_inference(result)
     _safe_content(result)
     return result
 
@@ -955,7 +957,7 @@ def consolidate(reports: list[dict]) -> dict:
     combined = dict(reports[0])
     combined["report_io_by_experiment"] = {r["experiment_id"]:r.get("report_io",{}) for r in reports}
     combined.update(registry=[], runs=[], observations=[], forecasts=[], missing_slots=[], evidence_failures=[],
-                    inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], managed_cost_events=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
+                    inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], managed_cost_events=[], managed_inference_events=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
                     experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
                                   "expected_slot_manifest_available": r["expected_slot_manifest_available"]} for r in reports])
     book_ids, run_ids = set(), set()
@@ -982,6 +984,7 @@ def consolidate(reports: list[dict]) -> dict:
         combined["evidence_failures"].extend(report["evidence_failures"])
         combined["ancillary_evidence"].extend(report.get("ancillary_evidence", []))
         combined["managed_cost_events"].extend({**e,"source_approach_id":e["approach_id"],"approach_id":f"{experiment}::{e['approach_id']}"} for e in report.get("managed_cost_events",[]))
+        combined["managed_inference_events"].extend({**e,"source_approach_id":e["approach_id"],"approach_id":f"{experiment}::{e['approach_id']}"} for e in report.get("managed_inference_events",[]))
         if combined["execution_events"] is not None:
             combined["execution_events"].extend({**e, "source_approach_id": e["approach_id"], "approach_id": f"{experiment}::{e['approach_id']}"} for e in report["execution_events"])
         for key in ("runs", "observations"):
@@ -1004,13 +1007,25 @@ def consolidate(reports: list[dict]) -> dict:
 
 def csv_export(report: dict) -> str:
     stream = io.StringIO(newline="")
-    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "managed_cost_event", "fills", "fill_status", "fill_time", "execution_status", "execution_disposition_at", "execution_disposition_ref", "execution_disposition", "comparison_eligible", "comparison_exclusion_code", "comparison_exclusion_reason", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
+    fields = ["row_kind", "event_id", "managed_run_id", "origin_run_id", "origin_input_id", "evidence_status", "original_artifact_count", "cost_event_id", "worker_occurred_at", "experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "managed_cost_event", "fills", "fill_status", "fill_time", "execution_status", "execution_disposition_at", "execution_disposition_ref", "execution_disposition", "comparison_eligible", "comparison_exclusion_code", "comparison_exclusion_reason", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
     writer = csv.DictWriter(stream, fields, extrasaction="ignore")
     writer.writeheader()
     for run in report["runs"]:
         row = {k: json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v for k, v in run.items() if k in fields}
         # Spreadsheet formulas in untrusted model/news text are not executable.
         row = {k: "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v for k, v in row.items()}
+        writer.writerow(row)
+    for event in report.get("managed_inference_events",[]):
+        policy=event.get("policy") or {}
+        row={"row_kind":"managed_worker_nontrading", "event_id":event['event_id'],"run_id":event['event_id'],
+             "managed_run_id":event['managed_run_id'],"origin_run_id":event.get('origin_run_id'),"origin_input_id":event.get('origin_input_id'),
+             "experiment_id":event['experiment_id'],"approach_id":event['approach_id'],"source_approach_id":event.get('source_approach_id',event['approach_id']),"portfolio_id":event['portfolio_id'],
+             "decision_time":event.get('decision_time'),"worker_occurred_at":event['occurred_at'],"scheduled_slot":event.get('scheduled_slot'),"availability_cutoff":event.get('availability_cutoff'),
+             "status":event['job_state'],"evidence_status":event['evidence_status'],"original_artifact_count":len(event['artifact_summaries']),"cost_event_id":event['cost_event_id'],
+             "target_weights":policy.get('weights'),"target_cash":policy.get('cash'),"rationale":policy.get('rationale'),"forecast":policy.get('forecast'),
+             "comparison_eligible":False,"fill_status":"nontrading_managed_inference_only","comparison_exclusion_reason":"Original managed worker output; only a later eligible hourly decision may use it"}
+        row={k:json.dumps(v,ensure_ascii=False)if isinstance(v,(dict,list))else v for k,v in row.items()}
+        row={k:"'"+v if isinstance(v,str)and v[:1]in("=","+","-","@","\t","\r")else v for k,v in row.items()}
         writer.writerow(row)
     for missing in report["missing_slots"]:
         writer.writerow(missing)
@@ -1020,7 +1035,7 @@ def csv_export(report: dict) -> str:
 def html_export(report: dict) -> str:
     root = Path(__file__).parent
     data = canonical(encode_transport(report)).decode().replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
-    script = (root / "report.js").read_text()
+    script = (root / "report.js").read_text() + "\n" + (root / "managed_evidence.js").read_text()
     script_b64 = base64.b64encode(script.encode()).decode()
     bootstrap = """globalThis.__reportReadyPromise=(async()=>{const encoded=JSON.parse(document.getElementById('report-data').textContent);if(encoded.transport_codec==='modeling-report-gzip/1'){if(encoded.decoded_size_bytes>384*1024*1024)throw new Error('Decoded report exceeds384MiB bound');const compressed=Uint8Array.from(atob(encoded.data),c=>c.charCodeAt(0)),reader=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip')).getReader(),raw=new Uint8Array(encoded.decoded_size_bytes);let at=0;while(true){const item=await reader.read();if(item.done)break;if(at+item.value.length>raw.length){await reader.cancel();throw new Error('Decoded report exceeds declared size')}raw.set(item.value,at);at+=item.value.length}if(at!==raw.length)throw new Error('Decoded report size mismatch');const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',raw)),sha='sha256:'+Array.from(digest,v=>v.toString(16).padStart(2,'0')).join('');if(sha!==encoded.decoded_checksum)throw new Error('Decoded report checksum mismatch');globalThis.__packedReport=JSON.parse(new TextDecoder().decode(raw))}const script=document.createElement('script');script.textContent=new TextDecoder().decode(Uint8Array.from(atob('__SCRIPT_B64__'),c=>c.charCodeAt(0)));document.body.appendChild(script)})().catch(error=>{document.getElementById('coverage').textContent='Report integrity/size failure: '+error.message;throw error});""".replace('__SCRIPT_B64__',script_b64)
     return (root / "template.html").read_text().replace("__REPORT_DATA__", data).replace("__REPORT_SCRIPT__", bootstrap)
