@@ -169,13 +169,14 @@ def test_unequal_windows_missing_prices_and_unavailable_models_do_not_rank_as_ze
     reader = Reader()
     reader.observations.pop()
     result = report(reader)
-    assert all(b["rank"] is None for b in result["leaderboard"])
+    assert {tuple(b["observation_window"]) for b in result["leaderboard"]} == {(T0,T1)}
+    assert all(b["rank"] is not None for b in result["leaderboard"])
     reader = Reader()
-    reader.runs[2]["status"] = "unavailable"
+    reader.runs[2]["status"] = reader.runs[3]["status"] = "unavailable"
     reader.observations[3]["value"] = None
     result = report(reader)
     book = next(b for b in result["leaderboard"] if b["approach_id"] == "rule")
-    assert book["rank"] is None and book["failure_rate"] == .5
+    assert book["rank"] is None and book["failure_rate"] == 1
     assert book["opening_value"] == 101
 
 
@@ -277,7 +278,7 @@ def test_entire_missing_hour_is_visible_from_permanent_schedule_policy():
     result = report(reader, comparison_policy={"first_scheduled_slot": T0, "cadence_seconds": 3600})
     assert len(result["missing_slots"]) == 2
     assert {r["scheduled_slot"] for r in result["missing_slots"]} == {T2}
-    assert all(b["rank"] is None for b in result["leaderboard"])
+    assert all(b["rank"] is not None and b["scheduled_missing_slots"] == 1 and not b["full_calendar_coverage_complete"] for b in result["leaderboard"])
 
 
 def test_same_hour_different_timezone_spelling_cannot_duplicate_slot():
@@ -634,7 +635,8 @@ def test_manual_before_horizon_preserves_rows_but_cannot_create_weekly_coverage_
     assert book['recommendations'] == 2 and book['comparison_recommendations'] == 1 and book['nontrading_recommendations'] == 1
     assert book['valuations'] == 3 and book['valid_valuations'] == 2 and book['nontrading_valuations'] == 1
     assert book['window_start'] == T1 and book['model_cost'] == .17 and book['comparison_model_cost'] == 0
-    assert book['forecast_matches'] == 0 and book['failure_rate'] == 0
+    assert book['forecast_matches'] == 0 and book['evaluation_failure_count'] == 0 and book['failure_rate'] == .5
+    assert book['scheduled_missing_slots'] == 1
     assert all(m['scheduled_slot'] != T0 for m in result['missing_slots'])
     assert result['missing_slots'] and not result['window_complete']
     assert len(result['runs']) == 4 and result['execution_events'] == []
@@ -647,7 +649,7 @@ def test_late_created_exclusion_is_no_trade_but_remains_failed_hourly_coverage()
     assert row['fill_status'] == 'excluded_nontrading' and row['fills'] == []
     assert 'replacement_run_id' not in row['execution_disposition']
     book = next(b for b in result['leaderboard'] if b['approach_id'] == 'rule')
-    assert book['failure_rate'] == .5 and book['rank'] is None
+    assert book['failure_rate'] == .5 and book['rank'] is not None and not book['full_calendar_coverage_complete']
     assert book['fills'] == 0 and book['execution_cost'] == 0 and book['model_cost'] == .17
     assert result['evidence_failures'] == []
 
