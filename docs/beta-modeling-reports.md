@@ -407,3 +407,52 @@ parsing and final gzip. This is the operational headroom estimate, not an assert
 that a cold mature weekly report has already run or that source churn cannot
 exceed the deadline. Cache failures remain visible; integrity/transport failure or
 a deadline preserves the prior published revision.
+
+Managed forward jobs publish `finplan-managed-model-cost/1` events independently
+of recommendation reuse. Permanent `managed:<job_id>` identities deduplicate an
+embedded recommendation reference and ancillary `managed_model_cost:<job_id>`
+observations. Costs belong to `occurred_at` in America/New_York, while the receipt's
+`observed_at` records actual platform import availability. Compute/vendor observed
+USD, estimates, source evidence and unknown billing remain separate. Elapsed time
+multiplied by a rate is an estimate. An expired/unconsumed job still contributes
+its actual-day cost event. These observations never become equity marks, fills,
+cash debits or portfolio revisions. Comparison/observed-window costs include only
+events whose actual occurrence lies in that window; recommendation reuse adds no
+second charge. Conflicting permanent events fail integrity validation.
+
+`FINPLAN_REPORT_REFRESH_DIR` enables private durable receipt tasks from the runtime
+importer, written after verified platform persistence and before the Model outbox
+acknowledgment. A normal daily CLI handles at most128 matching tasks and two prior
+cost dates, archives those dated revisions first, and generates its requested
+current report last. Strong observation-ID/checksum reads inject missing GSI rows
+into only the correct bounded day query; the report must contain the exact event
+receipt before its task can be removed. Archive failure, changed/concurrent tasks,
+queue overflow and unavailable evidence retain pending work. Tasks contain IDs and
+checksums, never financial ledger values. Daily and weekly queues are private,
+separately bounded to10,000 files; each read accepts at most128 tasks.
+
+After a dated cost-day archive succeeds, at most seven deterministic existing
+weekly alias paths are checked. Affected windows receive versioned durable repair
+tasks under `$FINPLAN_REPORT_REFRESH_DIR/weekly/`. The separate hourly trailing
+command is the usual consolidated CLI arguments plus `--repair-weekly-from-queue`.
+It repairs at most one seven-day window per invocation, performs no ordinary daily
+build or model/provider call, and preserves every newer `weekly/latest.*` alias.
+Normal17:10 closed/current weekly commands continue producing only their requested
+windows. Later revisions retain prior immutable archives. With no tasks, weekly
+repair returns without AWS reads. Remove no queued receipt to suppress a failure;
+inspect the exact observation/checksum and retry after resolving the cause.
+
+RSS inputs retain their actual supplied symbols and captured coverage. Selected
+payloads without attribution provenance show an unverified constituent-attribution
+warning; earlier captures used ticker-token matches. Missing selected metadata
+does not prove that a newer captured raw source lacked verified attribution. No old input or recommendation
+is rewritten. New items show their recorded `symbol_attribution` version/method,
+dated universe provenance, matched security content and excluded ambiguous tokens.
+Metadata-only GDELT inputs retain their distinct provider semantics and are not
+relabeled as RSS or article text. Approved native managed-result reuse counts as
+an evaluated signal when its captured invocation state and original evidence are
+valid; an uninvoked attempt merely labeled reused still cannot rank.
+If a legacy/concurrent producer left more than the queue cap, the reader processes
+a bounded prefix and reports a lower-bound pending count; it does not discard
+excess tasks or refuse all progress. Weekly task publication serializes its capacity
+check with a private lock. Concurrent/new task files survive acknowledgments.

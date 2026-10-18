@@ -1,0 +1,174 @@
+{
+  "never_started_cancelled": {
+    "protocol": "finplan-managed-model-cost/1",
+    "event_id": "managed:01KCONTROLLED00000000000000",
+    "experiment_id": "controlled-cost-wire",
+    "approach_id": "jev_systemone",
+    "portfolio_id": "pf_01KCONTROLLED00000000000000",
+    "managed_run_id": "01KCONTROLLED00000000000000",
+    "occurred_at": "2026-07-13T01:00:00Z",
+    "occurred_at_basis": "controller_terminal_observed_at",
+    "job_state": "cancelled",
+    "invocation_state": "not_invoked",
+    "binding_ref": {
+      "artifact_id": "controlled-public-binding",
+      "owner": "financemodel",
+      "kind": "run_artifact",
+      "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "binding_checksum": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_evidence_refs": [
+      {
+        "artifact_id": "controlled-public-binding",
+        "owner": "financemodel",
+        "kind": "run_artifact",
+        "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "compute_observed_usd": 0.0,
+    "compute_estimated_usd": 0.0675,
+    "compute_cost_basis": "observed no managed compute started; unspent native upper-bound estimate separate",
+    "vendor_observed_usd": 0.0,
+    "vendor_estimated_usd": 0.0,
+    "vendor_cost_basis": "observed no vendor invocation",
+    "usage": null,
+    "worker_image_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "approval": {
+      "approved_by": "controlled-independent-human",
+      "approved_at": "2026-07-13T00:00:00Z"
+    },
+    "worker_source_commit": "dddddddddddddddddddddddddddddddddddddddd"
+  },
+  "completed_no_call": {
+    "protocol": "finplan-managed-model-cost/1",
+    "event_id": "managed:controlled-completed_no_call",
+    "experiment_id": "controlled-cost-wire",
+    "approach_id": "jev_systemone",
+    "portfolio_id": "pf_01KCONTROLLED00000000000000",
+    "managed_run_id": "controlled-completed_no_call",
+    "occurred_at": "2026-07-13T00:59:50Z",
+    "occurred_at_basis": "actual_managed_job_end",
+    "job_state": "failed",
+    "invocation_state": "not_invoked",
+    "binding_ref": {
+      "artifact_id": "controlled-public-binding",
+      "owner": "financemodel",
+      "kind": "run_artifact",
+      "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "binding_checksum": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_evidence_refs": [
+      {
+        "artifact_id": "controlled-public-binding",
+        "owner": "financemodel",
+        "kind": "run_artifact",
+        "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "compute_observed_usd": null,
+    "compute_estimated_usd": 0.0675,
+    "compute_cost_basis": "billing unavailable; native preflight upper-bound estimate separate, never elapsed-time observed billing",
+    "vendor_observed_usd": 0.0,
+    "vendor_estimated_usd": 0.0,
+    "vendor_cost_basis": "observed no vendor invocation; estimate separate",
+    "usage": {
+      "calls": 0,
+      "transport_calls": 0,
+      "external_vendor_estimated_usd": 0.0,
+      "vendor_price_basis": "observed no vendor invocation; estimate separate"
+    },
+    "worker_image_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "approval": {
+      "approved_by": "controlled-independent-human",
+      "approved_at": "2026-07-13T00:00:00Z"
+    },
+    "worker_source_commit": "dddddddddddddddddddddddddddddddddddddddd"
+  },
+  "positive_estimated": {
+    "protocol": "finplan-managed-model-cost/1",
+    "event_id": "managed:controlled-positive_estimated",
+    "experiment_id": "controlled-cost-wire",
+    "approach_id": "jev_systemone",
+    "portfolio_id": "pf_01KCONTROLLED00000000000000",
+    "managed_run_id": "controlled-positive_estimated",
+    "occurred_at": "2026-07-13T00:59:50Z",
+    "occurred_at_basis": "actual_managed_job_end",
+    "job_state": "succeeded",
+    "invocation_state": "invoked",
+    "binding_ref": {
+      "artifact_id": "controlled-public-binding",
+      "owner": "financemodel",
+      "kind": "run_artifact",
+      "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "binding_checksum": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_evidence_refs": [
+      {
+        "artifact_id": "controlled-public-binding",
+        "owner": "financemodel",
+        "kind": "run_artifact",
+        "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "compute_observed_usd": null,
+    "compute_estimated_usd": 0.0675,
+    "compute_cost_basis": "billing unavailable; native preflight upper-bound estimate separate, never elapsed-time observed billing",
+    "vendor_observed_usd": null,
+    "vendor_estimated_usd": 0.001,
+    "vendor_cost_basis": "estimated usage times configured rate; actual billing unavailable",
+    "usage": {
+      "calls": 1,
+      "transport_calls": 1,
+      "input_tokens": 120,
+      "output_tokens": 25,
+      "external_vendor_estimated_usd": 0.001,
+      "vendor_price_basis": "estimated usage times configured rate; actual billing unavailable"
+    },
+    "worker_image_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "approval": {
+      "approved_by": "controlled-independent-human",
+      "approved_at": "2026-07-13T00:00:00Z"
+    },
+    "worker_source_commit": "dddddddddddddddddddddddddddddddddddddddd"
+  },
+  "unknown_indeterminate": {
+    "protocol": "finplan-managed-model-cost/1",
+    "event_id": "managed:controlled-unknown_indeterminate",
+    "experiment_id": "controlled-cost-wire",
+    "approach_id": "jev_systemone",
+    "portfolio_id": "pf_01KCONTROLLED00000000000000",
+    "managed_run_id": "controlled-unknown_indeterminate",
+    "occurred_at": "2026-07-13T00:59:50Z",
+    "occurred_at_basis": "actual_managed_job_end",
+    "job_state": "failed",
+    "invocation_state": "indeterminate",
+    "binding_ref": {
+      "artifact_id": "controlled-public-binding",
+      "owner": "financemodel",
+      "kind": "run_artifact",
+      "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "binding_checksum": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "source_evidence_refs": [
+      {
+        "artifact_id": "controlled-public-binding",
+        "owner": "financemodel",
+        "kind": "run_artifact",
+        "checksum": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "compute_observed_usd": null,
+    "compute_estimated_usd": 0.0675,
+    "compute_cost_basis": "billing unavailable; native preflight upper-bound estimate separate, never elapsed-time observed billing",
+    "vendor_observed_usd": null,
+    "vendor_estimated_usd": null,
+    "vendor_cost_basis": "unknown vendor side effect/usage; no zero fabricated",
+    "usage": null,
+    "worker_image_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "approval": {
+      "approved_by": "controlled-independent-human",
+      "approved_at": "2026-07-13T00:00:00Z"
+    },
+    "worker_source_commit": "dddddddddddddddddddddddddddddddddddddddd"
+  }
+}
