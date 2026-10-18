@@ -321,3 +321,17 @@ was152.3MiB (153.2MiB after inspecting first/last-day inputs);4,988DOMnodes,
 selection-race check. These are packaging/memory tests, not model or scheduling proof.
 The fixture, original-byte/namespace/budget integrity tests, and actual manual
 browser checks retain their checksums and purpose labels in the scratch evidence.
+
+Rankings distinguish full calendar coverage from the actually observed comparable
+period. A common missed first hour or partial first New York calendar day remains
+visible in failure/coverage counts and warnings; it does not invent a zero return
+or suppress a later, verified shared-window comparison. Within an identical cohort,
+universe, initial capital and policy, eligible approaches use the intersection of
+actual valid valuation timestamps. Opening/closing observation IDs, cash, all fees,
+notional and flows inside that interval are retained; full-period metrics remain
+separate. Cropped cash-flow windows require a persisted return for that exact window.
+No successful evaluation, lost evidence, missing execution costs, unmatched windows,
+or only closed-market cash observations still prevent ranking. Missing/stale chart
+points break paths or show explicitly dashed carried marks; no interpolated price
+is inserted. A rank describes that observed period, with its disclosed coverage,
+and never promotes a policy or claims universal superiority.

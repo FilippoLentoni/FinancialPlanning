@@ -373,6 +373,8 @@ def _opening_value(valid: list[dict], executions: list[dict] | None) -> tuple[fl
 
 def summarize(approaches: list[dict], runs: list[dict], observations: list[dict], forecasts: list[dict], execution_events: list[dict] | None = None) -> list[dict]:
     books = []
+    valid_by_approach = {}
+    history_by_approach = {}
     for approach in approaches:
         if approach.get("non_trading"):
             continue
@@ -394,6 +396,8 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
         all_valid = [o for o in history if _valid(o)]
         comparison_history, has_open_session = _comparison_history(history, approach.get("market_calendar"))
         valid = [o for o in comparison_history if _valid(o)]
+        valid_by_approach[aid] = valid
+        history_by_approach[aid] = history
         opening, opening_event_id = _opening_value(valid, executions)
         current = _value(valid[-1]) if valid else None
         # Net external flows are excluded from investment P&L. Prefer the common
@@ -427,18 +431,24 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
         policy = approach.get("comparison_policy_id")
         cohort = approach.get("cohort_id")
         reasons = []
+        warnings = []
+        if history and (history[-1].get("quote_status") in {"corporate_action_unreconciled", "corporate_action_pending"} or any(word in str(history[-1].get("corporate_action_status", "")) for word in ("unreconciled", "pending"))):
+            reasons.append("Latest portfolio state has an unresolved corporate action; past marks cannot hide pending equity")
+        successful = sum((r.get("output") or r.get("outcome") or {}).get("status", r.get("status")) in {"succeeded", "recommended", "hold", "applied", "no_op", "superseded"} and not r.get("evidence_error") and (r.get("inference_invocation_state") != "not_invoked" or approach.get("family") == "control") for r in selected)
+        if any(r.get("evidence_error") for r in selected): reasons.append("Missing/corrupt model or ledger evidence")
+        if executions is not None and any(not e.get("observed_at") for e in executions): reasons.append("Execution event timestamp missing; observed-window cost cannot be verified")
         if executions is not None and any(e.get("evidence_error") for e in executions):
             reasons.append("Missing/corrupt execution-day receipt")
         if len(valid) < 2:
             reasons.append("Fewer than two valid valuations")
-        if failures or not selected:
-            reasons.append("Missing, failed or unavailable approach evaluations")
+        if not successful:
+            reasons.append("No successful model/control evaluation in observed period")
+        if failures:
+            warnings.append(f"{failures} missing/failed/unavailable evaluations; retained in coverage and operational results")
         if any(not _valid(o) for o in comparison_history):
-            reasons.append("Missing/stale valuation slots")
+            warnings.append("Missing/stale valuation slots; observed comparison uses shared actual marks only")
         if approach.get("market_calendar") and not has_open_session:
             reasons.append("No verified open-session valuations; awaiting comparable market data")
-        if ret is None:
-            reasons.append("Comparable return unavailable")
         if not policy or not cohort:
             reasons.append("Comparison policy/cohort not declared")
         books.append({"approach_id": aid, "display_name": approach.get("display_name", aid),
@@ -463,25 +473,77 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
                       "market_session_dates": sorted(session_dates), "market_session_proof_coverage": session_proof_count/len(all_valid) if all_valid else None,
                       "window_start": valid[0]["observed_at"] if valid else None, "window_end": valid[-1]["observed_at"] if valid else None,
                       "comparison_policy_id": policy, "cohort_id": cohort, "observation_window": list(observation_key),
-                      "ranking_blockers": reasons, "rank": None, "return_tied": False})
-    # Rank only within an identical declared cohort, capital, policy and valuation
-    # window; missing models do not get a fabricated zero or an equivalent rank.
-    groups: dict[tuple, list[dict]] = {}
+                      "ranking_blockers": reasons, "coverage_warnings": warnings, "evaluation_failure_count": failures, "evaluation_opportunity_count": len(coverage_runs), "successful_evaluations": successful, "full_calendar_coverage_complete": not warnings and bool(selected), "rank": None, "return_tied": False})
+    # Operational failures remain visible, while observed returns use exactly the
+    # same actual valuation timestamps within a declared comparable cohort.
+    groups = {}
     by_id = {a["approach_id"]: a for a in approaches}
     for book in books:
         if not book["ranking_blockers"]:
             approach = by_id[book["approach_id"]]
-            key = (book["cohort_id"], book["comparison_policy_id"], tuple(book["observation_window"]),
-                   canonical(approach.get("investable_universe", [])).decode(), approach.get("starting_capital"))
+            key = (book["cohort_id"], book["comparison_policy_id"], canonical(approach.get("investable_universe", [])).decode(), approach.get("starting_capital"))
             groups.setdefault(key, []).append(book)
     for members in groups.values():
         if len(members) < 2:
             members[0]["ranking_blockers"].append("No second approach with identical comparable window")
             continue
-        members.sort(key=lambda b: (-b["net_return"], b["max_drawdown"], b["approach_id"]))
-        for index, book in enumerate(members, 1):
-            book["rank"] = index
-            book["return_tied"] = any(other is not book and math.isclose(other["net_return"], book["net_return"], rel_tol=1e-10, abs_tol=1e-12) for other in members)
+        maps = {}
+        for book in members:
+            values=valid_by_approach[book["approach_id"]]
+            mapping={timestamp(o["observed_at"]):o for o in values}
+            if len(mapping)!=len(values):
+                book["ranking_blockers"].append("Ambiguous multiple valid valuations at one timestamp")
+            maps[book["approach_id"]]=mapping
+        if any(b["ranking_blockers"] for b in members):
+            continue
+        shared = sorted(set.intersection(*(set(maps[b["approach_id"]]) for b in members)))
+        if len(shared)<2:
+            for b in members:b["ranking_blockers"].append("Fewer than two shared actual valuation timestamps")
+            continue
+        for book in members:
+            aid=book["approach_id"];marks=[maps[aid][at] for at in shared]
+            start_at,end_at=shared[0],shared[-1]
+            window_runs=[r for r in runs if r["approach_id"]==aid and r.get("comparison_eligible") is not False and start_at<=timestamp(r["decision_time"])<=end_at]
+            window_events=[e for e in execution_events or [] if e["approach_id"]==aid and start_at<=timestamp(e["observed_at"])<=end_at]
+            opening,opening_event=_opening_value(marks,window_events)
+            closing=_value(marks[-1]);flows=sum(float(o.get("external_cash_flow",0)) for o in history_by_approach[aid] if start_at<timestamp(o["observed_at"])<=end_at)
+            pnl=closing-opening-flows;ret=pnl/opening if opening else None
+            full=valid_by_approach[aid]
+            if flows:
+                last=marks[-1]
+                same_window=timestamp(full[0]["observed_at"])==start_at and timestamp(full[-1]["observed_at"])==end_at
+                explicit_window=last.get("return_window_start") and last.get("return_window_end") and timestamp(last["return_window_start"])==start_at and timestamp(last["return_window_end"])==end_at
+                ret=last.get("time_weighted_return") if same_window or explicit_window else None
+            cost=sum(float(e["transaction_cost"]) for e in window_events) if execution_events is not None else (sum(float(r["execution_cost"]) for r in window_runs) if window_runs and all(r.get("execution_cost") is not None for r in window_runs) else None)
+            notional=sum(abs(float(f["notional"])) for e in window_events for f in e.get("simulated_fills",[])) if execution_events is not None else None
+            turnover=notional/opening if notional is not None and opening else sum(float(r.get("turnover",0) or 0) for r in window_runs)
+            peak=opening;drawdown=0.0
+            for mark in marks:
+                value=_value(mark);peak=max(peak,value);drawdown=max(drawdown,(peak-value)/peak if peak else 0)
+            fields=("opening_value","current_value","net_pnl","net_return","max_drawdown","turnover","execution_cost","window_start","window_end","observation_window")
+            book["full_period_metrics"]={k:book[k] for k in fields}
+            sessions=set();proven=False
+            for mark in marks:
+                dates,proof=_session_proof({"quote_provenance":mark.get("quote_provenance"),"market_session":mark.get("market_session"),"market_session_evidence":mark.get("market_session_evidence")});sessions.update(dates);proven=proven or proof
+            book["observed_comparison_sessions"]=len(sessions) if proven else None
+            book.update(opening_value=opening,current_value=closing,net_pnl=pnl,net_return=ret,max_drawdown=drawdown,turnover=turnover,execution_cost=cost,
+                        opening_execution_event_id=opening_event,window_start=marks[0]["observed_at"],window_end=marks[-1]["observed_at"],observation_window=[o["observed_at"] for o in marks],
+                        ranking_scope="observed_shared_window",observed_comparison_valuations=len(marks),
+                        observed_opening_valuation_id=marks[0]["observation_id"],observed_closing_valuation_id=marks[-1]["observation_id"],
+                        observed_opening_cash=marks[0].get("cash"),observed_closing_cash=marks[-1].get("cash"),observed_external_cash_flows=flows,
+                        observed_execution_event_ids=[e["observation_id"] for e in window_events],
+                        observed_model_cost=sum(float(r["model_cost"]) for r in window_runs) if window_runs and all(r.get("model_cost") is not None for r in window_runs) else None)
+            if len(marks)!=len(full):book["coverage_warnings"].append(f"Observed comparison uses {len(marks)} shared actual marks; {len(full)-len(marks)} other valid marks remain in full-period evidence")
+            if ret is None:book["ranking_blockers"].append("Cash-flow-adjusted observed-window return unavailable")
+            if cost is None:book["ranking_blockers"].append("Observed-window execution costs unavailable")
+        eligible=[b for b in members if not b["ranking_blockers"]]
+        if len(eligible)<2:
+            for b in eligible:b["ranking_blockers"].append("No second approach with verified observed-window costs/return")
+            continue
+        eligible.sort(key=lambda b:(-b["net_return"],b["max_drawdown"],b["approach_id"]))
+        for index,book in enumerate(eligible,1):
+            book["rank"]=index
+            book["return_tied"]=any(other is not book and math.isclose(other["net_return"],book["net_return"],rel_tol=1e-10,abs_tol=1e-12) for other in eligible)
     return sorted(books, key=lambda b: (b["rank"] is None, b["rank"] or 0, b["approach_id"]))
 
 
@@ -556,6 +618,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         try:
             inputs[run["run_id"]] = _input_for_run(reader, run, artifact_chunks)
             captured = inputs[run["run_id"]]
+            run["inference_invocation_state"] = captured["payload"].get("invocation_state")
             if known[aid].get("non_trading"):
                 run.update(non_trading=True, purpose="interim_research_no_primary_execution",
                            reviewed_portfolio_id=captured["payload"].get("holdings", {}).get("portfolio_id"))
@@ -773,9 +836,16 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         book = next((b for b in leaderboard if b["approach_id"] == missing_row["approach_id"]), None)
         if book is None:
             continue
-        if "Missing scheduled slots" not in book["ranking_blockers"]:
-            book["ranking_blockers"].append("Missing scheduled slots")
-        book["rank"] = None
+        book["scheduled_missing_slots"] = book.get("scheduled_missing_slots", 0) + 1
+        book["full_calendar_coverage_complete"] = False
+        if "Missing scheduled slots" not in book["coverage_warnings"]: book["coverage_warnings"].append("Missing scheduled slots; excluded from observed comparison, not imputed zero")
+    for book in leaderboard:
+        absent=book.get("scheduled_missing_slots",0);total=book["evaluation_opportunity_count"]+absent
+        book["failure_rate"]=(book["evaluation_failure_count"]+absent)/total if total else None
+        horizon=known[book["approach_id"]].get("comparison_horizon_start")
+        if horizon and timestamp(horizon)>datetime.combine(start,time(),EASTERN).astimezone(timezone.utc):
+            book["full_calendar_coverage_complete"]=False
+            book["coverage_warnings"].append("Partial first calendar day: experiment begins "+horizon)
     latest = max([r["decision_time"] for r in runs] + [o["observed_at"] for o in observations + ancillary]
                  + [r[k] for r in runs for k in ("finished_at", "fill_time", "execution_disposition_at") if r.get(k)]
                  + [r["execution"]["recorded_at"] for r in runs if (r.get("execution") or {}).get("recorded_at")]
@@ -792,7 +862,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                                       and timestamp(generated_at).astimezone(EASTERN).date() >= end),
               "comparison_policy": comparison_policy, "expected_slot_manifest_available": bool(first_slot),
               "renderer_checksum": checksum((Path(__file__).parent / "template.html").read_bytes() + (Path(__file__).parent / "report.js").read_bytes()),
-              "ranking_rule": "Net realized return after common execution costs; then lower drawdown; then approach ID. Identical policy/universe/capital/observation windows only. Observed winner is not universal optimality.",
+              "ranking_rule": "Observed shared-window net realized return after common execution costs; then shared-mark drawdown; then approach ID. Identical policy/universe/initial capital and actual observation intersection only. Full calendar coverage/failures remain visible; observed winner is not universal optimality.",
               "registry": registry, "runs": sorted(runs, key=lambda r: (r["decision_time"], r["approach_id"])),
               "inputs": inputs, "artifact_chunks": artifact_chunks, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "forecasts": forecasts,
               "leaderboard": leaderboard, "missing_slots": missing,
@@ -894,9 +964,9 @@ def consolidate(reports: list[dict]) -> dict:
         book = next((b for b in combined["leaderboard"] if b["approach_id"] == missing["approach_id"]), None)
         if book is None:
             continue
-        if "Missing scheduled slots" not in book["ranking_blockers"]:
-            book["ranking_blockers"].append("Missing scheduled slots")
-        book["rank"] = None
+        book["scheduled_missing_slots"] = book.get("scheduled_missing_slots", 0) + 1
+        book["full_calendar_coverage_complete"] = False
+        if "Missing scheduled slots" not in book["coverage_warnings"]: book["coverage_warnings"].append("Missing scheduled slots; excluded from observed comparison, not imputed zero")
     cutoffs = [r["data_cutoff"] for r in reports if r["data_cutoff"]]
     combined["data_cutoff"] = max(cutoffs, key=timestamp) if cutoffs else None
     combined["window_complete"] = all(r["window_complete"] for r in reports)
