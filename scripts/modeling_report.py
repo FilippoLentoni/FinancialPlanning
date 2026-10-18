@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import sys
 from zoneinfo import ZoneInfo
@@ -12,6 +12,11 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "platform"))
 from finplan_platform.reporting.reports import EvidenceError, aggregate, aggregate_interim, consolidate, write_report
+
+
+def report_end_day(day, now, *, closed_week=False):
+    end = date.fromisoformat(day) if day else now.astimezone(ZoneInfo("America/New_York")).date()
+    return (end - timedelta(days=1) if closed_week else end).isoformat()
 
 
 def main(argv=None):
@@ -22,15 +27,19 @@ def main(argv=None):
     parser.add_argument("--include-experiment", action="append", default=[], help="Include another isolated cohort in this same consolidated report (repeatable)")
     parser.add_argument("--day", help="Reporting day in America/New_York (defaults to today)")
     parser.add_argument("--weekly", action="store_true", help="Rolling seven calendar days ending on --day")
+    parser.add_argument("--closed-week", action="store_true", help="With --weekly, use the seven closed calendar days ending before --day; actual coverage still determines completeness")
     parser.add_argument("--finalized", action="store_true", help="Archive closing revision only after 17:00 America/New_York")
     parser.add_argument("--output", type=Path, default=Path("/home/ec2-user/projects/reports/beta-modeling"))
     parser.add_argument("--mode", choices=("forward", "controlled_replay"), default="forward")
     parser.add_argument("--no-s3-archive", action="store_true", help="Only for diagnosis: still query actual Dynamo/S3 evidence")
     args = parser.parse_args(argv)
+    if args.closed_week and not args.weekly:
+        parser.error("--closed-week requires --weekly")
     from finplan_platform.core.modeling_evidence import ModelingEvidence
     evidence = ModelingEvidence.from_ec2(region="us-east-2")
     now = datetime.now(timezone.utc)
-    day = args.day or now.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+    day = report_end_day(args.day, now, closed_week=args.closed_week)
+    args.finalized = args.finalized or args.closed_week
     end = datetime.fromisoformat(day).date()
     close = datetime.fromisoformat(day + "T17:00:00").replace(tzinfo=ZoneInfo("America/New_York"))
     if args.finalized and now < close and args.mode == "forward":
