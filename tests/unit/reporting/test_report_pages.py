@@ -243,3 +243,51 @@ def test_local_canonical_varint_guard_matches_original_reencode_reference():
             with pytest.raises(ValueError,match='Noncanonical|bound'):decode(bad)
     for bad in (b'\x80\x00',b'\xff\xff\xff\xff\x00',b'\x81\x80\x00'):
         with pytest.raises(ValueError,match='Noncanonical'):decode(bad)
+
+
+def test_paged_fast_lookaside_preserves_every_boundary_and_warm_artifact():
+    # More than1024 tokens and >1MiB both exercise complete and streamed batches.
+    raw=t.canonical({'rows':[['é',-0.0,1e-7,True,None,'escaped\\"\\n']]*45000})
+    assert len(raw)>1024*1024
+    old_pool={};new_pool={};legacy=t.Lexemes();paged=t.Lexemes(page_transport=True)
+    old=t.pack_json_bytes(raw,old_pool,legacy)
+    new=t.pack_json_bytes(raw,new_pool,paged)
+    assert old==new and old_pool==new_pool and legacy.values==paged.values
+    calls=0;original=paged.intern
+    def count(token):
+        nonlocal calls
+        calls+=1;return original(token)
+    paged.intern=count
+    again=t.pack_json_bytes(raw,new_pool,paged)
+    assert again==old and calls==0
+    assert t.unpack_json_bytes(again,new_pool,paged.values)==raw
+    assert paged.hot_bytes<=paged.hot_limit<=8*1024*1024
+
+
+def test_paged_fast_lookaside_eviction_still_checks_cold_collisions():
+    paged=t.Lexemes(page_transport=True);paged.hot_limit=512
+    paged.token_key=lambda token:b'controlled-collision'
+    first=b'first';paged.intern(first)
+    paged.hot.clear();paged.hot_bytes=0
+    with pytest.raises(ValueError,match='collision'):
+        t.pack_json_bytes(b'"different"',{},paged)
+    # Invalid coverage must not be accepted by the batched lexical path.
+    with pytest.raises(ValueError,match='unrecognized'):
+        t.pack_json_bytes(b'{"x":1}invalid',{},t.Lexemes(page_transport=True))
+
+
+def test_json_bulk_lexing_matches_original_escaped_and_invalid_intervals():
+    import re,random
+    original=re.compile(rb'"(?:\\.|[^"\\])*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null|\s+|[{}\[\],:]')
+    corpus=[b'"\\\\\\\"\\u00e9\\t\\r\\n"',b'"unterminated',b'"bad\\\n"',b'1e+3 -0.00 1e-9 true false null',b'{"a":1}invalid']
+    rng=random.Random(180)
+    for _ in range(100):
+        value=''.join(rng.choice('abcé💰\\"\n\t')for _ in range(300))
+        corpus.append(t.canonical({'text':value,'number':rng.uniform(-100,100)}))
+    for raw in corpus:
+        assert t._JSON_TOKEN.findall(raw)==original.findall(raw)
+    # Cold batches must assign indices in first appearance order despite repeats.
+    raw=t.canonical({'new':['z','a','z','b','a']*1000})
+    a={};b={};old=t.Lexemes();new=t.Lexemes(page_transport=True);new.hot_limit=512
+    assert t.pack_json_bytes(raw,a,old)==t.pack_json_bytes(raw,b,new)
+    assert a==b and old.values==new.values
