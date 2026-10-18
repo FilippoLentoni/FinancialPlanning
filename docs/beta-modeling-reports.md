@@ -10,7 +10,8 @@ artifacts. Reporting cannot make an unavailable model or stale quote succeed.
 ## Deployed beta pipeline (beta-competition-v1)
 
 Since 2026-10-18 the beta competition runs in AWS, not on the dev box
-(`infra/stacks/modeling.py`, stack `finplan-beta-financialplanning-modeling`, beta only via
+(`infra/stacks/modeling.py`, the `Modeling` construct of the existing stack
+`finplan-beta-financialplanning-daily-trigger`, so no new pipeline deploy action is needed; beta only via
 `config/beta.json` `modeling_competition`). EventBridge Scheduler (America/New_York, Monday to
 Friday, flexible window off, one retry, 30 minute maximum event age) passes
 `<aws.scheduler.scheduled-time>` as the slot:

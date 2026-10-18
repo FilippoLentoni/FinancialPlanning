@@ -27,15 +27,17 @@ def modeling_synth() -> dict[str, Any]:
 
     from infra.app import build_app
 
-    app = build_app(cdk.App(), list(ENVS), env_modules=("infra.stacks.modeling",), app_modules=())
+    app = build_app(cdk.App(), list(ENVS), env_modules=("infra.stacks.ingestion", "infra.stacks.daily_trigger", "infra.stacks.modeling"), app_modules=())
     out: dict[str, Any] = {"children": {}, "template": None}
     for env in ENVS:
-        stage = app.node.find_child(env.capitalize())
-        out["children"][env] = [c.node.id for c in stage.node.children]
+        trigger = app.node.find_child(env.capitalize()).node.find_child("DailyTrigger")
+        out["children"][env] = [c.node.id for c in trigger.node.children]
         if env == "beta":
-            stack = stage.node.find_child("Modeling")
-            out["stack_name"] = stack.stack_name
-            out["template"] = Template.from_stack(stack).to_json()
+            out["stack_name"] = trigger.stack_name
+            full = Template.from_stack(trigger).to_json()
+            out["full"] = full
+            # only the modeling construct's resources (logical IDs carry the construct path)
+            out["template"] = {**full, "Resources": {k: v for k, v in full["Resources"].items() if k.startswith("Modeling")}}
     return out
 
 
@@ -69,7 +71,8 @@ def _definition(t: dict[str, Any], name: str) -> dict[str, Any]:
 # ------------------------------------------------------------------ beta only
 def test_stack_exists_only_in_beta(modeling_synth: dict[str, Any]) -> None:
     assert "Modeling" in modeling_synth["children"]["beta"]
-    assert modeling_synth["stack_name"] == "finplan-beta-financialplanning-modeling"
+    # inside the existing daily-trigger stack: the pipeline's DeployDailyTrigger action deploys it
+    assert modeling_synth["stack_name"] == "finplan-beta-financialplanning-daily-trigger"
     for env in ("gamma", "prod"):
         assert "Modeling" not in modeling_synth["children"][env]
         assert load_config(env).modeling_competition is None
@@ -113,7 +116,7 @@ def test_resource_names_follow_the_platform_convention(modeling_synth: dict[str,
 def test_every_taggable_resource_has_an_ownership_matrix_role(modeling_synth: dict[str, Any]) -> None:
     from finplan_contracts.ownership import check_template
 
-    report = check_template(modeling_synth["template"], "financialplanning", name="modeling").to_dict()
+    report = check_template(modeling_synth["full"], "financialplanning", name="daily-trigger").to_dict()
     assert report["problems"] == []
     for s in _of(modeling_synth["template"], "AWS::Scheduler::Schedule").values():
         assert s["Metadata"]["logical-role"] == "daily-ingest-schedule"
@@ -137,7 +140,7 @@ def test_schedules_new_york_weekdays_no_flexible_window(modeling_synth: dict[str
         assert p["FlexibleTimeWindow"] == {"Mode": "OFF"} and p["State"] == "ENABLED"
         assert json.loads(p["Target"]["Input"]) == payload
         assert p["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 1800, "MaximumRetryAttempts": 1}
-        assert _render(p["Target"]["Arn"]).startswith("${" + target)
+        assert _render(p["Target"]["Arn"]).startswith("${Modeling" + target)
 
 
 # ------------------------------------------------------------------ state machines

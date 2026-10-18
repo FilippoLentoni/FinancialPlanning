@@ -1,5 +1,7 @@
 """Beta modeling competition pipeline (beta only; ``config/beta.json`` ``modeling_competition``).
 
+Deployed as the ``Modeling`` construct of the beta daily-trigger stack (see :func:`add_to_stage`).
+
 Replaces the dev-box systemd timers of the beta modeling competition with deployed, scheduled
 infrastructure. FinancialPlanning collects the evidence and renders the reports; FinanceModel's
 runner Lambda ``finplan-<env>-financemodel-<runner_function_logical>`` (deployed by FinanceModel,
@@ -41,9 +43,9 @@ from constructs import Construct
 from finplan_platform.core.config import EnvConfig
 from finplan_platform.core.repository import table_name
 
-from .common import PlatformStack, StageContext, lambda_code, platform_role_name, resource_name, tag_role
+from .common import StageContext, lambda_code, platform_role_name, resource_name, role_arn_pattern, tag_role
 
-__all__ = ["ModelingStack", "add_to_stage", "runner_function_name", "cron", "SCHEDULE_TIMEZONE", "FUNCTION_ROLE_TAG", "MACHINE_ROLE_TAG", "SCHEDULE_ROLE_TAG"]
+__all__ = ["ModelingPipeline", "add_to_stage", "runner_function_name", "cron", "SCHEDULE_TIMEZONE", "FUNCTION_ROLE_TAG", "MACHINE_ROLE_TAG", "SCHEDULE_ROLE_TAG"]
 
 SCHEDULE_TIMEZONE = "America/New_York"
 #: ownership-matrix logical roles (see the module docstring)
@@ -67,9 +69,12 @@ def cron(times: list[str] | tuple[str, ...], days: str = "MON-FRI") -> str:
     return f"cron({int(minutes.pop())} {hours} ? * {days} *)"
 
 
-class ModelingStack(PlatformStack):
-    def __init__(self, scope: Construct, construct_id: str, *, cfg: EnvConfig, storage: Any, metadata: Any, stage_role_name: str | None = None, **kwargs: Any) -> None:
-        super().__init__(scope, construct_id, cfg=cfg, description=f"FinancialPlanning beta modeling competition ({cfg.env}): collectors, reports, state machines, schedules", **kwargs)
+class ModelingPipeline(Construct):
+    """Every modeling resource, added to the environment's existing daily-trigger stack."""
+
+    def __init__(self, scope: Construct, construct_id: str, *, cfg: EnvConfig, storage: Any, metadata: Any, stage_role_name: str | None = None) -> None:
+        super().__init__(scope, construct_id)
+        stack = cdk.Stack.of(self)
         mc = cfg.modeling_competition
         if not mc or cfg.env != "beta":
             raise ValueError("the modeling competition stack is beta only")
@@ -94,13 +99,13 @@ class ModelingStack(PlatformStack):
             role.add_to_principal_policy(iam.PolicyStatement(sid="ReportsBucketList", actions=["s3:ListBucket", "s3:GetBucketLocation"], resources=[reports.bucket_arn]))
             role.add_to_principal_policy(iam.PolicyStatement(sid="ReportsObjects", actions=["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"], resources=[reports.arn_for_objects("*")]))
             role.add_to_principal_policy(iam.PolicyStatement(sid="PlatformKey", actions=["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey*", "kms:ReEncrypt*", "kms:DescribeKey"], resources=[storage.key.key_arn]))
-            tables = self.format_arn(service="dynamodb", resource="table", resource_name=f"finplan-{env}-financialplanning-*")
+            tables = stack.format_arn(service="dynamodb", resource="table", resource_name=f"finplan-{env}-financialplanning-*")
             role.add_to_principal_policy(iam.PolicyStatement(sid="MetadataReads", actions=["dynamodb:GetItem", "dynamodb:BatchGetItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:DescribeTable"], resources=[tables, tables + "/index/*"]))
             if write_tables:
                 # PutItem/UpdateItem/ConditionCheckItem: what TransactWriteItems needs; never DeleteItem
                 role.add_to_principal_policy(iam.PolicyStatement(sid="EvidenceWrites", actions=["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:ConditionCheckItem"],
-                                                                 resources=[self.format_arn(service="dynamodb", resource="table", resource_name=table_name(env, t)) for t in write_tables]))
-            role.add_to_principal_policy(iam.PolicyStatement(sid="ReadReportsBucketReference", actions=["ssm:GetParameter"], resources=[self.format_arn(service="ssm", resource="parameter", resource_name=f"finplan/{env}/financialplanning/config/bucket-reports")]))
+                                                                 resources=[stack.format_arn(service="dynamodb", resource="table", resource_name=table_name(env, t)) for t in write_tables]))
+            role.add_to_principal_policy(iam.PolicyStatement(sid="ReadReportsBucketReference", actions=["ssm:GetParameter"], resources=[stack.format_arn(service="ssm", resource="parameter", resource_name=f"finplan/{env}/financialplanning/config/bucket-reports")]))
             log_group = logs.LogGroup(self, f"{cid}Logs", log_group_name=f"/aws/lambda/{resource_name(env, logical)}", retention=logs.RetentionDays.ONE_MONTH, removal_policy=RemovalPolicy.DESTROY)
             tag_role(log_group, FUNCTION_ROLE_TAG)
             fn = lambda_.Function(
@@ -123,7 +128,7 @@ class ModelingStack(PlatformStack):
             tag_role(fn, FUNCTION_ROLE_TAG)
             if stage_role_name:
                 # the Beta stage's deployed tests invoke the read-only preflight (tests/integration)
-                fn.add_permission("InvokeFromStageRole", principal=iam.ArnPrincipal(f"arn:{Aws.PARTITION}:iam::{Aws.ACCOUNT_ID}:role/{stage_role_name}"), action="lambda:InvokeFunction")
+                fn.add_permission("InvokeFromStageRole", principal=iam.ArnPrincipal(role_arn_pattern(stage_role_name)), action="lambda:InvokeFunction")
             return fn
 
         self.sources = function("SourcesFunction", "modeling-sources", "finplan_platform.handlers.modeling.sources_handler", lambda_code("modeling-sources"), memory=1024, write_tables=SOURCE_WRITE_TABLES, async_retries=0,
@@ -131,7 +136,7 @@ class ModelingStack(PlatformStack):
         self.report = function("ReportFunction", "modeling-report", "finplan_platform.handlers.modeling.report_handler", lambda_code("modeling-report"), memory=3008, write_tables=(), async_retries=1,
                                description="Beta modeling reports and day review (S3 reports bucket only)")
         self.runner_name = runner_function_name(env, str(mc["runner_function_logical"]))
-        self.runner_arn = Arn.format(cdk.ArnComponents(service="lambda", resource="function", resource_name=self.runner_name, arn_format=ArnFormat.COLON_RESOURCE_NAME), self)
+        self.runner_arn = Arn.format(cdk.ArnComponents(service="lambda", resource="function", resource_name=self.runner_name, arn_format=ArnFormat.COLON_RESOURCE_NAME), stack)
         runner = lambda_.Function.from_function_attributes(self, "ForwardRunner", function_arn=self.runner_arn, same_environment=True)
 
         # ------------------------------------------------------------ state machines
@@ -197,15 +202,22 @@ class ModelingStack(PlatformStack):
         schedule("ClosedWeekSchedule", "modeling-closed-week", cron([mc["weekly_time"]], "FRI"), self.report.function_arn, {"mode": "closed_week", "experiment": self.experiment, "scheduled_time": at},
                  f"Beta modeling closed-week report on Fridays at {mc['weekly_time']} America/New_York")
 
-        for name, value in (("DecisionMachineArn", self.decision_machine.state_machine_arn), ("ResearchMachineArn", self.research_machine.state_machine_arn), ("RunnerFunctionName", self.runner_name)):
-            cdk.CfnOutput(self, name, value=value)
 
 
 def add_to_stage(stage: cdk.Stage, ctx: StageContext) -> None:
+    """Adds the pipeline to the existing ``finplan-<env>-financialplanning-daily-trigger`` stack.
+
+    A separate stack would need a new deploy action in the pipeline, which only the authenticated
+    bootstrap can add (the pipeline lives in the tooling stack); the daily-trigger stack is already
+    deployed by the Beta stage's ``DeployDailyTrigger`` action.
+    """
     cfg = ctx.cfg
     if not cfg.modeling_competition or cfg.env != "beta":
         return
+    trigger = (ctx.extras.get("daily_trigger") or {}).get("stack")
+    if trigger is None:
+        raise ValueError("the beta modeling pipeline needs the daily-trigger stack (infra.stacks.daily_trigger runs first)")
     from .pipeline import stage_role_name
 
-    stack = ModelingStack(stage, "Modeling", cfg=cfg, storage=ctx.storage, metadata=ctx.metadata, stage_role_name=stage_role_name(cfg.env), stack_name=f"finplan-{cfg.env}-financialplanning-modeling")
-    ctx.extras["modeling"] = {"stack": stack, "sources": stack.sources, "report": stack.report, "decision": stack.decision_machine, "research": stack.research_machine}
+    pipeline = ModelingPipeline(trigger, "Modeling", cfg=cfg, storage=ctx.storage, metadata=ctx.metadata, stage_role_name=stage_role_name(cfg.env))
+    ctx.extras["modeling"] = {"stack": trigger, "construct": pipeline, "sources": pipeline.sources, "report": pipeline.report, "decision": pipeline.decision_machine, "research": pipeline.research_machine}
