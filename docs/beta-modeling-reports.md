@@ -519,3 +519,13 @@ be durable before Model outbox acknowledgement; report acknowledgement still
 requires its exact link receipt in the published dated archive. Controlled tests
 exercise NY23:59:58 issue/00:00:05 terminal, both dated archives, original artifact
 downloads, weekly deduplication and no portfolio revision/fill changes.
+
+The HTML CSV button exports the same headers and rows as the server CSV,
+including managed recommendations/outcome updates and missing-slot statuses.
+Full historical normalized row fields are lazily verified on export, one row at
+a time; no second full CSV payload is embedded in the report. Formula-like
+strings (including leading tab/CR) are escaped while negative numeric values
+retain their numeric meaning. JSON-valued cells preserve the same values; JSON
+spacing and equivalent numeric formatting can differ. A new renderer revision
+binds its current embedded client checksum while retaining the original model
+input/output bytes and model/source versions.
