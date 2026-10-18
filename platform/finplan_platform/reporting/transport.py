@@ -50,6 +50,26 @@ def pack_bytes(raw, pool):
     return {'checksum':sha(raw),'size_bytes':len(raw),'raw_chunks':refs,'artifact_encoding':'original-byte-gzip-chunks/1'}
 
 
+def pack_transient_bytes(raw, pool):
+    """Fast bounded ORIGINAL-byte staging before the final lexical dictionary pass.
+
+    Fixed64KiB chunks avoid a Python per-byte CDC pass which final compaction
+    immediately discards. The portable encoding/checksums are unchanged; final
+    self-contained cross-run/cohort dedup still uses original lexical bytes.
+    """
+    if len(raw) > MAX_ARTIFACT_BYTES:
+        raise ValueError('Captured artifact exceeds explicit32MiB report input limit; evidence is not truncated')
+    refs=[]
+    for start in range(0,max(1,len(raw)),65536):
+        part=raw[start:start+65536];cid=sha(part)
+        if cid not in pool:
+            compressed=gzip.compress(part,compresslevel=6,mtime=0)
+            pool[cid]={'encoding':'gzip+base64','checksum':cid,'size_bytes':len(part),
+                       'compressed_checksum':sha(compressed),'data':base64.b64encode(compressed).decode()}
+        refs.append(cid)
+    return {'checksum':sha(raw),'size_bytes':len(raw),'raw_chunks':refs,'artifact_encoding':'original-byte-gzip-chunks/1'}
+
+
 def unpack_bytes(capture, pool):
     if capture['size_bytes'] > MAX_ARTIFACT_BYTES: raise ValueError('Original evidence exceeds32MiB limit')
     parts = []
@@ -216,7 +236,7 @@ _JSON_TOKEN = re.compile(rb'"(?:\\.|[^"\\])*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?
 
 
 class Lexemes:
-    def __init__(self): self.values=[]; self.indices={};self.encoded_bytes=0
+    def __init__(self): self.values=[]; self.indices={};self.encoded_indices={};self.encoded_bytes=0
     def intern(self,token):
         existing=self.indices.get(token)
         if existing is not None:return existing
@@ -238,9 +258,15 @@ def _varint(number):
 def pack_json_bytes(raw,pool,lexemes):
     if len(raw)>MAX_ARTIFACT_BYTES:raise ValueError('Captured artifact exceeds explicit32MiB report input limit; evidence is not truncated')
     refs=[];indices=bytearray();position=0;tokens=0
-    for match in _JSON_TOKEN.finditer(raw):
-        if match.start()!=position:raise ValueError('Original captured JSON bytes contain an unrecognized lexical interval')
-        position=match.end();indices.extend(_varint(lexemes.intern(match.group())));tokens+=1
+    cached=lexemes.encoded_indices;lookup=cached.get;extend=indices.extend;intern=lexemes.intern
+    # C-level findall avoids one Python Match object/method sequence per token.
+    # Bound its temporary list to1MiB of original bytes; larger artifacts stream.
+    source=_JSON_TOKEN.findall(raw) if len(raw)<=1024*1024 else (m.group() for m in _JSON_TOKEN.finditer(raw))
+    for token in source:
+        position+=len(token);encoded=lookup(token)
+        if encoded is None:
+            encoded=bytes(_varint(intern(token)));cached[token]=encoded
+        extend(encoded);tokens+=1
         if tokens%1024==0:
             refs.append(_pack_index_chunk(bytes(indices),pool));indices.clear()
     if position!=len(raw):raise ValueError('Original captured JSON bytes have an unrecognized trailing interval')
