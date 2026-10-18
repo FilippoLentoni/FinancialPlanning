@@ -68,14 +68,15 @@ def verify_receipts(evidence,tasks):
         if row.get('experiment_id')!=task['experiment_id']or row.get('checksum')!=task['checksum']:raise EvidenceError('Refresh receipt strong metadata identity/checksum mismatch')
         kind=str(row.get('kind',''))
         inference=kind.startswith('managed_inference_evidence:')
-        if kind!='managed_model_cost'and not kind.startswith('managed_model_cost:')and not inference:raise EvidenceError('Refresh receipt is not an immutable managed cost/inference event')
+        issue=kind.startswith('managed_inference_issue_link:')
+        if kind!='managed_model_cost'and not kind.startswith('managed_model_cost:')and not inference and not issue:raise EvidenceError('Refresh receipt is not an immutable managed cost/inference event')
         raw=evidence.read_artifact_bytes(row)
         if checksum(raw)!=task['checksum']:raise EvidenceError('Refresh receipt original artifact checksum mismatch')
         payload=json.loads(raw)
-        expected='finplan-managed-inference-evidence/1'if inference else'finplan-managed-model-cost/1'
+        expected='finplan-managed-inference-issue-link/1'if issue else'finplan-managed-inference-evidence/1'if inference else'finplan-managed-model-cost/1'
         if payload.get('protocol',payload.get('schema_version'))!=expected:raise EvidenceError('Refresh receipt event protocol mismatch')
         day=timestamp(row['slot']).astimezone(ZoneInfo('America/New_York')).date().isoformat()
-        if payload.get('event_id')!=task['event_id']or payload.get('experiment_id')!=task['experiment_id']or timestamp(payload['occurred_at'])!=timestamp(row['slot']):raise EvidenceError('Refresh receipt event binding mismatch')
+        if payload.get('event_id')!=task['event_id']or payload.get('experiment_id')!=task['experiment_id']or timestamp(payload['issued_at']if issue else payload['occurred_at'])!=timestamp(row['slot']):raise EvidenceError('Refresh receipt event binding mismatch')
         if task['protocol']==DAILY and day!=task['reporting_day']:raise EvidenceError('Refresh receipt actual occurrence day mismatch')
         if task['protocol']==WEEKLY and not task['window_start_day']<=day<=task['window_end_day']:raise EvidenceError('Refresh receipt is outside requested weekly window')
         if oid in receipts and receipts[oid]!=row:raise EvidenceError('Conflicting strong observation receipt')
@@ -85,7 +86,7 @@ def verify_receipts(evidence,tasks):
 
 
 def ensure_in_report(report,tasks):
-    events={e['event_id']:e for field in('managed_cost_events','managed_inference_events')for e in report.get(field,[])}
+    events={e['event_id']:e for field in('managed_cost_events','managed_inference_events','managed_inference_issue_links')for e in report.get(field,[])}
     for record in tasks:
         task=record['task'];event=events.get(task['event_id'])
         if not event or not event.get('counted_in_reporting_window')or not any(s.get('observation_id')==task['observation_id']and s.get('checksum')==task['checksum']for s in event['evidence_sources']):

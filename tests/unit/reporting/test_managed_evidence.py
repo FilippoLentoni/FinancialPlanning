@@ -121,3 +121,47 @@ def test_actual_jev_producer_public_request_and_private_numeric_layers_are_prese
     assert actual['supplied_layer']=='public_request_only'and actual['public_request']and actual['local_transformation']
     summary=next(a for a in model['artifact_summaries']if a['kind']=='invocation_input')
     assert summary['consumption_status']=='input_with_original_response_receipt'
+
+
+def test_midnight_policy_issue_day_late_archive_terminal_cost_and_weekly_dedup(repo,artifacts,tmp_path,monkeypatch):
+    """Controlled clock boundary only; original source fixture files remain unchanged."""
+    from finplan_platform.core.modeling_evidence import ModelingEvidence
+    from finplan_platform.core.repository import PutNew
+    producer=fixture('ny-midnight');event=producer['inference_evidence'];cost=producer['cost_event']
+    issued=producer['issue_link']['issued_at'];terminal=producer['issue_link']['terminal_occurred_at']
+    backend=ModelingEvidence(repo,artifacts);seed=backend.ensure_portfolio(event['experiment_id'],event['approach_id'],1000,['SPY'],'2026-07-11T00:00:00Z');source=repo.require('portfolio',seed['portfolio_id'])
+    repo.commit([PutNew('portfolio',doc={**source.doc,'portfolio_id':event['portfolio_id']},extra_attrs={'paper_state':source.attrs['paper_state'],'paper_state_revision':1},contract_version='1.13.1')],audit=[])
+    registry=[{'approach_id':event['approach_id'],'portfolio_id':event['portfolio_id'],'family':'language_model','cohort_id':'controlled','comparison_policy_id':'controlled'}]
+    backend.register_approaches(event['experiment_id'],registry,{},'2026-07-11T00:00:00Z')
+    at='2026-07-12T15:00:00Z';cost_ref=backend.record_observation(event['experiment_id'],event['approach_id'],terminal,event['portfolio_id'],cost,at,kind='managed_model_cost:'+event['managed_run_id'])
+    input_ref=backend.record_observation(event['experiment_id'],event['approach_id'],terminal,event['portfolio_id'],event,at,kind='managed_inference_evidence:'+event['managed_run_id'])
+    link=producer['issue_link']
+    assert link['inference_receipt']=={k:input_ref[k]for k in('observation_id','checksum')}
+    assert link['cost_receipt']=={k:cost_ref[k]for k in('observation_id','checksum')}
+    linked=backend.record_observation(event['experiment_id'],event['approach_id'],issued,event['portfolio_id'],link,at,kind='managed_inference_issue_link:'+event['managed_run_id'])
+    queue=tmp_path/'queue';refresh.put_task(queue,{'protocol':refresh.DAILY,'experiment_id':event['experiment_id'],'reporting_day':'2026-07-10','event_id':link['event_id'],'observation_id':linked['observation_id'],'checksum':linked['checksum']})
+    tasks,_=refresh.read_tasks(queue,[event['experiment_id']]);receipts=refresh.verify_receipts(backend,tasks)
+    # Original terminal records are absent from the issue-day index and GSI lags.
+    original_query=repo.query_index;monkeypatch.setattr(repo,'query_index',lambda table,*a,**kw:([],None)if table=='portfolio_observation'else original_query(table,*a,**kw))
+    prior=aggregate(backend,experiment_id=event['experiment_id'],registry=registry,start_day='2026-07-10',generated_at=at,mode='controlled_replay',required_observations=receipts)
+    refresh.ensure_in_report(prior,tasks);worker=prior['managed_inference_events'][0]
+    assert worker['recommendation_count']==1 and worker['recommendation_in_reporting_window']and not worker['worker_outcome_in_reporting_window']
+    assert not prior['managed_cost_events'][0]['counted_in_reporting_window']
+    assert worker['decision_time']==issued and len(prior['managed_inference_events'])==1
+    written=write_report(prior,tmp_path/'reports',update_latest=False);assert '2026-07-10'in written['aliases_published']
+    for artifact,layer in zip(event['artifacts'],prior['additional_inputs'][event['event_id']]):assert captured_input_bytes(prior,layer)==base64.b64decode(artifact['raw_base64'])
+    refresh.acknowledge(tasks);assert not list(queue.glob('*.json'))
+    current_receipts=[{**repo.require('portfolio_observation',ref['observation_id']).doc,'payload':payload}for ref,payload in[(cost_ref,cost),(input_ref,event)]]
+    current=aggregate(backend,experiment_id=event['experiment_id'],registry=registry,start_day='2026-07-11',generated_at=at,mode='controlled_replay',required_observations=current_receipts)
+    current_worker=current['managed_inference_events'][0]
+    assert current_worker['recommendation_count']==0 and current_worker['outcome_update_only']and current_worker['worker_outcome_in_reporting_window']
+    assert current['managed_cost_events'][0]['counted_in_reporting_window']
+    rows=list(csv.DictReader(io.StringIO(csv_export(current))));assert rows[0]['row_kind']=='managed_worker_outcome_update'
+    weekly=aggregate(backend,experiment_id=event['experiment_id'],registry=registry,start_day='2026-07-10',end_day='2026-07-16',generated_at='2026-07-17T16:00:00Z',mode='controlled_replay',required_observations=current_receipts+receipts)
+    assert len(weekly['managed_inference_events'])==len(weekly['managed_cost_events'])==1
+    assert weekly['managed_inference_events'][0]['recommendation_count']==1
+    assert backend.get_portfolio(event['portfolio_id'])['revision']==1 and weekly['runs']==[]and weekly['observations']==[]
+    wrong=copy.deepcopy(link);wrong['issued_at']='2026-07-11T03:59:57Z'
+    wrong_receipt={**receipts[0],'payload':wrong,'slot':wrong['issued_at']}
+    with pytest.raises(EvidenceError,match='original final policy issue time'):
+        aggregate(backend,experiment_id=event['experiment_id'],registry=registry,start_day='2026-07-10',generated_at=at,mode='controlled_replay',required_observations=[wrong_receipt])
