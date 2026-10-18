@@ -126,3 +126,36 @@ same 1.13.0 wheel before rollout. Historical 1.12.0 artifacts remain readable.
 Contract patch 1.13.1 conservatively restricts the compatibility proof to old
 closed object schemas without patternProperties. It preserves the exact 1.13.0
 native schemas and source references, and does not replace prior wheel bytes.
+
+## Bounded execution reconciliation
+
+`query_run_headers(experiment_id, approach_id, before_slot, page_size, next_token)`
+uses the existing approach index, newest first and strictly before the selected
+slot. It returns metadata and lease heads without fetching inputs, outputs or
+model tensors from S3. Cursors are scoped to the experiment, approach and cutoff.
+Because a GSI can lag, the caller uses `read_run_header(run_id)` for one strong
+metadata read before relying on a candidate, lease or cleanup checkpoint.
+
+`mark_execution_superseded(run_id, replacement_run_id, recorded_at)` binds an
+older unexecuted policy to a newer completed policy in the same isolated book.
+Its conditional status transition atomically publishes a separate immutable
+`execution_disposition_ref`, an ancillary `execution_disposition` observation and
+an audit event. It does not create an execution receipt, fill, fee, portfolio
+revision or ledger history entry. The original inference output and forecast stay
+immutable. Execution and supersession race on the same run status; only one can
+commit. Reports display successful inference with superseded execution separately.
+
+Cleanup processes older policies oldest first and stops on any error.
+`record_execution_frontier(frontier_run_id, pending_run_id, recorded_at,
+previous_frontier_run_id=...)` then checkpoints a verified metadata interval in a
+small immutable receipt. It rejects another unresolved policy, an unreaped running
+invocation, a mismatched/corrupt prior checkpoint or more than 10,000 metadata rows.
+No checkpoint advances on those failures. A prior pending policy remains an
+explicit pointer even through a long sequence of unavailable/failed runs; callers
+must follow it rather than expire it with a report window. A first checkpoint
+checks the bounded complete history, and later checkpoints check the interval
+since the previous verified frontier and its pending pointer. This gives steady
+hourly work independent of the experiment's age. `read_execution_frontier(run_id)`
+verifies only that small receipt, not the original model arrays. Frontier heads
+are internal attributes of the existing research-run table; no table, index,
+public contract or frozen wheel changes are required.

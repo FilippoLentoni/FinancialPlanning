@@ -185,9 +185,9 @@ TABLES: dict[str, TableSpec] = {
     ),
     "research_run": TableSpec(
         "research_run", "research-run-table", "run_id",
-        head_attributes=("invocation_revision", "lease_owner", "lease_until", "forecast_revision", "forecast_state", "forecast_partition", "forecast_target", "realization_ref"),
+        head_attributes=("invocation_revision", "lease_owner", "lease_until", "forecast_revision", "forecast_state", "forecast_partition", "forecast_target", "realization_ref", "execution_frontier_revision", "execution_frontier_ref"),
         indexes=(IndexSpec("day-index", "report_key", "time_key"), IndexSpec("approach-index", "approach_key", "time_key"), IndexSpec("pending-forecast-index", "forecast_partition", "forecast_target")),
-        mutable_fields=("status", "finished_at", "output_ref", "execution_ref"),
+        mutable_fields=("status", "finished_at", "output_ref", "execution_ref", "execution_disposition_ref", "execution_disposition_state"),
         attribute_fields=("run_id", "report_key", "approach_key", "time_key", "status", "experiment_id", "approach_id", "portfolio_id"),
     ),
     "portfolio_observation": TableSpec(
@@ -203,7 +203,7 @@ TRANSITIONS: dict[str, dict[str, frozenset[str]]] = {
     "snapshot_catalog": {"committed": frozenset({"approved", "expired"}), "approved": frozenset({"expired"}), "expired": frozenset()},
     # execution status is an open vocabulary in contracts 0.1/1.0; transitions are declared by the API module
     "execution": {},
-    "research_run": {"running": frozenset({"succeeded", "hold", "skipped", "failed", "unavailable", "reused"}), **{s: frozenset({"applied", "no_op", "pending_execution"}) for s in ("succeeded", "hold", "reused")}, "pending_execution": frozenset({"applied", "no_op"}), "applied": frozenset(), "no_op": frozenset(), "failed": frozenset(), "skipped": frozenset(), "unavailable": frozenset()},
+    "research_run": {"running": frozenset({"succeeded", "hold", "skipped", "failed", "unavailable", "reused"}), **{s: frozenset({"applied", "no_op", "pending_execution", "superseded"}) for s in ("succeeded", "hold", "reused")}, "pending_execution": frozenset({"applied", "no_op", "superseded"}), "superseded": frozenset(), "applied": frozenset(), "no_op": frozenset(), "failed": frozenset(), "skipped": frozenset(), "unavailable": frozenset()},
     "portfolio_decision": {"proposed": frozenset({"accepted", "rejected"}), "accepted": frozenset(), "rejected": frozenset()},
 }
 
