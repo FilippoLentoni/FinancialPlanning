@@ -158,3 +158,50 @@ def test_commit_rejects_valid_but_later_observation_despite_correct_errors(evide
         e.mark_forecast_realized(rid, receipt['observation_id'], stamp(3))
     assert e.strong_forecast_observation(rid, stamp(3))['observation']['observation_id'] == earliest['observation_id']
     assert e.read_run(rid)['forecast_state'] == 'pending' and e.read_run(rid)['output_ref'] == before
+
+
+def test_late_recording_time_preserves_original_observed_alignment(evidence):
+    e = evidence
+    rows = prepare(e, missing=2)
+    book, item, run, _ = rows[2]
+    at = '2026-01-12T17:05:00Z'
+    saved = e.record_observation('reconciliation-test', 'rule', stamp(2), book['portfolio_id'], {
+        'observed_at': at, 'value': 1002., 'observation_kind': 'valid', 'quote_status': 'fresh',
+        'run_id': run['run_id'], 'input_id': item['input_id']}, at, recorded_at='2026-01-12T17:10:00Z')
+    rid = rows[0][2]['run_id']
+    early = e.strong_forecast_observation(rid, '2026-01-12T17:06:00Z')
+    assert early['status'] == 'pending_incomplete' and early['next_slot'] == stamp(2)
+    late = e.strong_forecast_observation(rid, '2026-01-12T17:11:00Z')
+    assert late['status'] == 'complete' and late['observation']['observed_at'] == at
+    assert late['observation']['observation_id'] == saved['observation_id']
+    # A future-created proof also cannot be replayed into an earlier cutoff.
+    assert e.strong_forecast_observation(rid, '2026-01-12T17:06:00Z')['status'] == 'pending_incomplete'
+
+
+def test_future_terminal_receipt_cannot_prove_a_past_cutoff(evidence):
+    e = evidence
+    rows = prepare(e, running=2)
+    e.finish_run(rows[2][2]['run_id'], {'status': 'succeeded', 'forecast': {'available': False}}, '2026-01-12T17:10:00Z')
+    rid = rows[0][2]['run_id']
+    assert e.strong_forecast_observation(rid, '2026-01-12T17:06:00Z')['status'] == 'pending_incomplete'
+    assert e.strong_forecast_observation(rid, '2026-01-12T17:11:00Z')['status'] == 'complete'
+
+
+def test_legacy_original_without_recorded_availability_remains_visible_pending(evidence):
+    from finplan_platform.core.repository import PutNew
+    e = evidence
+    rows = prepare(e, missing=2)
+    book, item, run, _ = rows[2]
+    at = '2026-01-12T17:05:00Z'
+    oid = _id('mo', 'reconciliation-test', 'rule', stamp(2), 'valuation')
+    payload = {'observed_at': at, 'value': 1002., 'observation_kind': 'valid', 'quote_status': 'fresh',
+        'run_id': run['run_id'], 'input_id': item['input_id']}
+    ref = e._artifact('observations', oid, payload)
+    legacy = {'schema_version': 'modeling-evidence/1', 'environment': 'beta', 'synthetic': True,
+        'observation_id': oid, 'experiment_id': 'reconciliation-test', 'approach_id': 'rule', 'slot': stamp(2),
+        'portfolio_id': book['portfolio_id'], 'portfolio_revision': 1, 'observed_at': at,
+        'kind': 'valuation', **ref, **e._keys('reconciliation-test', 'rule', stamp(2), oid)}
+    e.repo.commit([PutNew('portfolio_observation', doc=legacy)])
+    result = e.strong_forecast_observation(rows[0][2]['run_id'], stamp(3))
+    assert result['status'] == 'pending_incomplete' and result['reason'] == 'original_terminal_or_valuation_availability_unknown'
+    assert e.repo.require('portfolio_observation', oid).doc == legacy

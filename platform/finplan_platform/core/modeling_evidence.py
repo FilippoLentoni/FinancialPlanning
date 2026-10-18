@@ -121,7 +121,7 @@ class ModelingEvidence:
 
     @staticmethod
     def _same_capture(table: str, old: Mapping[str, Any], new: Mapping[str, Any]) -> bool:
-        ignored = {"captured_at"} if table == "research_input" else {"observed_at", "portfolio_revision"} if table == "portfolio_observation" else set()
+        ignored = {"captured_at"} if table == "research_input" else {"observed_at", "portfolio_revision", "recorded_at", "recorded_at_basis"} if table == "portfolio_observation" else set()
         return {k:v for k,v in old.items() if k not in ignored} == {k:v for k,v in new.items() if k not in ignored}
 
     def _put(self, table: str, doc: dict[str, Any], at: str) -> dict[str, Any]:
@@ -633,6 +633,9 @@ class ModelingEvidence:
             if (prior.get("run_id") != run_id or prior.get("forecast_checksum") != forecast["forecast_checksum"]
                     or prior.get("comparison_policy_checksum") != policy["comparison_policy_checksum"]):
                 raise PlatformError.validation("forecast search proof belongs to another forecast or policy")
+            if _timestamp(prior["through"]) > _timestamp(through):
+                return {"status": "pending_incomplete", "reason": "search_proof_not_available_at_earlier_cutoff",
+                        "observation": None, "proof_ref": prior_ref, "next_slot": prior["next_slot"], "checked_slots": 0}
             start = _timestamp(prior["next_slot"])
             if prior.get("candidate_ref"):
                 meta = self.repo.require("portfolio_observation", prior["candidate_ref"]["observation_id"]).doc
@@ -656,6 +659,12 @@ class ModelingEvidence:
                 reason = "scheduled_run_or_valuation_not_terminal_or_missing"
                 break
             meta = mark.doc
+            if not head.doc.get("finished_at") or not meta.get("recorded_at"):
+                reason = "original_terminal_or_valuation_availability_unknown"
+                break
+            if max(_timestamp(head.doc["finished_at"]), _timestamp(meta["recorded_at"])) > _timestamp(through):
+                reason = "original_terminal_or_valuation_not_yet_available_at_cutoff"
+                break
             if ((head.doc["experiment_id"], head.doc["approach_id"], head.doc["slot"], head.doc["portfolio_id"]) != (run["experiment_id"], run["approach_id"], slot, run["portfolio_id"])
                     or (meta["experiment_id"], meta["approach_id"], meta["portfolio_id"]) != (run["experiment_id"], run["approach_id"], run["portfolio_id"])
                     or meta.get("kind") != "valuation" or meta["slot"] != slot
@@ -905,8 +914,11 @@ class ModelingEvidence:
         self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), HeadMove("portfolio", record_id=old["portfolio_id"], expected_revision=expected_revision, revision_attr="paper_state_revision", set_attrs={"paper_state": dict(state)}, additional_condition=Cond.not_exists("unresolved_action_ref")), PutNew("portfolio_history", doc={"history_id": history_id, "portfolio_id": old["portfolio_id"], "revision": expected_revision + 1, **history}), PutNew("portfolio_decision", doc={"decision_id": did, "portfolio_id": old["portfolio_id"], "portfolio_revision": expected_revision, "status": "accepted", "algorithm_family": decision["algorithm_family"], "algorithm": old["approach_id"], "run_id": run_id, "input_id": old["input_id"], **proposal, "resolution_key": ref["artifact_key"], "resolution_checksum": ref["checksum"]}), PutNew("portfolio_observation", doc=execution_event, contract_version="1.13.0")], audit=[audit_event(self._ctx(recorded_at), record_id=old["portfolio_id"], record_type="portfolio", operation="apply_isolated_experiment_policy", prior={"revision": expected_revision}, new={"revision": expected_revision + 1}, run_id=run_id, decision_id=did)])
         return result
 
-    def record_observation(self, experiment_id: str, approach_id: str, slot: str, portfolio_id: str, payload: Mapping[str, Any], observed_at: str, *, kind: str = "valuation") -> dict[str, Any]:
+    def record_observation(self, experiment_id: str, approach_id: str, slot: str, portfolio_id: str, payload: Mapping[str, Any], observed_at: str, *, kind: str = "valuation", recorded_at: str | None = None) -> dict[str, Any]:
         slot = _slot(slot)
+        recording_time = _slot(recorded_at or observed_at)
+        if _timestamp(recording_time) < _timestamp(observed_at):
+            raise PlatformError.validation("observation recording time cannot precede its observed time")
         if kind == "valuation" and (_timestamp(observed_at) < _timestamp(slot)
                 or payload.get("observed_at", observed_at) != observed_at):
             raise PlatformError.validation("valuation observation time must match its metadata and not precede its scheduled slot")
@@ -926,7 +938,7 @@ class ModelingEvidence:
         if isinstance(revision, bool) or not isinstance(revision, int) or not 1 <= revision <= book["revision"]:
             raise PlatformError.validation("observation holdings revision must exist in this book")
         ref = self._artifact("observations", oid, payload)
-        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": revision, "observed_at": observed_at, "observed_key": _index_time(observed_at) + "#" + oid, "kind": kind, **binding, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
+        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": revision, "observed_at": observed_at, "recorded_at": recording_time, "recorded_at_basis": "explicit_runtime_recording_clock" if recorded_at else "caller_declared_observation_clock", "observed_key": _index_time(observed_at) + "#" + oid, "kind": kind, **binding, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
         existing = self.repo.get("portfolio_observation", oid)
         if binding and existing and "run_id" not in existing.doc and "input_id" not in existing.doc:
             # Legacy observations retain their exact metadata bytes. Identical
@@ -936,7 +948,7 @@ class ModelingEvidence:
             if not self._same_capture("portfolio_observation", existing.doc, comparison):
                 raise PlatformError.immutable("permanent experiment record conflicts with retry", record_type="portfolio_observation")
             return existing.doc
-        return self._put("portfolio_observation", doc, observed_at)
+        return self._put("portfolio_observation", doc, recording_time)
 
     def query_day(self, experiment_id: str, day: str, *, kind: str = "runs", page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
         if kind not in KINDS or not 1 <= page_size <= 100 or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
