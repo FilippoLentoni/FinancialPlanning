@@ -337,7 +337,10 @@ is inserted. A rank describes that observed period, with its disclosed coverage,
 and never promotes a policy or claims universal superiority.
 
 Report I/O uses at most32 submitted immutable reads and32 report-owned client
-connections. Scoped metadata pagination remains sequential; each run head is still
+connections. Their credential-provider objects (including refresh), TLS settings,
+region, endpoint and signing configuration stay bound to the supplied backend;
+scoped callers never fall back to a different default identity. Scoped metadata
+pagination remains sequential; each run head is still
 read consistently from DynamoDB. Input metadata plus its verified original bytes
 are fetched once, then identity, checksum, payload and availability checks and
 chunk packing run in deterministic query order on the calling thread. Failed
