@@ -485,3 +485,24 @@ acknowledged. The CLI returns75 (`PublicationDeferred`) so the job wrapper can
 retry only this report command after30seconds with a fresh generated timestamp,
 within its existing900second deadline. Integrity/unsafe-evidence failures remain
 nonretryable exit2. No financial or model invocation is repeated by this retry.
+
+Approved managed-worker attempts have a separate **Managed worker actual input &
+outcome evidence** explorer. It shows the original approved binding, exact
+per-role/model request messages and numerical preparation, public response or
+failure receipts, final policy when supplied, original worker times, and the
+origin hourly run/input/slot. Selectors remain independent of the primary hourly
+input explorer and portfolio filters. Every original artifact has an exact-byte,
+SHA-256-verified download; failed and partial attempts remain inspectable after
+the current book or data changes. A before-invocation capture without its original
+response is explicitly unconfirmed, and an approved binding is not a model input.
+
+These immutable `managed_inference_evidence:<managed_run_id>` observations use
+`finplan-managed-inference-evidence/1`, at most32 JSON artifacts/8MiB original
+bytes per event. They add a nontrading CSV/JSON evidence row, never a fill, hourly
+comparison opportunity, or second model-cost charge. Model ingestion durably
+queues both the original inference receipt and its separate cost receipt before
+acknowledging the private outbox. Strong receipt reads cover day-index lag;
+report tasks are removed only after the exact receipt appears in a successfully
+published dated archive. The same late-day and bounded weekly repair queue
+preserves historical worker inputs and costs. Controlled worker fixture tests
+are replay evidence, not live GPU/model performance.
