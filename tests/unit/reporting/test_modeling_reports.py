@@ -582,3 +582,86 @@ def test_later_supersession_revises_cutoff_without_backdating_or_filling_origina
     row = next(r for r in result['runs'] if r['run_id'] == 'run_rule_0')
     assert result['data_cutoff'] == later and row['decision_time'] == T0
     assert row['fill_time'] is None and row['execution_disposition_at'] == later
+
+
+def _excluded_reader(reason_code):
+    reader = _superseded_reader()
+    run = reader.runs[2]
+    disposition = run['execution_disposition']
+    for field in ('replacement_run_id', 'replacement_input_id', 'replacement_slot'):
+        disposition.pop(field)
+    disposition.update(status='excluded_nontrading', reason_code=reason_code,
+                       reason='Manual/late decision is not eligible for declared hourly comparison execution',
+                       eligible_from_slot=T1, latest_started_at_for_slot=T1,
+                       registry_input_ref={'input_id': 'actual_registry', 'checksum': 'sha256:registry'})
+    run.update(status='execution_excluded')
+    run['execution_disposition_ref']['checksum'] = checksum(canonical(disposition))
+    reader.observations[3]['run_id'] = run['run_id']
+    return reader
+
+
+def test_manual_before_horizon_preserves_rows_but_cannot_create_weekly_coverage_or_forecast_match():
+    reader = _excluded_reader('before_declared_comparison_horizon')
+    run = reader.runs[2]
+    forecast = {'forecast_id': 'manual-forecast', 'forecast_checksum': 'sha256:manual', 'target_at': T1,
+                'expected_value': 100.5, 'baseline_value': 100, 'units': 'USD'}
+    run['outcome']['forecast'] = forecast
+    run['forecast_realization'] = {'forecast_checksum': 'sha256:manual', 'run_id': run['run_id'],
+        'portfolio_id': run['portfolio_id'], 'observation_id': 'obs_rule_1', 'observed_at': T1,
+        'realized_value': 101, 'signed_error': .5, 'absolute_error': .5}
+    original_input = reader.inputs[run['input_id']]['raw_bytes']
+    result = report(reader, comparison_policy={'first_scheduled_slot': T1, 'cadence_seconds': 3600})
+    row = next(r for r in result['runs'] if r['run_id'] == run['run_id'])
+    assert row['fill_status'] == 'excluded_nontrading' and row['comparison_eligible'] is False
+    assert row['fills'] == [] and row['fill_time'] is None and row['model_cost'] == .17
+    assert row['output']['forecast'] == forecast
+    assert base64.b64decode(result['inputs'][run['run_id']]['raw_base64']) == original_input
+    assert result['forecasts'][0]['outcome_status'] == 'nontrading_not_applied'
+    assert result['forecasts'][0]['realized_value'] is None
+    assert result['forecasts'][0]['stored_noncomparable_realization'] == run['forecast_realization']
+    book = next(b for b in result['leaderboard'] if b['approach_id'] == 'rule')
+    assert book['recommendations'] == 2 and book['comparison_recommendations'] == 1 and book['nontrading_recommendations'] == 1
+    assert book['valuations'] == 3 and book['valid_valuations'] == 2 and book['nontrading_valuations'] == 1
+    assert book['window_start'] == T1 and book['model_cost'] == .17 and book['comparison_model_cost'] == 0
+    assert book['forecast_matches'] == 0 and book['failure_rate'] == 0
+    assert all(m['scheduled_slot'] != T0 for m in result['missing_slots'])
+    assert result['missing_slots'] and not result['window_complete']
+    assert len(result['runs']) == 4 and result['execution_events'] == []
+
+
+def test_late_created_exclusion_is_no_trade_but_remains_failed_hourly_coverage():
+    reader = _excluded_reader('created_after_decision_slot_closed')
+    result = report(reader)
+    row = next(r for r in result['runs'] if r['run_id'] == 'run_rule_0')
+    assert row['fill_status'] == 'excluded_nontrading' and row['fills'] == []
+    assert 'replacement_run_id' not in row['execution_disposition']
+    book = next(b for b in result['leaderboard'] if b['approach_id'] == 'rule')
+    assert book['failure_rate'] == .5 and book['rank'] is None
+    assert book['fills'] == 0 and book['execution_cost'] == 0 and book['model_cost'] == .17
+    assert result['evidence_failures'] == []
+
+
+def test_private_exports_repair_existing_permissive_files_and_preserve_unrelated_demo(tmp_path):
+    import os
+    import stat
+    output = tmp_path/'owned-reports'
+    output.mkdir(mode=0o775)
+    demo = output/'demo.html'; demo.write_text('Approved unrelated reference'); demo.chmod(0o664)
+    previous = os.umask(0o002)
+    try:
+        data = report()
+        first = write_report(data, output)
+        archive = Path(first['archive'])
+        assert stat.S_IMODE(archive.stat().st_mode) == 0o700
+        assert stat.S_IMODE(archive.parent.stat().st_mode) == 0o700
+        paths = list(archive.iterdir()) + [Path(first['directory'])/f'latest.{ext}' for ext in ('html','json','csv')]
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in paths)
+        for path in paths: path.chmod(0o664)
+        second = write_report(data, output)
+        assert first['revision'] == second['revision']
+        assert all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in paths)
+        assert demo.read_text() == 'Approved unrelated reference' and stat.S_IMODE(demo.stat().st_mode) == 0o664
+        current = os.umask(0o002)
+        assert current == 0o002  # Library writer restores its caller's umask.
+    finally:
+        os.umask(previous)

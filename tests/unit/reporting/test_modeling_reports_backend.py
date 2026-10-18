@@ -21,6 +21,9 @@ def test_real_backend_daily_report_roundtrip_exact_input_fills_and_book_values(r
         approaches.append({"approach_id": aid, "display_name": aid, "family": "control", "portfolio_id": book["portfolio_id"],
                            "cohort_id": "replay", "comparison_policy_id": "common-test", "starting_capital": 1000,
                            "investable_universe": ["SPY"], "native_cadence": "hourly"})
+    e.register_approaches("report-replay", approaches, {"starting_capital": 1000, "first_scheduled_slot": OPEN, "cadence_seconds": 3600}, OPEN)
+    for aid in ["cash", "rule"]:
+        book = e.get_portfolio(next(a["portfolio_id"] for a in approaches if a["approach_id"] == aid))
         e.record_observation("report-replay", aid, OPEN, book["portfolio_id"], {"value": 1000, "cash": 1000, "holdings": [], "quote_status": "fresh", "status": "valid"}, OPEN)
         for i, at in enumerate(SLOTS):
             api_at = at.replace("+00:00", "Z")
@@ -49,7 +52,6 @@ def test_real_backend_daily_report_roundtrip_exact_input_fills_and_book_values(r
                          "transaction_cost_bps": 10, "reference_date": DAY, "turnover": (500 if i == 0 else 220)/1000 if aid == "rule" else 0}
             e.commit_paper_step(run["run_id"], book["revision"], state, fills, execution, api_at)
             e.record_observation("report-replay", aid, at, book["portfolio_id"], {"value": after, "cash": state["cash_balance"], "holdings": state.get("positions", []), "status": "valid", "quote_status": "fresh"}, at)
-    e.register_approaches("report-replay", approaches, {"starting_capital": 1000}, OPEN)
     result = aggregate(e, experiment_id="report-replay", registry=e.read_registry("report-replay")["approaches"], start_day=DAY,
                        generated_at=SLOTS[-1], mode="controlled_replay")
     assert result["evidence_failures"] == []
@@ -75,6 +77,7 @@ def test_friday_recommendation_monday_execution_cost_is_counted_only_on_executio
     book = e.ensure_portfolio("cross-day-report", "rule", 1000, ["SPY"], friday)
     registry = [{"approach_id": "rule", "display_name": "rule", "family": "control", "portfolio_id": book["portfolio_id"],
                  "cohort_id": "cross-day", "comparison_policy_id": "controlled", "starting_capital": 1000, "investable_universe": ["SPY"]}]
+    e.register_approaches("cross-day-report", registry, {"starting_capital": 1000, "first_scheduled_slot": friday, "cadence_seconds": 3600}, friday)
     iid = _id("mi", "cross-day-report", "rule", friday, "model_input")
     rid = _id("mr", "cross-day-report", "rule", friday)
     supplied = e.capture_input("cross-day-report", "rule", friday,
@@ -155,7 +158,7 @@ def test_session_proof_from_shared_quotes_never_becomes_cash_model_input(repo_an
     captured = e.capture_input("session-report-test", "cash", at, payload, shared, at)
     e.start_run("session-report-test", "cash", at, captured["input_id"], book["portfolio_id"], at, {"family": "control"})
     e.finish_run(rid, {"status": "hold"}, at)
-    e.record_observation("session-report-test", "cash", at, book["portfolio_id"], {"run_id": rid, "value": 1000, "quote_status": "fresh", "quote_provenance": {"basis": "authoritative_cash"}}, at)
+    e.record_observation("session-report-test", "cash", at, book["portfolio_id"], {"run_id": rid, "input_id": iid, "value": 1000, "quote_status": "fresh", "quote_provenance": {"basis": "authoritative_cash"}}, at)
     registry = [{"approach_id": "cash", "portfolio_id": book["portfolio_id"], "family": "control", "cohort_id": "test", "comparison_policy_id": "test", "starting_capital": 1000}]
     report = aggregate(e, experiment_id="session-report-test", registry=registry, start_day="2026-10-17", generated_at=at, mode="controlled_replay")
     assert report["leaderboard"][0]["observed_dates"] == 1 and report["leaderboard"][0]["observed_sessions"] == 0

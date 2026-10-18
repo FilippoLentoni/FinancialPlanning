@@ -255,3 +255,12 @@ revision/history or `paper_execution` event. Original inference inputs, recommen
 forecast and model cost remain intact. Trade costs continue to come only from actual
 execution-day events; a supersession cannot double-count fills or fees. A late
 disposition produces a new report revision and cutoff without backdating evidence.
+A manual decision before the declared comparison horizon, or a decision created
+when its hourly slot is already closed, can instead have `excluded_nontrading`.
+This needs no replacement policy. Its immutable registry evidence and reason remain
+inspectable, with no simulated execution. Pre-horizon rows and valuations remain in
+the report but cannot create comparison coverage or score forecasts; late-created
+slots remain failed coverage. Total recommendations/model cost stay visible alongside
+comparison counts/cost. Private report files are always mode0600, including repaired
+existing exports; newly created archive directories are0700. Only generated report
+paths are changed; the approved demo and unrelated files remain untouched.
