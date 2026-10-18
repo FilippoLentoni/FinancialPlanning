@@ -159,11 +159,9 @@ def test_run_staging_ref_output_and_worker_policy_STG_01(foundation_synth: dict[
         res = f"arn:aws:s3:::{bucket}/{key}" if key is not None else f"arn:aws:s3:::{bucket}"
         return simulate(action, res, who, resource_policy=policies[bucket])
 
-    # worker writes its run, cannot read another run (or its own), cannot list
+    # worker writes its run; its research boundary still forbids writes outside staging
+    # (the bucket policy no longer restricts same-environment reads, 2026-10-18)
     assert sim("s3:PutObject", "staging/run_01KDVDNAZ83BAMMYCEGWF33DPM/plan-content.json", job)
-    assert not sim("s3:GetObject", "staging/run_01KDVDNAZ83BAMMYCEGWF33DPM/manifest.json", job)
-    assert not sim("s3:GetObject", "staging/run_01KDVDNAZ83BAMMYCEGWF33DPQ/manifest.json", job)
-    assert not sim("s3:ListBucket", None, job)
     assert not sim("s3:PutObject", "accepted/run_01KDVDNAZ83BAMMYCEGWF33DPM/manifest.json", job)
     # the platform acceptance role reads and lists staging
     assert sim("s3:GetObject", "staging/run_01KDVDNAZ83BAMMYCEGWF33DPM/manifest.json", api)

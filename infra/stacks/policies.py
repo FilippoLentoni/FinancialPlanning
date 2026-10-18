@@ -26,7 +26,8 @@ Consumer access (experimental project, 2026-10-18)
 Per-role allowlists were removed at the owner's request: any role of the SAME
 environment (FinanceModel, FinanceLambdasTool, FinanceAgent included) may use these
 buckets and tables, subject only to its own IAM policy. ``AllowFinanceModel*`` grants
-remain so the FinanceModel job role keeps working without its own bucket grant.
+remain so the FinanceModel job role keeps working without its own bucket grant;
+its read of unapproved snapshots stays denied (data-quality gate, ING-12).
 Environment isolation, TLS, KMS, write-once and append-only rules are unchanged.
 
 Metadata table resource policy (3.1, 3.5)
@@ -191,6 +192,15 @@ def bucket_policy_statements(
                 "Action": "s3:GetObject",
                 "Resource": objects,
                 "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}, "StringEquals": {f"s3:ExistingObjectTag/{SNAPSHOT_STATUS_TAG}": "approved"}},
+            },
+            {
+                # data-quality gate, not access control: models only ever read approved snapshots
+                "Sid": "DenyFinanceModelUnapprovedSnapshotRead",
+                "Effect": "Deny",
+                "Principal": "*",
+                "Action": "s3:GetObject*",
+                "Resource": objects,
+                "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}, "StringNotEquals": {f"s3:ExistingObjectTag/{SNAPSHOT_STATUS_TAG}": "approved"}},
             },
         ]
     if role == "outputs":

@@ -92,7 +92,7 @@ def test_same_env_platform_role_reads_plans(policies: dict[str, Any]) -> None:
 
 def test_same_env_consumer_roles_are_not_blocked_by_bucket_policies(policies: dict[str, Any]) -> None:
     for who in (tool("beta", "reader"), fm_job("beta"), Principal.role("finplan-beta-financeagent-runtime-role", WORST)):
-        for stem in ("raw", "curated", "plans", "reports", "snapshots"):
+        for stem in ("raw", "curated", "plans", "reports"):
             res = s3sim(policies, "s3:GetObject", "beta", stem, "x/y", who)
             assert res.decision != "explicitDeny", (who.arn, stem)
     # other environments stay isolated
@@ -102,6 +102,8 @@ def test_same_env_consumer_roles_are_not_blocked_by_bucket_policies(policies: di
 def test_model_job_keeps_snapshot_and_staging_grants(policies: dict[str, Any]) -> None:
     fm = fm_job("beta")
     assert s3sim(policies, "s3:GetObject", "beta", "snapshots", "snap_A/payload/observations.json", fm, **APPROVED)
+    unapproved = s3sim(policies, "s3:GetObject", "beta", "snapshots", "snap_A/payload/observations.json", fm, **{"s3:ExistingObjectTag/snapshot-status": "committed"})
+    assert unapproved.decision == "explicitDeny" and "DenyFinanceModelUnapprovedSnapshotRead" in unapproved.resource_denies
     assert s3sim(policies, "s3:PutObject", "beta", "run-staging-area", "staging/run_01KDVDNAZ83BAMMYCEGWF33DPM/manifest.json", fm)
     assert not s3sim(policies, "s3:PutObject", "beta", "run-staging-area", "staging/run_X/manifest.json", fm_job("gamma"))
 

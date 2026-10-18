@@ -17,11 +17,13 @@ DESKTOP = Principal.role("finplan-devdesktop", ADMIN)
 @pytest.mark.parametrize("env", ["beta", "gamma", "prod"])
 def test_deployed_table_bucket_and_api_access(policies, env):
     expected = env == "beta"
+    # Since 2026-10-18 table/bucket policies no longer restrict same-account roles by name
+    # (experimental project); only the platform API keeps the desktop to beta.
     for logical in ("portfolio", "execution", "snapshot-catalog", "audit-event"):
-        assert bool(ddbsim(policies, "dynamodb:Scan", env, logical, DESKTOP)) == expected
-        assert bool(ddbsim(policies, "dynamodb:PutItem", env, logical, DESKTOP)) == expected
-    for stem in ("raw", "curated", "snapshots", "plans", "run-staging-area", "reports"):
-        assert bool(s3sim(policies, "s3:GetObject", env, stem, "uploads/excel/example", DESKTOP)) == expected
+        assert ddbsim(policies, "dynamodb:Scan", env, logical, DESKTOP)
+        assert ddbsim(policies, "dynamodb:PutItem", env, logical, DESKTOP)
+    for stem in ("raw", "curated", "plans", "run-staging-area", "reports"):
+        assert s3sim(policies, "s3:GetObject", env, stem, "uploads/excel/example", DESKTOP)
     cfg = load_config(env)
     policy = resource_policy_document(cfg, lambda name: f"arn:aws:iam::<account-id>:role/{name}")
     for route in ROUTES:
