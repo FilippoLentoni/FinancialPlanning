@@ -19,6 +19,8 @@ def evidence(repo_any, artifacts):
 
 def ready(e, *, approach="optimizer", slot=AT):
     book = e.ensure_portfolio("experiment-test", approach, 1000, ["SPY"], AT)
+    if e.read_registry("experiment-test") is None:
+        e.register_approaches("experiment-test", [{"approach_id": approach, "family": "optimization"}], {"first_scheduled_slot": AT, "cadence_seconds": 3600}, AT)
     payload = {"availability_cutoff": slot, "decision_time": slot, "numeric": {"feature_order": ["return", "risk"], "observation": [0.1, 0.2]}, "news": {"consumed": False, "items": []}, "holdings": book}
     source = e.capture_shared_source("experiment-test", slot, {"input_snapshot_id": "snap_01ARZ3NDEKTSV4RRFFQ69G5FAV", "prices": [{"symbol": "SPY", "price": 100, "available_at": slot}]}, slot)
     supplied = e.capture_input("experiment-test", approach, slot, payload, source, slot)
@@ -245,6 +247,7 @@ def native_ready(e, *, mutate=None, trigger="controlled_replay"):
     if mutate:mutate(source)
     at=source["availability_cutoff"]
     book=e.ensure_portfolio("native-test","crypto_rule",1000.,universe,at)
+    e.register_approaches("native-test", [{"approach_id": "crypto_rule", "family": "optimization"}], {"first_scheduled_slot": stamp(end), "cadence_seconds": 3600}, at)
     shared=e.capture_shared_source("native-test",stamp(end),source,at)
     supplied=e.capture_input("native-test","crypto_rule",stamp(end),{"availability_cutoff":at,"holdings":book,"numeric":{"prepared":{"native_source":native}},"news":{"consumed":False}},shared,at)
     run=e.start_run("native-test","crypto_rule",stamp(end),supplied["input_id"],book["portfolio_id"],at,{"family":"optimization"})

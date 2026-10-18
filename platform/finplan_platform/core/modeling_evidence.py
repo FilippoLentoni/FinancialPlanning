@@ -91,6 +91,7 @@ class ModelingEvidence:
         if repo.env != "beta":
             raise PlatformError.not_permitted("autonomous experiment evidence is beta only")
         self.repo, self.store, self.principal = repo, store, principal
+        self._execution_policy_cache = {}
 
     def _ctx(self, at: str) -> OperationContext:
         clock = FrozenClock(at)
@@ -357,6 +358,63 @@ class ModelingEvidence:
             return json.loads(self.read_artifact_bytes(current["execution_disposition_ref"]))
         return payload
 
+    def _registered_execution_policy(self, experiment_id: str) -> dict[str, Any]:
+        """Verify the immutable registered horizon once per backend invocation."""
+        if experiment_id not in self._execution_policy_cache:
+            rows, _ = self.repo.query_index("research_input", "approach-index", f"{experiment_id}#__registry__", limit=1)
+            if not rows or rows[0].doc.get("kind") != "registry":
+                raise PlatformError("DEPENDENCY_UNAVAILABLE", "persisted comparison policy is not visible; retry after registry index propagation", retryable=True)
+            payload = json.loads(self.read_artifact_bytes(rows[0].doc))
+            self._execution_policy_cache[experiment_id] = self._execution_policy_from_input(rows[0].doc, payload)
+        return self._execution_policy_cache[experiment_id]
+
+    @staticmethod
+    def _execution_policy_from_input(metadata, payload):
+        policy = payload.get("comparison_policy", {})
+        first = policy.get("first_scheduled_slot", policy.get("scheduled_start_at"))
+        if not first or policy.get("cadence_seconds") != 3600 or _timestamp(first).minute or _timestamp(first).second or _timestamp(first).microsecond:
+            raise PlatformError.precondition("execution requires an hour-aligned registered horizon and hourly cadence")
+        return {"first_slot": _slot(first), "cadence_seconds": 3600, "comparison_policy_checksum": sha256_checksum(canonicalize(policy)), "registry_input_ref": {"input_id": metadata["input_id"], "checksum": metadata["checksum"]}}
+
+    @staticmethod
+    def _execution_ineligibility(run, policy):
+        if _timestamp(run["slot"]) < _timestamp(policy["first_slot"]):
+            return "before_declared_comparison_horizon"
+        if _timestamp(run["started_at"]) >= _timestamp(run["slot"]) + timedelta(seconds=policy["cadence_seconds"]):
+            return "created_after_decision_slot_closed"
+        return None
+
+    def mark_execution_ineligible(self, run_id: str, recorded_at: str) -> dict[str, Any]:
+        """Retain an actual manual/late decision as explicitly nontrading evidence."""
+        recorded_at = _slot(recorded_at)
+        record = self.repo.require("research_run", run_id)
+        old = record.doc
+        if old.get("execution_disposition_ref"):
+            return json.loads(self.read_artifact_bytes(old["execution_disposition_ref"]))
+        if old.get("execution_ref") or old["status"] not in {"succeeded", "hold", "reused", "pending_execution"}:
+            raise PlatformError.precondition("only an unexecuted completed policy can be excluded")
+        policy = self._registered_execution_policy(old["experiment_id"])
+        reason = self._execution_ineligibility(old, policy)
+        if not reason or _timestamp(old["started_at"]) > _timestamp(recorded_at):
+            raise PlatformError.precondition("policy is not an available nontrading decision")
+        book = self.get_portfolio(old["portfolio_id"])
+        if (book["experiment_id"], book["approach_id"]) != (old["experiment_id"], old["approach_id"]):
+            raise PlatformError.not_permitted("decision does not own its isolated book")
+        payload = {"schema_version": "modeling-execution-disposition/1", "status": "excluded_nontrading", "reason_code": reason, "run_id": run_id, "input_id": old["input_id"], "experiment_id": old["experiment_id"], "approach_id": old["approach_id"], "portfolio_id": old["portfolio_id"], "decision_slot": old["slot"], "eligible_from_slot": policy["first_slot"], "latest_started_at_for_slot": _slot((_timestamp(old["slot"]) + timedelta(seconds=policy["cadence_seconds"])).isoformat()), "registry_input_ref": policy["registry_input_ref"], "reason": "Decision is retained for inspection but is outside its declared tradable comparison opportunity", "recorded_at": recorded_at, "ledger_committed": False, "simulated_fills": []}
+        ref = self._artifact("execution-dispositions", run_id, payload)
+        oid = _id("mo", run_id, "execution_disposition")
+        event = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "kind": "execution_disposition", "experiment_id": old["experiment_id"], "approach_id": old["approach_id"], "portfolio_id": old["portfolio_id"], "portfolio_revision": old["portfolio_revision"], "run_id": run_id, "input_id": old["input_id"], "slot": recorded_at, "decision_slot": old["slot"], "observed_at": recorded_at, "observed_key": _index_time(recorded_at) + "#" + oid, **ref, **self._keys(old["experiment_id"], old["approach_id"], recorded_at, oid)}
+        new = {**old, "status": "execution_excluded", "execution_disposition_state": "excluded_nontrading", "execution_disposition_ref": ref}
+        forecast_heads = {"forecast_state": "excluded_nontrading", "forecast_partition": old["experiment_id"] + "#excluded_nontrading"} if record.attrs.get("forecast_state") else {}
+        try:
+            self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new, extra_attrs=forecast_heads), PutNew("portfolio_observation", doc=event)], audit=[audit_event(self._ctx(recorded_at), record_id=run_id, record_type="research_run", operation="exclude_nontrading_experiment_policy", prior={"status": old["status"]}, new={"status": "execution_excluded"}, reason_code=reason)])
+        except PlatformError:
+            current = self.repo.require("research_run", run_id).doc
+            if not current.get("execution_disposition_ref"):
+                raise
+            return json.loads(self.read_artifact_bytes(current["execution_disposition_ref"]))
+        return payload
+
     def read_execution_frontier(self, run_id: str) -> dict[str, Any] | None:
         """Strongly read a small cleanup proof, never the model input/output."""
         header = self.read_run_header(run_id)
@@ -364,7 +422,7 @@ class ModelingEvidence:
         if not ref:
             return None
         payload = json.loads(self.read_artifact_bytes(ref))
-        if payload.get("frontier_run_id") != run_id or any(payload.get(field) != header[field] for field in ("experiment_id", "approach_id", "portfolio_id")) or _timestamp(payload["covered_through_slot"]) != _timestamp(header["slot"]):
+        if payload.get("schema_version") != "modeling-execution-frontier/2" or payload.get("frontier_run_id") != run_id or any(payload.get(field) != header[field] for field in ("experiment_id", "approach_id", "portfolio_id")) or _timestamp(payload["covered_through_slot"]) != _timestamp(header["slot"]):
             raise PlatformError.validation("execution frontier proof belongs to another run/book")
         return payload
 
@@ -390,6 +448,7 @@ class ModelingEvidence:
         book = self.get_portfolio(frontier["portfolio_id"])
         if (book["experiment_id"], book["approach_id"]) != (frontier["experiment_id"], frontier["approach_id"]):
             raise PlatformError.not_permitted("frontier does not own an isolated synthetic book")
+        policy = self._registered_execution_policy(frontier["experiment_id"])
         eligible = {"succeeded", "hold", "reused", "pending_execution"}
         checked = {}
 
@@ -414,13 +473,28 @@ class ModelingEvidence:
         if previous_frontier_run_id:
             previous = self.read_run_header(previous_frontier_run_id)
             prior = self.read_execution_frontier(previous_frontier_run_id)
-            if not prior or any(previous[field] != frontier[field] for field in identity) or _timestamp(previous["slot"]) >= _timestamp(frontier["slot"]) or _timestamp(prior["recorded_at"]) > _timestamp(recorded_at):
+            if not prior or prior.get("comparison_policy_checksum") != policy["comparison_policy_checksum"] or any(previous[field] != frontier[field] for field in identity) or _timestamp(previous["slot"]) >= _timestamp(frontier["slot"]) or _timestamp(prior["recorded_at"]) > _timestamp(recorded_at):
                 raise PlatformError.validation("previous execution frontier is missing or belongs to another scope/time")
             previous_ref = {"frontier_run_id": previous_frontier_run_id, **previous["execution_frontier_ref"]}
             if prior.get("pending_run_id"):
                 # A failed streak can retain an old recommendation outside the
                 # newly scanned interval. It cannot silently expire or disappear.
                 check(self.read_run_header(prior["pending_run_id"]))
+        # A GSI may omit a row entirely. Strong reads of every deterministic
+        # scheduled slot prove completeness, including missing/running heads.
+        first = _timestamp(policy["first_slot"])
+        start = max(first, _timestamp(previous["slot"]) + timedelta(hours=1)) if previous else first
+        end = _timestamp(frontier["slot"])
+        expected_count = max(0, int((end - start).total_seconds() // 3600) + 1)
+        if expected_count > 168:
+            raise PlatformError.precondition("execution frontier strong proof exceeds bounded 168 scheduled slots; checkpoint not advanced")
+        for offset in range(expected_count):
+            expected_slot = _slot((start + timedelta(hours=offset)).isoformat())
+            expected_id = _id("mr", frontier["experiment_id"], frontier["approach_id"], expected_slot)
+            expected = self.repo.get("research_run", expected_id)
+            if expected is None:
+                raise PlatformError.precondition("execution frontier is missing a scheduled run; checkpoint not advanced", missing_slot=expected_slot)
+            check(self._run_header(expected))
         cursor = None
         partition = f"{frontier['experiment_id']}#{frontier['approach_id']}"
         for _ in range(100):
@@ -438,7 +512,7 @@ class ModelingEvidence:
                 break
         if cursor:
             raise PlatformError.precondition("execution frontier metadata exceeds bounded 10000 rows; cleanup checkpoint not advanced")
-        payload = {"schema_version": "modeling-execution-frontier/1", "frontier_run_id": frontier_run_id, "experiment_id": frontier["experiment_id"], "approach_id": frontier["approach_id"], "portfolio_id": frontier["portfolio_id"], "covered_through_slot": frontier["slot"], "pending_run_id": pending_run_id, "previous_frontier_ref": previous_ref, "checked_headers": sorted(checked.values(), key=lambda row: (_timestamp(row["slot"]), row["run_id"])), "recorded_at": recorded_at, "ledger_committed": False, "semantics": "Every older execution candidate is resolved except the explicit pending pointer; original inference and forecasts remain unchanged"}
+        payload = {"schema_version": "modeling-execution-frontier/2", "frontier_run_id": frontier_run_id, "experiment_id": frontier["experiment_id"], "approach_id": frontier["approach_id"], "portfolio_id": frontier["portfolio_id"], "covered_through_slot": frontier["slot"], "pending_run_id": pending_run_id, "previous_frontier_ref": previous_ref, "registry_input_ref": policy["registry_input_ref"], "comparison_policy_checksum": policy["comparison_policy_checksum"], "strong_scheduled_slot_count": expected_count, "checked_headers": sorted(checked.values(), key=lambda row: (_timestamp(row["slot"]), row["run_id"])), "recorded_at": recorded_at, "ledger_committed": False, "semantics": "Every declared scheduled slot was strongly checked; older execution candidates are resolved except the explicit pending pointer; original inference and forecasts remain unchanged"}
         ref = self._artifact("execution-frontiers", frontier_run_id, payload)
         try:
             self.repo.commit([HeadMove("research_run", record_id=frontier_run_id, expected_revision=0, revision_attr="execution_frontier_revision", allow_missing_revision=True, set_attrs={"execution_frontier_ref": ref}, additional_condition=Cond.not_exists("execution_frontier_ref"))], audit=[audit_event(self._ctx(recorded_at), record_id=frontier_run_id, record_type="research_run", operation="checkpoint_execution_cleanup", new={"pending_run_id": pending_run_id, "covered_through_slot": frontier["slot"]})])
@@ -507,7 +581,14 @@ class ModelingEvidence:
             raise PlatformError.validation("registry requires distinct approaches and honest families")
         # Versioned immutable registry; pointer lookup is a bounded experiment index query.
         payload = {"approaches": approaches, "comparison_policy": dict(policy), "recorded_at": recorded_at}
-        return self.capture_input(experiment_id, "__registry__", recorded_at, payload, None, recorded_at, kind="registry")
+        captured = self.capture_input(experiment_id, "__registry__", recorded_at, payload, None, recorded_at, kind="registry")
+        if policy.get("first_scheduled_slot", policy.get("scheduled_start_at")) and policy.get("cadence_seconds") == 3600:
+            # A successful create need not be visible in its GSI yet. Prime only
+            # from a strong metadata read and verified original artifact bytes,
+            # never from an uncommitted caller-owned configuration object.
+            original = self.read_input(captured["input_id"])
+            self._execution_policy_cache[experiment_id] = self._execution_policy_from_input(original["metadata"], original["payload"])
+        return captured
 
     def read_registry(self, experiment_id: str) -> dict[str, Any] | None:
         rows, _ = self.repo.query_index("research_input", "approach-index", f"{experiment_id}#__registry__", limit=1)
@@ -596,6 +677,9 @@ class ModelingEvidence:
             raise PlatformError.not_permitted("run does not own isolated book")
         if expected_revision != old["portfolio_revision"] or expected_revision != book["revision"]:
             raise PlatformError.conflict("isolated paper holdings revision changed")
+        policy = self._registered_execution_policy(old["experiment_id"])
+        if self._execution_ineligibility(old, policy):
+            raise PlatformError.precondition("decision is outside the declared tradable comparison opportunity")
         _safe(state); _safe(fills); _safe(execution)
         require_valid(dict(state), "paper-portfolio-state")
         cash = state.get("cash_balance")
@@ -659,12 +743,29 @@ class ModelingEvidence:
         book = self.get_portfolio(portfolio_id)
         if (book["experiment_id"], book["approach_id"]) != (experiment_id, approach_id):
             raise PlatformError.not_permitted("observation portfolio ownership mismatch")
+        binding = {}
+        if kind == "valuation" and ("run_id" in payload or "input_id" in payload):
+            if not payload.get("run_id") or not payload.get("input_id"):
+                raise PlatformError.validation("valuation binding requires its actual run and input IDs")
+            run = self.repo.require("research_run", payload["run_id"]).doc
+            if (run["experiment_id"], run["approach_id"], run["slot"], run["portfolio_id"], run["input_id"]) != (experiment_id, approach_id, slot, portfolio_id, payload["input_id"]):
+                raise PlatformError.validation("valuation run/input binding belongs to another approach/book/slot")
+            binding = {"run_id": run["run_id"], "input_id": run["input_id"]}
         oid = _id("mo", experiment_id, approach_id, slot, kind)
         revision = payload.get("revision", payload.get("portfolio_revision", book["revision"]))
         if isinstance(revision, bool) or not isinstance(revision, int) or not 1 <= revision <= book["revision"]:
             raise PlatformError.validation("observation holdings revision must exist in this book")
         ref = self._artifact("observations", oid, payload)
-        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": revision, "observed_at": observed_at, "observed_key": _index_time(observed_at) + "#" + oid, "kind": kind, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
+        doc = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "experiment_id": experiment_id, "approach_id": approach_id, "slot": slot, "portfolio_id": portfolio_id, "portfolio_revision": revision, "observed_at": observed_at, "observed_key": _index_time(observed_at) + "#" + oid, "kind": kind, **binding, **ref, **self._keys(experiment_id, approach_id, slot, oid)}
+        existing = self.repo.get("portfolio_observation", oid)
+        if binding and existing and "run_id" not in existing.doc and "input_id" not in existing.doc:
+            # Legacy observations retain their exact metadata bytes. Identical
+            # canonical payload/checksum and scope prove the original binding;
+            # callers needing a fast retry must expand that legacy artifact once.
+            comparison = {key: value for key, value in doc.items() if key not in binding}
+            if not self._same_capture("portfolio_observation", existing.doc, comparison):
+                raise PlatformError.immutable("permanent experiment record conflicts with retry", record_type="portfolio_observation")
+            return existing.doc
         return self._put("portfolio_observation", doc, observed_at)
 
     def query_day(self, experiment_id: str, day: str, *, kind: str = "runs", page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:

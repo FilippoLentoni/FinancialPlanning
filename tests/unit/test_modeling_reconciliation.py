@@ -20,6 +20,8 @@ def evidence(repo_any, artifacts):
 
 def ready(e, slot=AT, *, experiment='reconciliation-test', approach='rule', status='succeeded', forecast=False, outcome_extra=None):
     book = e.ensure_portfolio(experiment, approach, 1000., ['SPY'], AT)
+    if e.read_registry(experiment) is None:
+        e.register_approaches(experiment, [{'approach_id': approach, 'family': 'control'}], {'first_scheduled_slot': AT, 'scheduled_start_at': AT, 'cadence_seconds': 3600}, AT)
     source = e.capture_shared_source(experiment, slot, {'availability_cutoff': slot, 'input_snapshot_id': 'snap_01ARZ3NDEKTSV4RRFFQ69G5FAV'}, slot)
     item = e.capture_input(experiment, approach, slot, {'availability_cutoff': slot, 'holdings': book, 'news': {'consumed': False}, 'numeric': {'prepared': {'rule': 'controlled fixture'}}}, source, slot)
     run = e.start_run(experiment, approach, slot, item['input_id'], book['portfolio_id'], slot, {'family': 'control'})
@@ -268,6 +270,7 @@ def test_frontier_rejects_cross_book_chain_future_head_and_invalid_pending(evide
     e = evidence
     _, _, first, _ = ready(e, status='failed')
     e.record_execution_frontier(first['run_id'], None, RECORDED)
+    ready(e, AT, approach='other', status='failed')
     _, _, other, _ = ready(e, NEXT, approach='other', status='failed')
     e.record_execution_frontier(other['run_id'], None, RECORDED)
     _, _, head, _ = ready(e, LATER, status='failed')
@@ -283,6 +286,7 @@ def test_frontier_rejects_cross_book_chain_future_head_and_invalid_pending(evide
 def test_frontier_metadata_overflow_never_advances_checkpoint(evidence, monkeypatch):
     e = evidence
     _, _, head, _ = ready(e, status='failed')
+    e._registered_execution_policy('reconciliation-test')
     pages = []
     def overflowing(*args, **kwargs):
         pages.append(1)

@@ -154,8 +154,30 @@ No checkpoint advances on those failures. A prior pending policy remains an
 explicit pointer even through a long sequence of unavailable/failed runs; callers
 must follow it rather than expire it with a report window. A first checkpoint
 checks the bounded complete history, and later checkpoints check the interval
-since the previous verified frontier and its pending pointer. This gives steady
-hourly work independent of the experiment's age. `read_execution_frontier(run_id)`
+since the previous verified frontier and its pending pointer. A v2 proof also
+strongly reads every deterministic expected hourly run ID from the registered
+horizon through the new frontier, independent of index omissions. Missing or
+running scheduled heads prevent advancement. The strong interval is bounded to
+168 slots per recovery step; a larger backlog remains an explicit blocker until
+bounded recovery accounts it. Older metadata-only v1 proofs cannot authorize a
+v2 barrier. This gives steady hourly work independent of the experiment's age.
+`read_execution_frontier(run_id)`
 verifies only that small receipt, not the original model arrays. Frontier heads
 are internal attributes of the existing research-run table; no table, index,
 public contract or frozen wheel changes are required.
+
+Autonomous execution requires a verified registered hourly horizon. Successful
+registry creation primes its per-invocation policy cache from a strong metadata
+read and verified original artifact, so immediate GSI lag cannot change eligibility.
+A fresh backend with an unavailable registry index fails with a retryable blocker.
+`mark_execution_ineligible` retains a pre-horizon manual decision or a decision
+created after its original slot closed as `excluded_nontrading`; the paper commit
+independently rejects it. Exclusion changes neither original inference artifacts
+nor book/history/fills. Any forecast head leaves the pending comparison partition,
+while its original forecast and prior realization evidence remain inspectable.
+
+New valuation metadata can carry `run_id` and `input_id` copied from the actual
+payload after strong ownership/approach/slot/book binding checks. Terminal retries
+can verify these metadata links without reloading large inference artifacts.
+Legacy observations keep their original metadata and artifact bytes; readers
+verify their full original payload when those optional metadata links are absent.
