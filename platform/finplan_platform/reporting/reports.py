@@ -997,7 +997,7 @@ def consolidate(reports: list[dict]) -> dict:
                     inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], managed_cost_events=[], managed_inference_events=[], managed_inference_issue_links=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
                     experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
                                   "expected_slot_manifest_available": r["expected_slot_manifest_available"]} for r in reports])
-    book_ids, run_ids = set(), set()
+    book_ids, run_ids, managed_costs = set(), set(), {}
     for report in reports:
         experiment = report["experiment_id"]
         for key in ("registry", "runs", "observations", "forecasts", "missing_slots"):
@@ -1020,14 +1020,37 @@ def consolidate(reports: list[dict]) -> dict:
         combined["additional_inputs"].update(report.get("additional_inputs", {}))
         combined["evidence_failures"].extend(report["evidence_failures"])
         combined["ancillary_evidence"].extend(report.get("ancillary_evidence", []))
-        combined["managed_cost_events"].extend({**e,"source_approach_id":e["approach_id"],"approach_id":f"{experiment}::{e['approach_id']}"} for e in report.get("managed_cost_events",[]))
+        for event in report.get("managed_cost_events", []):
+            # A reused reference remains charged to the event's original book,
+            # even if another cohort view also retains that same reference.
+            owner = event["experiment_id"]
+            normalized = {**event, "source_approach_id": event["approach_id"],
+                          "approach_id": f"{owner}::{event['approach_id']}"}
+            event_id = event["event_id"]
+            if event_id != "managed:" + event["managed_run_id"]:
+                raise EvidenceError("Managed cost event ID does not match its permanent job")
+            existing = managed_costs.get(event_id)
+            if existing is not None:
+                if canonical({k:v for k,v in existing.items() if k != "evidence_sources"}) != canonical({k:v for k,v in normalized.items() if k != "evidence_sources"}):
+                    raise EvidenceError("Conflicting immutable managed cost event across cohorts")
+                references = {canonical(ref): ref for ref in existing.get("evidence_sources", [])}
+                references.update({canonical(ref): ref for ref in normalized.get("evidence_sources", [])})
+                normalized = {**normalized, "evidence_sources": list(references.values())}
+            managed_costs[event_id] = normalized
         combined["managed_inference_events"].extend({**e,"source_approach_id":e["approach_id"],"approach_id":f"{experiment}::{e['approach_id']}"} for e in report.get("managed_inference_events",[]))
         combined["managed_inference_issue_links"].extend(report.get("managed_inference_issue_links",[]))
         if combined["execution_events"] is not None:
             combined["execution_events"].extend({**e, "source_approach_id": e["approach_id"], "approach_id": f"{experiment}::{e['approach_id']}"} for e in report["execution_events"])
         for key in ("runs", "observations"):
             combined["source_record_ids"][key].extend(report["source_record_ids"][key])
+    combined["managed_cost_events"] = list(managed_costs.values())
+    known = {a["approach_id"]: a for a in combined["registry"]}
+    for event in combined["managed_cost_events"]:
+        owner = known.get(event["approach_id"])
+        if owner is None or owner["portfolio_id"] != event["portfolio_id"]:
+            raise EvidenceError("Managed cost event belongs to another consolidated book")
     combined["leaderboard"] = summarize(combined["registry"], combined["runs"], combined["observations"], combined["forecasts"], combined["execution_events"])
+    apply_managed_costs(combined["leaderboard"], combined["managed_cost_events"], combined["registry"])
     for missing in combined["missing_slots"]:
         book = next((b for b in combined["leaderboard"] if b["approach_id"] == missing["approach_id"]), None)
         if book is None:
