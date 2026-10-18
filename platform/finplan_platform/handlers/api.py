@@ -101,6 +101,8 @@ __all__ = [
 # ===================================================================== role classes
 TOOL_CLASSES = ("reader", "submitter", "plan-writer")
 FINANCEMODEL_CLASSES = ("financemodel-job", "financemodel-job-api")
+BETA_MANAGED_READER_ROLE = "finplan-beta-financemodel-job-execution-role"
+BETA_MANAGED_READ_OPERATIONS = frozenset({"get_portfolio", "get_portfolio_state"})
 FULL_ACCESS_CLASSES = ("platform", "website", "operator")
 #: Platform automation roles (the daily recommendation trigger and the daily ingestion schedule):
 #: snapshot and plan reads, staged-output acceptance and the trigger outcome read only. They are
@@ -443,6 +445,11 @@ def route_allowed(route: Route, role_class: str | None) -> bool:
     return role_class in FULL_ACCESS_CLASSES or role_class in route.grants
 
 
+def beta_managed_read(route: Route, env: str, role_name: str | None) -> bool:
+    """Exact approved managed principal, beta, and two existing GET operations only."""
+    return env == "beta" and role_name == BETA_MANAGED_READER_ROLE and route.method == "GET" and route.operation in BETA_MANAGED_READ_OPERATIONS
+
+
 def routes_for_class(role_class: str) -> list[Route]:
     return [r for r in ROUTES if route_allowed(r, role_class)]
 
@@ -567,8 +574,17 @@ class ApiApp:
         principal = normalize_principal(raw_principal)
         svc = self.svc
         role_class = resolve_role_class(principal, svc.cfg)
-        if not route_allowed(route, role_class):
+        managed_read = beta_managed_read(route, svc.env, role_name_of(principal))
+        if not route_allowed(route, role_class) and not managed_read:
             raise PlatformError.forbidden("the caller is not allowed to call this route", operation=route.operation, role_class=role_class or "unknown")
+
+        if managed_read:
+            # Managed inference may inspect only new experiment books. Ordinary
+            # user paper portfolios retain their existing access/confirmation path.
+            portfolio = svc.repo.get("portfolio", path_params.get("portfolio_id", ""))
+            settings = portfolio.doc.get("settings", {}) if portfolio else {}
+            if not portfolio or portfolio.doc.get("synthetic") is not True or settings.get("isolated_experiment") is not True or any(not isinstance(settings.get(k), str) or not settings[k] for k in ("experiment_id", "approach_id")):
+                raise PlatformError.forbidden("managed inference may read only isolated synthetic experiment books")
 
         on_behalf_of = self._caller_block(headers)
         check_declared_version(headers.get(CONTRACT_VERSION_HEADER), pointer="/contract_version")
