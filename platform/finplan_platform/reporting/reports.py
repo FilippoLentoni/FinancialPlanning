@@ -76,6 +76,56 @@ def _safe_content(value: Any) -> None:
         raise EvidenceError("Credential-bearing evidence refused")
 
 
+def _validate_input_content(value: Any, cutoff: datetime) -> None:
+    """Check original input availability and safety in one bounded-depth walk.
+
+    Exclusion affects availability only. Defer the first safety failure so any
+    availability failure retains the original two-pass validator's priority.
+    JSON scalar leaves are checked inline; subclasses retain legacy behavior.
+    """
+    safety_error = None
+
+    def unsafe(message):
+        nonlocal safety_error
+        if safety_error is None:
+            safety_error = message
+
+    def visit(node, availability=True):
+        if isinstance(node, dict):
+            availability = availability and node.get("consumed") is not False and node.get("eligible") is not False
+            if availability:
+                for key in ("available_at", "platform_available_at", "availability_time", "availability_at"):
+                    if node.get(key) and timestamp(node[key]) > cutoff:
+                        raise EvidenceError("Future-available evidence in captured model input")
+            if SECRET_KEYS.intersection(str(k).lower() for k in node):
+                unsafe("Secret-bearing evidence refused; repair source capture")
+            children = node.values()
+        elif isinstance(node, list):
+            children = node
+        else:
+            if isinstance(node, float) and not math.isfinite(node):
+                unsafe("Non-finite financial value")
+            elif isinstance(node, str) and ("X-Amz-Signature=" in node or "-----BEGIN PRIVATE KEY" in node):
+                unsafe("Credential-bearing evidence refused")
+            return
+        for child in children:
+            kind = type(child)
+            if kind is float:
+                if not math.isfinite(child):
+                    unsafe("Non-finite financial value")
+            elif kind is int or kind is bool or child is None:
+                continue
+            elif kind is str:
+                if "X-Amz-Signature=" in child or "-----BEGIN PRIVATE KEY" in child:
+                    unsafe("Credential-bearing evidence refused")
+            else:
+                visit(child, availability)
+
+    visit(value)
+    if safety_error is not None:
+        raise EvidenceError(safety_error)
+
+
 def _unique(records: list[dict], key: str) -> list[dict]:
     result: dict[str, dict] = {}
     for record in records:
@@ -202,22 +252,7 @@ def _input_for_run(reader: EvidenceReader, run: dict, chunks: dict | None = None
     cutoff = timestamp(run.get("availability_cutoff") or run["decision_time"])
     if timestamp(run["decision_time"]) < cutoff:
         raise EvidenceError("Availability cutoff follows decision time")
-    # Only consumed values must precede the cutoff. Explicit excluded source
-    # evidence remains inspectable and is not falsely attributed to inference.
-    def check_available(value: Any) -> None:
-        if isinstance(value, dict):
-            if value.get("consumed") is False or value.get("eligible") is False:
-                return
-            for key in ("available_at", "platform_available_at", "availability_time", "availability_at"):
-                if value.get(key) and timestamp(value[key]) > cutoff:
-                    raise EvidenceError("Future-available evidence in captured model input")
-            for child in value.values():
-                check_available(child)
-        elif isinstance(value, list):
-            for child in value:
-                check_available(child)
-    check_available(payload)
-    _safe_content(payload)
+    _validate_input_content(payload, cutoff)
     news = payload.get("news") or {}
     if isinstance(news, dict) and news.get("consumed") is False and news.get("prepared_context"):
         raise EvidenceError("Prepared news context falsely labeled News not consumed")
