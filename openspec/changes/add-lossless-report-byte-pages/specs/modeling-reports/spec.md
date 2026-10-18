@@ -22,3 +22,11 @@ its original canonical source-row artifact without multiplying financial rows.
 - **WHEN** lossless encoding still exceeds a final report limit
 - **THEN** publication SHALL fail visibly and preserve the previous immutable report
   and current alias without dropping or truncating source evidence
+
+#### Scenario: Compact metadata still identifies original evidence
+- **WHEN** a new revision encodes original hashes as binary bytes, offsets as deltas,
+  or normalized rows as columns
+- **THEN** its reader SHALL restore the same original hashes, numeric metadata and
+  row values, including missing versus null input keys, before evidence selection
+- **AND** sparse reconstruction SHALL accept only one verified plain base and
+  validate the original target chunk and complete captured-input checksums
