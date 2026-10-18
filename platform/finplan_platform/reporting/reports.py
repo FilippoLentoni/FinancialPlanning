@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 from ..core.errors import PlatformError
 from .transport import compact_report, encode_transport, pack_transient_bytes, unpack_json_bytes, _summary
 from .reader import with_report_io, prefetched_inputs
+from .costs import collect_managed_cost_events, apply_managed_costs
 
 EASTERN = ZoneInfo("America/New_York")
 REPORT_VERSION = "modeling-report/1"
@@ -437,7 +438,7 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
         warnings = []
         if history and (history[-1].get("quote_status") in {"corporate_action_unreconciled", "corporate_action_pending"} or any(word in str(history[-1].get("corporate_action_status", "")) for word in ("unreconciled", "pending"))):
             reasons.append("Latest portfolio state has an unresolved corporate action; past marks cannot hide pending equity")
-        successful = sum((r.get("output") or r.get("outcome") or {}).get("status", r.get("status")) in {"succeeded", "recommended", "hold", "applied", "no_op", "superseded"} and not r.get("evidence_error") and (r.get("inference_invocation_state") != "not_invoked" or approach.get("family") == "control") for r in selected)
+        successful = sum((r.get("output") or r.get("outcome") or {}).get("status", r.get("status")) in {"succeeded", "recommended", "hold", "applied", "no_op", "superseded", "reused"} and not r.get("evidence_error") and (r.get("inference_invocation_state") != "not_invoked" or approach.get("family") == "control") for r in selected)
         if any(r.get("evidence_error") for r in selected): reasons.append("Missing/corrupt model or ledger evidence")
         if executions is not None and any(not e.get("observed_at") for e in executions): reasons.append("Execution event timestamp missing; observed-window cost cannot be verified")
         if executions is not None and any(e.get("evidence_error") for e in executions):
@@ -553,7 +554,7 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
 @with_report_io
 def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict], start_day: str, end_day: str | None = None,
               generated_at: str | None = None, finalized: bool = False, mode: str = "forward", max_records: int = 20000,
-              comparison_policy: dict | None = None) -> dict:
+              comparison_policy: dict | None = None, required_observations: list[dict] | None = None) -> dict:
     start, end = date.fromisoformat(start_day), date.fromisoformat(end_day or start_day)
     if end < start or (end - start).days > 6:
         raise EvidenceError("Reports are bounded to one through seven calendar days")
@@ -577,6 +578,13 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     for day in days:
         runs.extend(_pages(reader, experiment_id, day, "runs", max_records=max_records))
         observations.extend(_pages(reader, experiment_id, day, "observations", max_records=max_records))
+    if required_observations:
+        if len(required_observations)>128:
+            raise EvidenceError("Required observation receipt bound exceeded")
+        for receipt in required_observations:
+            if receipt.get("experiment_id")!=experiment_id or timestamp(receipt["slot"]).astimezone(EASTERN).date().isoformat() not in days:
+                raise EvidenceError("Required receipt is outside the bounded report query")
+        observations.extend(dict(receipt) for receipt in required_observations)
     runs = _unique(runs, "run_id")
     observations = _unique(observations, "observation_id")
     # Normalize authoritative storage field names without reconstructing inputs.
@@ -655,7 +663,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                        comparison_exclusion_reason="Decision predates the declared comparison horizon; retained as nontrading evidence")
         output = run.get("output", {})
         if isinstance(output, dict):
-            for field in ("target_weights", "target_cash", "intents", "rationale", "citations", "fills", "execution_cost", "turnover", "model_cost", "model_cost_basis", "cash_weight", "forecast", "signal_status", "execution_status", "market_input_status", "price_as_of", "news_research_status", "native_input_status", "native_input_detail"):
+            for field in ("target_weights", "target_cash", "intents", "rationale", "citations", "fills", "execution_cost", "turnover", "model_cost", "model_cost_basis", "cash_weight", "forecast", "signal_status", "execution_status", "market_input_status", "price_as_of", "news_research_status", "native_input_status", "native_input_detail", "managed_cost_event"):
                 if field in output:
                     run[field] = output[field]
         try:
@@ -835,7 +843,13 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                    forecast_status=forecast.get("outcome_status") if forecast else "unavailable",
                    realized_value=forecast.get("realized_value") if forecast else None,
                    signed_error=forecast.get("signed_error") if forecast else None)
+    try:
+        managed_cost_events = collect_managed_cost_events(runs, ancillary, experiment_id=experiment_id, registry=registry, start_day=start_day,
+            end_day=end_day or start_day, generated_at=generated_at)
+    except ValueError as error:
+        raise EvidenceError(str(error)) from error
     leaderboard = summarize(registry, runs, observations, forecasts, execution_events)
+    apply_managed_costs(leaderboard, managed_cost_events, registry)
     for missing_row in missing:
         book = next((b for b in leaderboard if b["approach_id"] == missing_row["approach_id"]), None)
         if book is None:
@@ -868,7 +882,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "renderer_checksum": checksum((Path(__file__).parent / "template.html").read_bytes() + (Path(__file__).parent / "report.js").read_bytes()),
               "ranking_rule": "Observed shared-window net realized return after common execution costs; then shared-mark drawdown; then approach ID. Identical policy/universe/initial capital and actual observation intersection only. Full calendar coverage/failures remain visible; observed winner is not universal optimality.",
               "registry": registry, "runs": sorted(runs, key=lambda r: (r["decision_time"], r["approach_id"])),
-              "inputs": inputs, "artifact_chunks": artifact_chunks, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "forecasts": forecasts,
+              "inputs": inputs, "artifact_chunks": artifact_chunks, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "managed_cost_events": managed_cost_events, "forecasts": forecasts,
               "leaderboard": leaderboard, "missing_slots": missing,
               "evidence_failures": [{"run_id": r["run_id"], "error": r["evidence_error"]} for r in runs if r.get("evidence_error")],
               "next_daily_generation": next_eod.isoformat(),
@@ -937,7 +951,7 @@ def consolidate(reports: list[dict]) -> dict:
     combined = dict(reports[0])
     combined["report_io_by_experiment"] = {r["experiment_id"]:r.get("report_io",{}) for r in reports}
     combined.update(registry=[], runs=[], observations=[], forecasts=[], missing_slots=[], evidence_failures=[],
-                    inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
+                    inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], managed_cost_events=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
                     experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
                                   "expected_slot_manifest_available": r["expected_slot_manifest_available"]} for r in reports])
     book_ids, run_ids = set(), set()
@@ -963,6 +977,7 @@ def consolidate(reports: list[dict]) -> dict:
         combined["additional_inputs"].update(report.get("additional_inputs", {}))
         combined["evidence_failures"].extend(report["evidence_failures"])
         combined["ancillary_evidence"].extend(report.get("ancillary_evidence", []))
+        combined["managed_cost_events"].extend({**e,"source_approach_id":e["approach_id"],"approach_id":f"{experiment}::{e['approach_id']}"} for e in report.get("managed_cost_events",[]))
         if combined["execution_events"] is not None:
             combined["execution_events"].extend({**e, "source_approach_id": e["approach_id"], "approach_id": f"{experiment}::{e['approach_id']}"} for e in report["execution_events"])
         for key in ("runs", "observations"):
@@ -985,7 +1000,7 @@ def consolidate(reports: list[dict]) -> dict:
 
 def csv_export(report: dict) -> str:
     stream = io.StringIO(newline="")
-    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "fills", "fill_status", "fill_time", "execution_status", "execution_disposition_at", "execution_disposition_ref", "execution_disposition", "comparison_eligible", "comparison_exclusion_code", "comparison_exclusion_reason", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
+    fields = ["experiment_id", "source_approach_id", "run_id", "approach_id", "portfolio_id", "decision_time", "scheduled_slot", "input_id", "availability_cutoff", "status", "target_weights", "target_cash", "rationale", "forecast", "execution_cost", "model_cost", "managed_cost_event", "fills", "fill_status", "fill_time", "execution_status", "execution_disposition_at", "execution_disposition_ref", "execution_disposition", "comparison_eligible", "comparison_exclusion_code", "comparison_exclusion_reason", "portfolio_value_at_decision", "daily_pnl", "daily_return", "valuation_id", "opening_valuation_id", "expected_value", "forecast_target", "forecast_status", "realized_value", "signed_error", "evidence_error"]
     writer = csv.DictWriter(stream, fields, extrasaction="ignore")
     writer.writeheader()
     for run in report["runs"]:
@@ -1007,16 +1022,16 @@ def html_export(report: dict) -> str:
     return (root / "template.html").read_text().replace("__REPORT_DATA__", data).replace("__REPORT_SCRIPT__", bootstrap)
 
 
-def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None) -> dict:
+def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None, update_latest: bool = True) -> dict:
     """Keep generated private exports private even for a permissive caller umask."""
     previous = os.umask(0o077)
     try:
-        return _write_report_private(report, output_dir, artifact_store=artifact_store)
+        return _write_report_private(report, output_dir, artifact_store=artifact_store, update_latest=update_latest)
     finally:
         os.umask(previous)
 
 
-def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any = None) -> dict:
+def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any = None, update_latest: bool = True) -> dict:
     """Atomic mutable local aliases + immutable checksum-addressed revisions.
 
     S3 reports are written through the platform's existing write-once reports role.
@@ -1061,7 +1076,8 @@ def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any
     for extension, payload in payloads.items():
         if extension == "manifest.json":
             continue
-        for name in (f"{period_name}.{extension}", f"latest.{extension}"):
+        names = [f"{period_name}.{extension}"] + ([f"latest.{extension}"] if update_latest else [])
+        for name in names:
             path = target / name
             if path.exists() and not path.is_symlink() and path.stat().st_uid != os.getuid():
                 raise EvidenceError("Generated private alias is not owned by the report user")

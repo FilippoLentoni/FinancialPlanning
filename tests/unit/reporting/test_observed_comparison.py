@@ -77,3 +77,16 @@ def test_pending_corporate_action_cannot_be_hidden_by_ranking_older_valid_window
     books=summarize(registry(),r.runs,r.observations,[],[])
     rule=next(b for b in books if b['approach_id']=='rule')
     assert rule['rank'] is None and any('unresolved corporate action' in reason for reason in rule['ranking_blockers'])
+
+
+def test_verified_native_reused_signal_can_rank_but_uninvoked_reuse_label_cannot():
+    reader=Reader();reg=registry();reg[1]['family']='language_model'
+    for run in reader.runs:
+        if run['approach_id']=='rule':
+            run.update(status='reused',output={'status':'reused'},inference_invocation_state='reused_approved_native_daily_signal')
+    books=summarize(reg,reader.runs,reader.observations,[],[])
+    assert next(b for b in books if b['approach_id']=='rule')['rank']==1
+    for run in reader.runs:
+        if run['approach_id']=='rule':run['inference_invocation_state']='not_invoked'
+    books=summarize(reg,reader.runs,reader.observations,[],[])
+    assert next(b for b in books if b['approach_id']=='rule')['rank']is None
