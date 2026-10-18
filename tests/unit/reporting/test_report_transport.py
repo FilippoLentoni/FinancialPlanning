@@ -37,7 +37,16 @@ def test_codec_reversible_columns_strings_literals_and_lossless_source_documents
     source['runs'][0]['metadata']={'trigger':'systemd_scheduled','audit':'original'}
     source['runs'][1]['metadata']={'trigger':'manual_validation'}
     compact=compact_report(source);encoded=encode_transport(compact);decoded=decode_transport(encoded)
-    assert decoded==compact
+    # The byte-page storage representation is lazy; normalized values and every
+    # original index/token byte remain identical to the legacy representation.
+    pools={'artifact_chunks','artifact_lexemes','artifact_pages'}
+    assert {k:v for k,v in decoded.items() if k not in pools}=={k:v for k,v in compact.items() if k not in pools}
+    assert set(decoded['artifact_chunks'])==set(compact['artifact_chunks'])
+    for cid,row in compact['artifact_chunks'].items():
+        original=gzip.decompress(base64.b64decode(row['data']))
+        assert unpack_bytes({'checksum':cid,'size_bytes':row['size_bytes'],'raw_chunks':[cid]},decoded['artifact_chunks'])==original
+    from finplan_platform.reporting.transport import _decode_lexeme
+    assert [_decode_lexeme(v,decoded['artifact_lexemes'].page_store)for v in decoded['artifact_lexemes']]==[_decode_lexeme(v)for v in compact['artifact_lexemes']]
     for original,row in zip(source['runs'],decoded['runs']):
         assert json.loads(unpack_json_bytes(row['source_evidence_ref'],decoded['artifact_chunks'],decoded['artifact_lexemes']))==original
     for original,row in zip(source['observations'],decoded['observations']):
