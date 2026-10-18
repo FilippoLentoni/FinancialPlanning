@@ -93,3 +93,51 @@ def test_original_unpacked_and_earlier_columnar_exports_remain_readable():
     decoded=decode_transport(earlier)
     assert [r['run_id'] for r in decoded['runs']]==[r['run_id'] for r in source['runs']]
     assert decoded['inputs']==source['inputs']
+
+
+def test_transient_staging_and_cached_lexeme_varints_preserve_exact_original_format():
+    from finplan_platform.reporting import transport as t
+    raw=(b'{ "number":1.0000,"negative":-0.0,"scientific":1e-07,"unicode":"\\u0041","array":['+b','.join([b'0.00100']*12000)+b'] }')
+    staging={};capture=t.pack_transient_bytes(raw,staging)
+    assert t.unpack_bytes(capture,staging)==raw
+    assert all(c['size_bytes']<=65536 for c in staging.values())
+    optimized_pool={};optimized_lexemes=t.Lexemes()
+    optimized=t.pack_json_bytes(raw,optimized_pool,optimized_lexemes)
+    # Reference the old uncached lexical loop. This asserts token/chunk bytes and
+    # dictionary order, beyond checking only equivalent parsed financial values.
+    reference_pool={};reference_lexemes=t.Lexemes();refs=[];indices=bytearray();count=0
+    for match in t._JSON_TOKEN.finditer(raw):
+        indices.extend(t._varint(reference_lexemes.intern(match.group())));count+=1
+        if count%1024==0:refs.append(t._pack_index_chunk(bytes(indices),reference_pool));indices.clear()
+    if indices:refs.append(t._pack_index_chunk(bytes(indices),reference_pool))
+    assert optimized['lexeme_chunks']==refs
+    assert optimized_pool==reference_pool and optimized_lexemes.values==reference_lexemes.values
+    before=len(optimized_lexemes.encoded_indices)
+    assert t.pack_json_bytes(raw,optimized_pool,optimized_lexemes)==optimized
+    assert len(optimized_lexemes.encoded_indices)==before==len(optimized_lexemes.indices)
+    assert t.unpack_json_bytes(optimized,optimized_pool,optimized_lexemes.values)==raw
+
+
+def test_transient_duplicate_chunk_boundaries_reuse_and_complete_original_hash():
+    from finplan_platform.reporting import transport as t
+    block=b'x'*65536;raw=block*3+b'end'
+    pool={};capture=t.pack_transient_bytes(raw,pool)
+    assert len(pool)==2 and capture['raw_chunks'][:3]==[capture['raw_chunks'][0]]*3
+    assert t.unpack_bytes(capture,pool)==raw
+    # Same-size substitution of a repeated chunk must fail the full originalSHA.
+    wrong=t.pack_transient_bytes(b'y'*65536,pool)['raw_chunks'][0]
+    altered={**capture,'raw_chunks':[wrong,*capture['raw_chunks'][1:]]}
+    import pytest
+    with pytest.raises(ValueError,match='Complete original'):
+        t.unpack_bytes(altered,pool)
+
+
+def test_cached_lexical_fast_path_rejects_unrecognized_bytes_and_bounds_large_stream():
+    from finplan_platform.reporting import transport as t
+    import pytest
+    for raw in (b'{"value":1}@',b'{"value":@1}',b'@{"value":1}'):
+        with pytest.raises(ValueError,match='unrecognized'):
+            t.pack_json_bytes(raw,{},t.Lexemes())
+    raw=b'{"large":"'+b'x'*(1024*1024+10)+b'","value":1.0000}'
+    pool={};lexemes=t.Lexemes();captured=t.pack_json_bytes(raw,pool,lexemes)
+    assert t.unpack_json_bytes(captured,pool,lexemes.values)==raw

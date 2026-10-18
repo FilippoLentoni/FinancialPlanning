@@ -335,3 +335,72 @@ or only closed-market cash observations still prevent ranking. Missing/stale cha
 points break paths or show explicitly dashed carried marks; no interpolated price
 is inserted. A rank describes that observed period, with its disclosed coverage,
 and never promotes a policy or claims universal superiority.
+
+Report I/O uses at most32 submitted immutable reads and32 report-owned client
+connections. Scoped metadata pagination remains sequential; each run head is still
+read consistently from DynamoDB. Input metadata plus its verified original bytes
+are fetched once, then identity, checksum, payload and availability checks and
+chunk packing run in deterministic query order on the calling thread. Failed
+artifact reads retain their rows and evidence errors. Readers injected by tests
+retain their existing interface; the optimized adapter applies to ModelingEvidence.
+
+Set `FINPLAN_REPORT_CACHE_DIR` to a dedicated absolute EBS directory, for example
+`/home/ec2-user/projects/.worktmp/beta-modeling/report-evidence-cache`, when enabling
+the final EC2 release. The optional disposable cache stores only immutable artifact
+bytes, with a4GiB stored-byte limit and200,000-entry limit. Every disk hit validates
+bounded decompression, original size and full original SHA; the fresh DynamoDB
+header/reference and approved prefix/bucket role are still checked. Beneficial
+internal gzip reduces disk use without changing an input/artifact's original bytes
+or exported encoding. A32MiB/2,048-entry in-memory cache removes repeat receipts
+within one aggregation. Mutable run/portfolio heads are never cached.
+
+The dedicated cache directory is700 and its files600, with an ownership/version
+marker, atomic byte publication, process/thread locks and indexed bounded eviction.
+Unrelated preexisting directories are refused. Cleanup touches only owned indexed
+artifact files and exact owned temporary-name patterns. Cache corruption or I/O
+failure disables that cache and falls back to verified S3 reads; `report_io` in the
+JSON and coverage evidence records the operational failure without inventing a
+model failure. To rebuild, stop report services, remove only this dedicated cache,
+and resume; existing report archives and DynamoDB/S3 evidence remain authoritative.
+A cold rebuild may take longer, so inspect the job deadline and preserve the last
+successful alias if the next report cannot finish.
+
+Controlled local scalability measurements using the archived first actual hourly
+slot contain277 original model-input artifacts plus full source rows/observations.
+Streaming32 controlled identity variants processed497.3MB of original lexical
+bytes, without materializing a multi-GB original report. Lexical packing fell from
+203.1seconds to103.0seconds, projecting1,066 to541seconds for168 matching-corpus
+slots; measured stage peak RSS was221MiB. Cached original token→varint bytes and a
+bounded1MiB C-level lexical fast path preserve token order and complete-byte checks.
+Larger artifacts continue streaming. Transient fixed64KiB original-byte gzip staging
+fell from4.84 to0.285seconds for11.65MB of277 actual inputs; the staging pool grew
+from2.81 to3.00MB. Final cross-cohort lexical compression and public CDC APIs are
+unchanged. Full report aggregation/joins/export memory also depends on row count;
+the prior46,536-row controlled full-producer peak was2.11GiB.
+
+A separate controlled46,536-approach I/O simulation verified all46,536 original
+inputs and observations, retained ordering, and bounded submissions to32. It models
+94,004 DynamoDB and139,608 immutable-artifact reads. At explicitly assumed12ms
+DynamoDB,30ms S3 and0.3ms serialized local-cache operations, modeled cold I/O is
+166seconds and warm I/O77seconds. Together with measured packing/staging projections,
+a warm seven-day command is plausible within its900second child deadline; two
+closed/current commands require the enclosing1,850second service deadline. These
+are modeled latency and same-corpus CPU projections, not a live mature weekly run,
+not guarantees under different news/scenario volume, and not investment results.
+Source growth, throttling, cache eviction and final joins/gzip require headroom;
+transport limits and failure-preserving aliases remain enforced. Scratch profiles
+are under `.worktmp/report-io/`, with separate before/after CPU, transient staging
+and bounded-I/O JSON/log files. The first actual hourly browser proof is preserved
+under `.worktmp/beta-modeling/hourly-live-proof/slot01/`; it explicitly does not
+satisfy the second required actual hourly slot.
+
+The compressed-cache measurement on277 actual inputs stored11.65MB of original
+bytes in2.43MB, with0.311seconds to populate and0.230seconds to read, bounded-
+decompress and verify every original SHA (91MiB stage peak RSS). Its measured
+0.830ms mean serialized get is more conservative than the0.3ms illustrative I/O
+assumption above. Applying it to every modeled artifact read gives151seconds warm
+I/O; packing541 + staging48 + warm I/O151 is roughly740seconds before joins,
+parsing and final gzip. This is the operational headroom estimate, not an assertion
+that a cold mature weekly report has already run or that source churn cannot
+exceed the deadline. Cache failures remain visible; integrity/transport failure or
+a deadline preserves the prior published revision.

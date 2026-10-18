@@ -23,7 +23,8 @@ from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from ..core.errors import PlatformError
-from .transport import compact_report, encode_transport, pack_bytes, unpack_json_bytes, _summary
+from .transport import compact_report, encode_transport, pack_transient_bytes, unpack_json_bytes, _summary
+from .reader import with_report_io, prefetched_inputs
 
 EASTERN = ZoneInfo("America/New_York")
 REPORT_VERSION = "modeling-report/1"
@@ -137,7 +138,7 @@ def _portable_capture(metadata: dict, payload: dict, raw: bytes, chunks: dict | 
               "content_summary": {"news_items": len(items) if isinstance(items, list) else None}}
     if chunks is None or len(raw) <= 2048:
         return {**result, "payload": payload, "raw_base64": base64.b64encode(raw).decode()}
-    packed = pack_bytes(raw, chunks)
+    packed = pack_transient_bytes(raw, chunks)
     return {**result, **packed, "payload": _summary(payload),
             "preview_truncations": [{"path":"/", "kind":"selection_summary", "semantics":"Select this exact run to decode every original supplied value."}], "preview_is_complete": False}
 
@@ -166,13 +167,15 @@ def captured_input_bytes(report: dict, captured: dict) -> bytes:
     return raw
 
 
-def _input_for_run(reader: EvidenceReader, run: dict, chunks: dict | None = None) -> dict:
+def _input_for_run(reader: EvidenceReader, run: dict, chunks: dict | None = None, *, captured: dict | Exception | None = None) -> dict:
     input_id = run.get("input_id")
     if not input_id:
         raise EvidenceError("Run has no captured model-specific input_id")
-    captured = reader.read_input(input_id)
+    if isinstance(captured, Exception):
+        raise captured
+    captured = reader.read_input(input_id) if captured is None else captured
     metadata, payload = captured["metadata"], captured["payload"]
-    raw = reader.read_input_bytes(input_id) if hasattr(reader, "read_input_bytes") else _actual_bytes(captured)
+    raw = _actual_bytes(captured) if "raw_bytes" in captured else reader.read_input_bytes(input_id) if hasattr(reader, "read_input_bytes") else _actual_bytes(captured)
     expected = metadata.get("checksum") or metadata.get("payload_checksum") or metadata.get("artifact_checksum")
     if checksum(raw) != expected:
         raise EvidenceError("Captured input checksum does not match original bytes")
@@ -547,6 +550,7 @@ def summarize(approaches: list[dict], runs: list[dict], observations: list[dict]
     return sorted(books, key=lambda b: (b["rank"] is None, b["rank"] or 0, b["approach_id"]))
 
 
+@with_report_io
 def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict], start_day: str, end_day: str | None = None,
               generated_at: str | None = None, finalized: bool = False, mode: str = "forward", max_records: int = 20000,
               comparison_policy: dict | None = None) -> dict:
@@ -603,7 +607,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     slots: set[tuple[str, str]] = set()
     forecasts = []
     shared_session_cache: dict[str, list[dict]] = {}
-    for run in runs:
+    for run, prefetched in prefetched_inputs(reader, runs):
         if run.get("experiment_id") != experiment_id or run.get("approach_id") not in known:
             raise EvidenceError("Run outside selected experiment/registry")
         aid = run["approach_id"]
@@ -616,7 +620,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         if timestamp(run["decision_time"]) > timestamp(generated_at):
             raise EvidenceError("Decision follows report data cutoff")
         try:
-            inputs[run["run_id"]] = _input_for_run(reader, run, artifact_chunks)
+            inputs[run["run_id"]] = _input_for_run(reader, run, artifact_chunks, captured=prefetched)
             captured = inputs[run["run_id"]]
             run["inference_invocation_state"] = captured["payload"].get("invocation_state")
             if known[aid].get("non_trading"):
@@ -625,7 +629,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             source_ref = captured["metadata"].get("shared_source_ref")
             if source_ref and source_ref["input_id"] not in shared_session_cache:
                 source = reader.read_input(source_ref["input_id"])
-                original = reader.read_input_bytes(source_ref["input_id"]) if hasattr(reader, "read_input_bytes") else _actual_bytes(source)
+                original = _actual_bytes(source) if "raw_bytes" in source else reader.read_input_bytes(source_ref["input_id"]) if hasattr(reader, "read_input_bytes") else _actual_bytes(source)
                 if source["metadata"].get("kind") != "shared_source" or checksum(original) != source_ref["checksum"] or source["metadata"]["checksum"] != source_ref["checksum"]:
                     raise EvidenceError("Shared valuation/session source checksum or kind mismatch")
                 shared_session_cache[source_ref["input_id"]] = _compact_session_quotes(source["payload"])
@@ -869,12 +873,15 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "evidence_failures": [{"run_id": r["run_id"], "error": r["evidence_error"]} for r in runs if r.get("evidence_error")],
               "next_daily_generation": next_eod.isoformat(),
               "source_record_ids": {"runs": [r["run_id"] for r in runs], "observations": [o["observation_id"] for o in observations + ancillary]}}
+    if hasattr(reader, "io_status"):
+        result["report_io"] = reader.io_status()
     _safe_content(result)
     return result
 
 
 
 
+@with_report_io
 def aggregate_interim(reader: EvidenceReader, *, primary_experiment: str, primary_registry: dict, start_day: str,
                       end_day: str, generated_at: str, finalized: bool = False, mode: str = "forward") -> dict | None:
     """Read actual interim evidence without creating a registry/book/model payload.
@@ -928,6 +935,7 @@ def consolidate(reports: list[dict]) -> dict:
     if len(reports) == 1:
         return reports[0]
     combined = dict(reports[0])
+    combined["report_io_by_experiment"] = {r["experiment_id"]:r.get("report_io",{}) for r in reports}
     combined.update(registry=[], runs=[], observations=[], forecasts=[], missing_slots=[], evidence_failures=[],
                     inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
                     experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
