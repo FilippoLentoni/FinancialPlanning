@@ -145,3 +145,43 @@ def test_oversized_legacy_queue_can_drain_with_bounded_lower_bound_visibility(tm
     assert len(tasks)==3 and state['pending_count_is_lower_bound']and state['overflow_retained']is True
     refresh.acknowledge(tasks)
     assert len(list(tmp_path.glob('*.json')))==3
+
+
+def test_monotonic_skip_retains_cost_task_until_exact_dated_alias_published(repo,artifacts,tmp_path,monkeypatch):
+    from finplan_platform.reporting.transport import decode_transport
+    backend=ModelingEvidence(repo,artifacts);task,registry=fixture(backend)
+    backend.register_approaches('experiment',registry,{},'2026-01-12T14:00:00Z')
+    queue=tmp_path/'queue';output=tmp_path/'reports';path=refresh.put_task(queue,task)
+    # A concurrently newer snapshot can lack the cost because its day-index read
+    # lagged. The older writer's strong task receipt is complete, but its alias
+    # publication must not regress the newer snapshot or acknowledge unseen cost.
+    original=repo.query_index
+    monkeypatch.setattr(repo,'query_index',lambda table,*a,**kw:([],None) if table=='portfolio_observation' else original(table,*a,**kw))
+    incomplete=aggregate(backend,experiment_id='experiment',registry=registry,start_day='2026-01-12',generated_at='2026-01-13T17:00:00Z',mode='controlled_replay')
+    prior=write_report(incomplete,output,update_latest=False)
+    before=(output/'replay'/'2026-01-12.json').read_bytes()
+    monkeypatch.setenv('FINPLAN_REPORT_REFRESH_DIR',str(queue));monkeypatch.setattr(ModelingEvidence,'from_ec2',lambda **kw:backend)
+    class Frozen(datetime):
+        hour=16
+        @classmethod
+        def now(cls,tz=None):return cls(2026,1,13,cls.hour,0,tzinfo=timezone.utc).astimezone(tz)
+    monkeypatch.setattr(cli,'datetime',Frozen)
+    args=['--experiment','experiment','--day','2026-01-13','--mode','controlled_replay','--output',str(output),'--no-include-interim','--no-s3-archive']
+    with pytest.raises(EvidenceError,match='dated alias was not published'):cli.main(args)
+    assert path.exists() and (output/'replay'/'2026-01-12.json').read_bytes()==before
+    assert not list((queue/'weekly').glob('*.json'))
+    assert len(list((output/'replay'/'archive'/'2026-01-12').iterdir()))==2 # Complete repair archive retained.
+    Frozen.hour=18
+    assert cli.main(args)==0 and not path.exists()
+    published=decode_transport(json.loads((output/'replay'/'2026-01-12.json').read_bytes()))
+    assert published['managed_cost_events'][0]['event_id']==task['event_id']
+
+
+def test_cli_retry_protocol_only_defers_publication_race(monkeypatch,capsys):
+    from finplan_platform.reporting.reports import PublicationDeferred
+    monkeypatch.setattr(cli,'main',lambda argv:(_ for _ in ()).throw(PublicationDeferred('retained task')))
+    assert cli.cli_exit_code([])==75
+    assert 'publication deferred' in capsys.readouterr().err
+    monkeypatch.setattr(cli,'main',lambda argv:(_ for _ in ()).throw(EvidenceError('unsafe artifact')))
+    assert cli.cli_exit_code([])==2
+    assert 'evidence failure' in capsys.readouterr().err

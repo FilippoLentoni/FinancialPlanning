@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "platform"))
-from finplan_platform.reporting.reports import EvidenceError, aggregate, aggregate_interim, consolidate, write_report
+from finplan_platform.reporting.reports import EvidenceError, PublicationDeferred, aggregate, aggregate_interim, consolidate, write_report
 from finplan_platform.reporting import refresh
 
 
@@ -79,6 +79,10 @@ def main(argv=None):
         report=consolidate(reports)
         if tasks:refresh.ensure_in_report(report,tasks)
         written=write_report(report,args.output,artifact_store=None if args.no_s3_archive else evidence.store,update_latest=update_latest)
+        if tasks:
+            period_name=report['end_day'] if report['period']=='daily' else report['start_day']+'_'+report['end_day']
+            if period_name not in written.get('aliases_published',[]):
+                raise PublicationDeferred('Required managed-cost dated alias was not published; immutable repair archive saved and refresh tasks retained for retry')
         return report,written
 
     if args.repair_weekly_from_queue:
@@ -117,9 +121,16 @@ def main(argv=None):
     return 2 if report["evidence_failures"] else 0
 
 
-if __name__ == "__main__":
+def cli_exit_code(argv=None):
     try:
-        raise SystemExit(main())
+        return main(argv)
+    except PublicationDeferred as error:
+        print(f"Report publication deferred: {error}", file=sys.stderr)
+        return 75
     except EvidenceError as error:
         print(f"Report evidence failure: {error}", file=sys.stderr)
-        raise SystemExit(2)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(cli_exit_code())
