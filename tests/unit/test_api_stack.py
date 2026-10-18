@@ -228,13 +228,14 @@ def test_compacted_policy_preserves_original_allow_and_deny_semantics(api_synth:
         for route in ROUTES:
             resource = invoke_arn(route)
             assert simulate("execute-api:Invoke", resource, principal, resource_policy=original).allowed == simulate("execute-api:Invoke", resource, principal, resource_policy=compacted).allowed, (env, cls, route.path)
-    denied_descendants = next(s for s in compacted["Statement"] if s.get("Sid") == "DenyFinancemodelJobApiExcludedDescendants")
+    api_role = role_arn(load_config(env).principal_pattern("financemodel_job_api"))
+    denied_descendants = next(s for s in compacted["Statement"] if s.get("Effect") == "Deny" and "Resource" in s and s.get("Condition") == {"ArnLike": {"aws:PrincipalArn": api_role}})
     assert denied_descendants["Effect"] == "Deny" and denied_descendants["Resource"]
 
 
 def test_shared_beta_allow_is_constrained_by_explicit_consumer_route_denials(api_synth: dict[str, Any]) -> None:
     policy = api_synth["policies"]["beta"]
-    assert any(s["Sid"] == "AllowConsumersWithinExplicitRouteDenials" for s in policy["Statement"])
+    assert any(s["Effect"] == "Allow" and s["Resource"] == "execute-api:/*" and isinstance(s.get("Condition", {}).get("ArnLike", {}).get("aws:PrincipalArn"), list) for s in policy["Statement"])
     for cls, name in roles("beta").items():
         if cls in FULL_ACCESS_CLASSES:
             continue

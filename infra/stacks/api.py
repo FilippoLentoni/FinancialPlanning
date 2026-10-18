@@ -46,7 +46,7 @@ from constructs import Construct
 from finplan_platform.core.config import BUCKET_ROLES, EnvConfig
 from finplan_platform.core.repository import TABLES, table_name
 from finplan_platform.core.upgrade import current_version
-from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, BETA_MANAGED_READER_ROLE, BETA_MANAGED_READ_OPERATIONS, CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
+from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE, BETA_MANAGED_READ_OPERATIONS, CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
 
 from .common import PlatformStack, StageContext, lambda_code, platform_role, resource_name, role_arn_pattern, ssm_name, tag_role
 
@@ -124,8 +124,20 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
         # descendant routes. Deny only disallowed descendants, never their parents.
         descendants = sorted({route_resource(r) for r in routes if r not in allowed_routes and any(r.method == parent.method and r.path.startswith(parent.path + "/") for parent in allowed_routes)})
         if descendants:
-            statements.append({"Sid": f"Deny{_sid(cls)}ExcludedDescendants", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": descendants[0] if len(descendants) == 1 else descendants, "Condition": cond})
+            descendant_cond = cond
+            if managed:
+                # Both exact managed readers have the same two portfolio reads;
+                # their forbidden portfolio descendants therefore share a deny.
+                descendant_cond = {"ArnLike": {"aws:PrincipalArn": [pattern, arn_for(BETA_MANAGED_DISPATCHER_ROLE)]}}
+            statements.append({"Sid": f"Deny{_sid(cls)}ExcludedDescendants", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": descendants[0] if len(descendants) == 1 else descendants, "Condition": descendant_cond})
     if env == "beta":
+        # The network-isolated GPU worker cannot make authenticated book reads.
+        # Its exact dispatcher verifies the initialized isolated book immediately
+        # before launch. Broader identity policies cannot widen these two reads.
+        dispatcher = arn_for(BETA_MANAGED_DISPATCHER_ROLE)
+        allowed_patterns.append(dispatcher)
+        managed_resources = compact_route_resources([route_resource(r) for r in routes if r.method == "GET" and r.operation in BETA_MANAGED_READ_OPERATIONS])
+        statements.append({"Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": managed_resources[0] if len(managed_resources) == 1 else managed_resources, "Condition": {"ArnEquals": {"aws:PrincipalArn": dispatcher}}})
         # Factor repeated identical tool read lists without changing any effective
         # permission: outside the union is denied for all tools; each tool also
         # explicitly denies the union members its own role does not receive.
@@ -180,6 +192,11 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
             "Condition": {"ArnNotLike": {"aws:PrincipalArn": allowed_patterns}},
         }
     )
+    if env == "beta":
+        # Sid is optional IAM annotation, not an authorization condition. Omit
+        # annotations only in beta to retain API Gateway's existing size reserve;
+        # every Allow/Deny, action, resource and condition remains present.
+        statements = [{k: v for k, v in statement.items() if k != "Sid"} for statement in statements]
     return {"Version": "2012-10-17", "Statement": statements}
 
 

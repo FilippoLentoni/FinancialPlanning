@@ -13,7 +13,8 @@ Codex on this EC2 is configured for `approval_policy = "never"` and `sandbox_mod
 The one-minute snapshot scheduler and thirty-minute research scheduler are a later step. No new recurring agent job is enabled by this access change.
 
 
-The exact existing `finplan-beta-financemodel-job-execution-role` may additionally
+The exact existing `finplan-beta-financemodel-job-execution-role` and
+`finplan-beta-financemodel-job-dispatcher-role` may additionally
 read `GET /v1/portfolios/{portfolio_id}` and `/state` for isolated synthetic
 experiment books. The handler checks original portfolio metadata: synthetic true,
 isolated_experiment true, named experiment/approach ownership, the deterministic
@@ -21,7 +22,10 @@ internal experiment portfolio ID, and initialized authoritative paper state/revi
 User-editable settings alone cannot grant this access. Ordinary user
 portfolios, other managed-role names, descendant history/decision routes, and all
 writes remain forbidden. The worker independently validates experiment/approach,
-revision, cash and positions before an approved managed Jev invocation. This grants
+revision, cash and positions before an approved managed Jev invocation. The exact
+dispatcher performs the same current-book check before launching an independently
+approved network-isolated Qwen worker, which retains no AWS credentials or network
+access. This grants
 no direct DynamoDB access, approval authority, recurring vendor authorization or
 Gamma/prod exception. The Model repository owns the matching beta-only identity
 policy; both layers must be deployed before a real approved worker can use it.
@@ -29,5 +33,7 @@ policy; both layers must be deployed before a real approved worker can use it.
 The beta API resource policy factors identical tool read lists into one union deny
 and per-tool forbidden-write denies, preserving all existing effective tool
 permissions. Its deployed-token size remains below8192bytes with the original
-512byte reserved headroom test. Higher-environment policy documents retain their
+512byte reserved headroom test. Optional IAM `Sid` annotations are omitted only
+from the beta API policy to preserve that reserve; all explicit denies, grants,
+resources and conditions remain enforced. Higher-environment policy documents retain their
 pre-change contents.

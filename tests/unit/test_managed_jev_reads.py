@@ -7,7 +7,7 @@ import pytest
 
 from finplan_platform.core.clock import to_timestamp
 from finplan_platform.core.modeling_evidence import ModelingEvidence
-from finplan_platform.handlers.api import ApiApp, LocalClient, BETA_MANAGED_READER_ROLE, beta_managed_read, ROUTES, route_allowed
+from finplan_platform.handlers.api import ApiApp, LocalClient, BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE, beta_managed_read, ROUTES, route_allowed
 from finplan_platform.core.config import load_config
 from infra.stacks.api import resource_policy_document
 from infra.policy_sim import Principal, role_arn, simulate
@@ -18,12 +18,13 @@ IDS = {'portfolio_id':'pf_01KDVDNAZ83BAMMYCEGWF33DPM','decision_id':'pd_01KDVDNA
 
 
 @pytest.mark.parametrize('session', [False,True])
-def test_application_exact_job_reads_original_isolated_metadata_and_state(svc, app, clock, session):
+@pytest.mark.parametrize('managed_role', [BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE])
+def test_application_exact_job_reads_original_isolated_metadata_and_state(svc, app, clock, session, managed_role):
     evidence=ModelingEvidence(svc.repo,svc.artifacts)
     book=evidence.ensure_portfolio('controlled-managed-read','jev_systemone',100000.,['SPY'],to_timestamp(clock.now()))
     record=svc.repo.require('portfolio',book['portfolio_id'])
     before=(copy.deepcopy(record.doc),copy.deepcopy(record.attrs))
-    principal=role(BETA_MANAGED_READER_ROLE) if not session else 'arn:aws:sts::<account-id>:assumed-role/'+BETA_MANAGED_READER_ROLE+'/controlled-managed-session'
+    principal=role(managed_role) if not session else 'arn:aws:sts::<account-id>:assumed-role/'+managed_role+'/controlled-managed-session'
     client=LocalClient(app,principal)
     path='/v1/portfolios/'+book['portfolio_id']
     status,metadata,_=client.get(path)
@@ -36,16 +37,18 @@ def test_application_exact_job_reads_original_isolated_metadata_and_state(svc, a
     assert evidence.get_portfolio(book['portfolio_id'])==book
 
 
-def test_ordinary_user_synthetic_book_is_still_denied_to_managed_job(clients):
+@pytest.mark.parametrize('managed_role', [BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE])
+def test_ordinary_user_synthetic_book_is_still_denied_to_managed_job(clients, app, managed_role):
     status,book,_=clients.operator.post('/v1/portfolios',{'name':'Existing user paper book','base_currency':'USD','synthetic':True,'settings':{'paper_research_profile':{'instruments':['SPY']}},'idempotency_key':'ordinary-managed-read-negative'})
     assert status==201
     for suffix in ('','/state','/history','/decisions'):
-        status,error,_=clients.fm_job.get('/v1/portfolios/'+book['portfolio_id']+suffix)
+        status,error,_=LocalClient(app,role(managed_role)).get('/v1/portfolios/'+book['portfolio_id']+suffix)
         assert status==403 and error['code']=='FORBIDDEN'
     assert clients.operator.get('/v1/portfolios/'+book['portfolio_id'])[0]==200
 
 
-def test_user_book_with_spoofed_experiment_settings_cannot_gain_managed_read(clients):
+@pytest.mark.parametrize('managed_role', [BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE])
+def test_user_book_with_spoofed_experiment_settings_cannot_gain_managed_read(clients, app, managed_role):
     status,book,_=clients.operator.post('/v1/portfolios',{'name':'Spoofed ownership markers','base_currency':'USD','synthetic':True,
         'settings':{'isolated_experiment':True,'experiment_id':'controlled-managed-read','approach_id':'jev_systemone'},
         'idempotency_key':'spoofed-managed-read-negative'})
@@ -58,11 +61,11 @@ def test_user_book_with_spoofed_experiment_settings_cannot_gain_managed_read(cli
         {'expected_revision':0,'paper_state':state,'idempotency_key':'spoofed-managed-state-negative'})
     assert status==200
     for suffix in ('','/state'):
-        assert clients.fm_job.get('/v1/portfolios/'+book['portfolio_id']+suffix)[0]==403
+        assert LocalClient(app,role(managed_role)).get('/v1/portfolios/'+book['portfolio_id']+suffix)[0]==403
     assert clients.operator.get('/v1/portfolios/'+book['portfolio_id']+'/state')[0]==200
 
 
-@pytest.mark.parametrize('name',['finplan-beta-financemodel-job-execution-role-extra','finplan-gamma-financemodel-job-execution-role','finplan-prod-financemodel-job-execution-role'])
+@pytest.mark.parametrize('name',['finplan-beta-financemodel-job-execution-role-extra','finplan-gamma-financemodel-job-execution-role','finplan-prod-financemodel-job-execution-role','finplan-beta-financemodel-job-dispatcher-role-extra','finplan-gamma-financemodel-job-dispatcher-role','finplan-prod-financemodel-job-dispatcher-role'])
 def test_other_principals_and_every_write_remain_denied(svc,app,clock,name):
     book=ModelingEvidence(svc.repo,svc.artifacts).ensure_portfolio('controlled-managed-read','jev_systemone',100000.,['SPY'],to_timestamp(clock.now()))
     client=LocalClient(app,role(name));path='/v1/portfolios/'+book['portfolio_id']
@@ -90,6 +93,31 @@ def test_other_managed_role_keeps_snapshot_reads_without_portfolio_expansion():
     for path in ('/v1/portfolios/'+IDS['portfolio_id'],'/v1/portfolios/'+IDS['portfolio_id']+'/state'):
         assert not simulate('execute-api:Invoke','execute-api:/live/GET'+path,principal,resource_policy=policy).allowed
     assert simulate('execute-api:Invoke','execute-api:/live/GET/v1/snapshots/'+IDS['input_snapshot_id'],principal,resource_policy=policy).allowed
+
+
+@pytest.mark.parametrize('env',['beta','gamma','prod'])
+@pytest.mark.parametrize('suffix',['','-extra'])
+def test_dispatcher_resource_policy_permits_only_exact_beta_two_gets(env,suffix):
+    policy=resource_policy_document(load_config(env),role_arn)
+    name=f'finplan-{env}-financemodel-job-dispatcher-role'+suffix
+    principal=Principal.role(name,WORST)
+    for route in ROUTES:
+        resource='execute-api:/live/'+route.method+route.path.format(**IDS)
+        actual=simulate('execute-api:Invoke',resource,principal,resource_policy=policy).allowed
+        assert actual==beta_managed_read(route,env,name),(env,suffix,route.method,route.path)
+    for method,path in [('POST','/v1/unregistered'),('GET','/v1/snapshots/'+IDS['input_snapshot_id']),('PUT','/v1/portfolios/'+IDS['portfolio_id']+'/state')]:
+        assert not simulate('execute-api:Invoke','execute-api:/live/'+method+path,principal,resource_policy=policy).allowed
+    if env=='beta':
+        assert len(json.dumps(policy).replace('<account-id>','0'*12).replace('<region>','us-east-2').encode())<=8192-512
+
+
+def test_dispatcher_has_no_writes_or_descendant_reads_on_an_initialized_book(svc,app,clock):
+    book=ModelingEvidence(svc.repo,svc.artifacts).ensure_portfolio('controlled-managed-read','qwen_swarm_mode_a',100000.,['SPY'],to_timestamp(clock.now()))
+    client=LocalClient(app,role(BETA_MANAGED_DISPATCHER_ROLE));path='/v1/portfolios/'+book['portfolio_id']
+    for suffix in ('/history','/decisions'):
+        assert client.get(path+suffix)[0]==403
+    for method,suffix in [('PUT','/state'),('POST','/decisions')]:
+        assert client.call(method,path+suffix,{})[0]==403
 
 
 @pytest.mark.parametrize('cls,name',[('reader','reader'),('submitter','submitter'),('plan-writer','plan-writer')])

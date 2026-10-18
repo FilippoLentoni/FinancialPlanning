@@ -102,6 +102,8 @@ __all__ = [
 TOOL_CLASSES = ("reader", "submitter", "plan-writer")
 FINANCEMODEL_CLASSES = ("financemodel-job", "financemodel-job-api")
 BETA_MANAGED_READER_ROLE = "finplan-beta-financemodel-job-execution-role"
+BETA_MANAGED_DISPATCHER_ROLE = "finplan-beta-financemodel-job-dispatcher-role"
+BETA_MANAGED_READER_ROLES = frozenset({BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE})
 BETA_MANAGED_READ_OPERATIONS = frozenset({"get_portfolio", "get_portfolio_state"})
 FULL_ACCESS_CLASSES = ("platform", "website", "operator")
 #: Platform automation roles (the daily recommendation trigger and the daily ingestion schedule):
@@ -447,7 +449,7 @@ def route_allowed(route: Route, role_class: str | None) -> bool:
 
 def beta_managed_read(route: Route, env: str, role_name: str | None) -> bool:
     """Exact approved managed principal, beta, and two existing GET operations only."""
-    return env == "beta" and role_name == BETA_MANAGED_READER_ROLE and route.method == "GET" and route.operation in BETA_MANAGED_READ_OPERATIONS
+    return env == "beta" and role_name in BETA_MANAGED_READER_ROLES and route.method == "GET" and route.operation in BETA_MANAGED_READ_OPERATIONS
 
 
 def routes_for_class(role_class: str) -> list[Route]:
