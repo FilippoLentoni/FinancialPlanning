@@ -16,13 +16,14 @@ import math
 import os
 import re
 import tempfile
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
 from ..core.errors import PlatformError
+from .transport import compact_report, encode_transport, pack_bytes, unpack_json_bytes, _summary
 
 EASTERN = ZoneInfo("America/New_York")
 REPORT_VERSION = "modeling-report/1"
@@ -134,20 +135,18 @@ def _portable_capture(metadata: dict, payload: dict, raw: bytes, chunks: dict | 
     items = news.get("items", []) if isinstance(news, dict) else None
     result = {"metadata": metadata, "checksum": checksum(raw), "size_bytes": len(raw),
               "content_summary": {"news_items": len(items) if isinstance(items, list) else None}}
-    if chunks is None or len(raw) <= 32768:
+    if chunks is None or len(raw) <= 2048:
         return {**result, "payload": payload, "raw_base64": base64.b64encode(raw).decode()}
-    cid = checksum(raw)
-    compressed = gzip.compress(raw, compresslevel=6, mtime=0)
-    chunks.setdefault(cid, {"encoding": "gzip+base64", "checksum": cid, "size_bytes": len(raw),
-                            "compressed_checksum": checksum(compressed), "data": base64.b64encode(compressed).decode()})
-    omissions = []
-    preview = _preview_content(payload, "", omissions)
-    return {**result, "payload": preview, "raw_chunks": [cid], "artifact_encoding": "original-byte-gzip-chunks/1",
-            "preview_truncations": omissions, "preview_is_complete": not omissions}
+    packed = pack_bytes(raw, chunks)
+    return {**result, **packed, "payload": _summary(payload),
+            "preview_truncations": [{"path":"/", "kind":"selection_summary", "semantics":"Select this exact run to decode every original supplied value."}], "preview_is_complete": False}
+
 
 
 def captured_input_bytes(report: dict, captured: dict) -> bytes:
     """Recover exact portable input bytes for CLI verification/export consumers."""
+    if captured.get("artifact_encoding") == "original-byte-json-lexemes/1":
+        return unpack_json_bytes(captured,report["artifact_chunks"],report["artifact_lexemes"])
     if captured.get("raw_base64") is not None:
         raw = base64.b64decode(captured["raw_base64"])
     else:
@@ -281,6 +280,9 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
     A run with a deterministic projection must label forecast_kind accordingly.
     """
     results = []
+    observations_by_book = defaultdict(list)
+    for o in observations:
+        if _valid(o) and timestamp(o["observed_at"]) <= timestamp(cutoff): observations_by_book[o.get("portfolio_id")].append(o)
     for forecast in _unique(forecasts, "forecast_id"):
         row = dict(forecast)
         if forecast.get("comparison_eligible") is False:
@@ -290,7 +292,7 @@ def forecast_metrics(forecasts: list[dict], observations: list[dict], cutoff: st
         elif timestamp(forecast["target_at"]) > timestamp(cutoff):
             row.update(outcome_status="pending", realized_value=None, next_eligible_observation=forecast["target_at"])
         else:
-            eligible = [o for o in observations if o.get("portfolio_id") == forecast.get("portfolio_id") and _valid(o)
+            eligible = [o for o in observations_by_book[forecast.get("portfolio_id")] if o.get("portfolio_id") == forecast.get("portfolio_id") and _valid(o)
                         and timestamp(forecast["target_at"]) <= timestamp(o["observed_at"]) <= timestamp(cutoff)
                         and timestamp(o.get("value_as_of") or o["observed_at"]) >= timestamp(forecast["target_at"])]
             eligible.sort(key=lambda o: (timestamp(o["observed_at"]), o["observation_id"]))
@@ -621,8 +623,9 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                 run["evidence_error"] = "Supplied forecast lacks immutable forecast_id/target_at"
             else:
                 forecasts.append(forecast)
+    runs_by_id = {r["run_id"]:r for r in runs}
     for observation in observations:
-        source_run = next((r for r in runs if r["run_id"] == observation.get("run_id")), None)
+        source_run = runs_by_id.get(observation.get("run_id"))
         if source_run and source_run.get("market_session_evidence"):
             observation["market_session_evidence"] = source_run["market_session_evidence"]
         horizon = known.get(observation.get("approach_id"), {}).get("comparison_horizon_start")
@@ -664,8 +667,11 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             if run.get("execution_ref") and run.get("fill_time") and timestamp(run["fill_time"]).astimezone(EASTERN).date().isoformat() in days and run["run_id"] not in event_runs:
                 run["evidence_error"] = "Immutable actual-execution-day ledger event missing"
     forecasts = forecast_metrics(forecasts, observations, generated_at)
+    matches_by_run = defaultdict(list)
+    for item in ancillary:
+        if item.get("kind") == "forecast_match": matches_by_run[item.get("run_id")].append(item)
     for forecast in forecasts:
-        source_run = next(r for r in runs if r["run_id"] == forecast["run_id"])
+        source_run = runs_by_id[forecast["run_id"]]
         persisted = source_run.get("forecast_realization")
         if forecast.get("comparison_eligible") is False:
             if persisted:
@@ -683,7 +689,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                             matched_observation_id=persisted["observation_id"], observed_at=persisted["observed_at"],
                             quote_provenance=persisted.get("quote_provenance"), stored_realization=persisted,
                             stored_realization_ref=source_run.get("forecast_realization_ref", source_run.get("realization_ref")))
-        matches = [o for o in ancillary if o.get("kind") == "forecast_match" and o.get("run_id") == forecast["run_id"]]
+        matches = matches_by_run.get(forecast["run_id"], [])
         if matches:
             if len(matches) != 1:
                 raise EvidenceError("Multiple immutable matches for one forecast")
@@ -721,18 +727,25 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
             expected.add(current.isoformat())
             current += timedelta(hours=1)
     existing = {(aid, timestamp(slot)) for aid, slot in slots}
+    missing_keys={(m["approach_id"], timestamp(m["scheduled_slot"])) for m in missing}
     for slot in sorted(expected):
         for aid in known:
-            if (aid, timestamp(slot)) not in existing and not any(m["approach_id"] == aid and timestamp(m["scheduled_slot"]) == timestamp(slot) for m in missing):
+            if (aid, timestamp(slot)) not in existing and (aid, timestamp(slot)) not in missing_keys:
                 missing.append({"approach_id": aid, "scheduled_slot": slot, "status": "missing_slot"})
+                missing_keys.add((aid,timestamp(slot)))
     # A reader may also expose a durable explicit expected-slot manifest.
     if hasattr(reader, "expected_slots"):
         for slot in reader.expected_slots(experiment_id, start_day, end_day or start_day):
             for aid in known:
                 if (aid, slot) not in slots and not any(m["approach_id"] == aid and m["scheduled_slot"] == slot for m in missing):
                     missing.append({"approach_id": aid, "scheduled_slot": slot, "status": "missing_slot"})
+    observation_days = defaultdict(list)
+    events_by_book = defaultdict(list)
+    forecasts_by_run = {f["run_id"]:f for f in forecasts}
+    for o in observations: observation_days[(o["portfolio_id"],timestamp(o["observed_at"]).astimezone(EASTERN).date())].append(o)
+    for e in execution_events or []: events_by_book[e["portfolio_id"]].append(e)
     for run in runs:
-        before = sorted([o for o in observations if o["portfolio_id"] == run["portfolio_id"] and _valid(o)
+        before = sorted([o for o in observation_days[(run["portfolio_id"], timestamp(run["decision_time"]).astimezone(EASTERN).date())] if o["portfolio_id"] == run["portfolio_id"] and _valid(o)
                          and o.get("comparison_eligible") is not False
                          and timestamp(o["observed_at"]) <= timestamp(run["decision_time"])
                          and timestamp(o["observed_at"]).astimezone(EASTERN).date() == timestamp(run["decision_time"]).astimezone(EASTERN).date()],
@@ -742,14 +755,14 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                    opening_valuation_id=None, valuation_id=None)
         if before:
             opening, current = before[0], before[-1]
-            opening_value, opening_event = _opening_value(before, [e for e in execution_events or [] if e["portfolio_id"] == run["portfolio_id"]])
+            opening_value, opening_event = _opening_value(before, events_by_book[run["portfolio_id"]])
             flows = sum(float(o.get("external_cash_flow", 0)) for o in before[1:])
             pnl = _value(current) - opening_value - flows
             run.update(portfolio_value_at_decision=_value(current), daily_pnl=pnl,
                        daily_return=current.get("time_weighted_return") if flows else (pnl/opening_value if opening_value else None),
                        opening_execution_event_id=opening_event,
                        opening_valuation_id=opening["observation_id"], valuation_id=current["observation_id"])
-        forecast = next((f for f in forecasts if f["run_id"] == run["run_id"]), None)
+        forecast = forecasts_by_run.get(run["run_id"])
         run.update(forecast_outcome=forecast, expected_value=forecast.get("expected_value") if forecast else None,
                    forecast_target=forecast.get("target_at") if forecast else None,
                    forecast_status=forecast.get("outcome_status") if forecast else "unavailable",
@@ -909,8 +922,11 @@ def csv_export(report: dict) -> str:
 
 def html_export(report: dict) -> str:
     root = Path(__file__).parent
-    data = canonical(report).decode().replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
-    return (root / "template.html").read_text().replace("__REPORT_DATA__", data).replace("__REPORT_SCRIPT__", (root / "report.js").read_text())
+    data = canonical(encode_transport(report)).decode().replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+    script = (root / "report.js").read_text()
+    script_b64 = base64.b64encode(script.encode()).decode()
+    bootstrap = """globalThis.__reportReadyPromise=(async()=>{const encoded=JSON.parse(document.getElementById('report-data').textContent);if(encoded.transport_codec==='modeling-report-gzip/1'){if(encoded.decoded_size_bytes>384*1024*1024)throw new Error('Decoded report exceeds384MiB bound');const compressed=Uint8Array.from(atob(encoded.data),c=>c.charCodeAt(0)),reader=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip')).getReader(),raw=new Uint8Array(encoded.decoded_size_bytes);let at=0;while(true){const item=await reader.read();if(item.done)break;if(at+item.value.length>raw.length){await reader.cancel();throw new Error('Decoded report exceeds declared size')}raw.set(item.value,at);at+=item.value.length}if(at!==raw.length)throw new Error('Decoded report size mismatch');const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',raw)),sha='sha256:'+Array.from(digest,v=>v.toString(16).padStart(2,'0')).join('');if(sha!==encoded.decoded_checksum)throw new Error('Decoded report checksum mismatch');globalThis.__packedReport=JSON.parse(new TextDecoder().decode(raw))}const script=document.createElement('script');script.textContent=new TextDecoder().decode(Uint8Array.from(atob('__SCRIPT_B64__'),c=>c.charCodeAt(0)));document.body.appendChild(script)})().catch(error=>{document.getElementById('coverage').textContent='Report integrity/size failure: '+error.message;throw error});""".replace('__SCRIPT_B64__',script_b64)
+    return (root / "template.html").read_text().replace("__REPORT_DATA__", data).replace("__REPORT_SCRIPT__", bootstrap)
 
 
 def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None) -> dict:
@@ -935,8 +951,9 @@ def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any
     if report["period"] == "weekly":
         target /= "weekly"
     target.mkdir(parents=True, exist_ok=True, mode=0o700)
-    json_bytes = canonical(report)
-    rendered_html = html_export(report).encode()
+    transport = encode_transport(report)
+    json_bytes = canonical(transport)
+    rendered_html = html_export(transport).encode()
     revision = checksum(json_bytes + rendered_html).split(":")[1][:20]
     period_name = report["end_day"] if report["period"] == "daily" else f'{report["start_day"]}_{report["end_day"]}'
     safe_experiment = re.sub(r"[^A-Za-z0-9_.-]", "_", report["experiment_id"])

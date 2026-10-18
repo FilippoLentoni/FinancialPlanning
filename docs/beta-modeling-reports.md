@@ -264,3 +264,60 @@ slots remain failed coverage. Total recommendations/model cost stay visible alon
 comparison counts/cost. Private report files are always mode0600, including repaired
 existing exports; newly created archive directories are0700. Only generated report
 paths are changed; the approved demo and unrelated files remain untouched.
+
+Current exports use reversible `modeling-report-gzip/1` transport: bounded outer
+gzip, columnar normalized rows, shared lexical/chunk dictionaries, and lazy original
+input/source records. The inline input matrix contains explicitly incomplete
+consumption/capability summaries. Selecting a decision always decodes its captured
+original bytes, verifies their SHA-256, and renders their complete structured content;
+no prepared values are reconstructed from summaries. Original JSON number spellings,
+escapes, whitespace, field order and repeated ordered values are retained. Source-row
+inspection/download is separately labeled canonical report evidence, rather than an
+original inference artifact. The source metadata and graph/provider layers remain
+available independently. Archived revisions retain their own complete dictionaries.
+
+Decode the matching JSON export with the deployed platform Python environment:
+
+```python
+import json
+from pathlib import Path
+from finplan_platform.reporting.transport import decode_transport
+from finplan_platform.reporting.reports import captured_input_bytes
+report = decode_transport(json.loads(Path("latest.json").read_bytes()))
+run = report["runs"][0]
+original = captured_input_bytes(report, report["inputs"][run["run_id"]])
+Path(run["input_id"] + ".json").write_bytes(original)
+```
+
+The HTML needs a current browser with `DecompressionStream` and SHA-256 support;
+no network, CDN, AWS browser login or credentials are used. Its JSON-download button
+returns the same encoded export, avoiding eager serialization of all input content.
+Only selected artifacts are decoded (at most two cached artifacts/64MiB and8MiB
+of lexical bytes). Charts retain every observation as bounded-path SVG geometry;
+holdings tables are built only when their approach is expanded. Query joins use
+run/book/day indexes rather than matching every run against every observation.
+The publication limits are150MiB encoded transport,384MiB decoded transport and
+32MiB per original artifact. A size/integrity failure raises an explicit error before
+updating aliases and preserves the last immutable revision; it never drops rows,
+truncates evidence or treats incomplete reporting as success. News churn and future
+model inputs can change size, so measured projection is not a guaranteed maximum.
+
+The daily weekly timer writes a completed window using `--weekly --closed-week`
+(end date is the provided New York reporting date minus one calendar day), then the
+current provisional window. This allows a seven-closed-calendar-day window to mature
+without misrepresenting the current partial day. Both retain immutable revisions;
+`latest` follows the final current-window command.
+
+Local acceptance artifacts are under `.worktmp/report-resilience/` (kept separate
+from forward reports). The actual manual271-input export was11,578,567bytes before
+packing and2,206,400bytes after packing. A same-source-corpus two-slot byte-edit
+projection gave143.3MiB wire/233.5MiB decoded transport for168slots; this is an
+estimate, excludes real8-asset/crypto/news-churn growth and is not live performance.
+The controlled277-book×168-slot cardinality fixture contains46,536 original input
+artifacts and valuation/status rows. It encoded to61,886,046bytes (142,526,604decoded)
+in97.8seconds with2.11GiB producer peak RSS. Its cold Chromium heap after collection
+was152.3MiB (153.2MiB after inspecting first/last-day inputs);4,988DOMnodes,
+14.6seconds for cold open plus four verified historical downloads and the deferred
+selection-race check. These are packaging/memory tests, not model or scheduling proof.
+The fixture, original-byte/namespace/budget integrity tests, and actual manual
+browser checks retain their checksums and purpose labels in the scratch evidence.
