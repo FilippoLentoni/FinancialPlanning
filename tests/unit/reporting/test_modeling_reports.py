@@ -2,6 +2,7 @@
 import base64
 import copy
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,12 @@ DAY = "2026-10-12"
 T0 = DAY + "T14:00:00+00:00"
 T1 = DAY + "T15:00:00+00:00"
 T2 = DAY + "T16:00:00+00:00"
+
+
+def embedded_implementation(html):
+    # The trusted self-contained implementation is installed after bounded gzip
+    # bootstrap; this helper is only for existing source-smoke assertions.
+    return base64.b64decode(re.search(r"atob\('([A-Za-z0-9+/=]+)'\)", html).group(1)).decode()
 
 
 def registry():
@@ -137,7 +144,7 @@ def test_known_outcome_daily_and_seven_day_rank_and_forecast_alignment(tmp_path)
     written = write_report(weekly, tmp_path)
     assert "/replay/weekly/" in written["archive"]
     assert Path(written["archive"], "report.html").exists()
-    assert "CONTROLLED REPLAY" in Path(written["archive"], "report.html").read_text()
+    assert "CONTROLLED REPLAY" in embedded_implementation(Path(written["archive"], "report.html").read_text())
     # Completed known-outcome replay uses the same daily/weekly renderer, never a
     # backdated forward experiment. No extra data is invented to close the week.
     complete = report(reader, end_day="2026-10-18", finalized=True)
@@ -192,9 +199,13 @@ def test_html_escaping_offline_safe_download_and_csv_formula_protection(tmp_path
     result = report(reader)
     html = html_export(result)
     assert '</script><img src=x' not in html
-    assert "\\u003c/script\\u003e" in html
+    # Compressed original source content remains exact, and never becomes HTML.
+    from finplan_platform.reporting.transport import decode_transport, unpack_json_bytes
+    encoded = json.loads(html.split('<script id="report-data" type="application/json">')[1].split('</script>')[0])
+    portable = decode_transport(encoded)
+    assert b'</script><img src=x' in unpack_json_bytes(portable['inputs']['run_rule_0'], portable['artifact_chunks'],portable['artifact_lexemes'])
     assert "https://cdn" not in html and "connect-src 'none'" in html
-    assert "inputRun" in html and "inputMatrix" in html and "exactInputDownload" in html
+    assert "inputRun" in html and "inputMatrix" in html and "exactInputDownload" in embedded_implementation(html)
     assert "'=WEBSERVICE" in csv_export(result)
     written = write_report(result, tmp_path)
     before = Path(written["archive"], "report.html").read_bytes()
@@ -252,7 +263,7 @@ def test_graph_sub_boundaries_download_original_provider_tool_and_receipt_inputs
     assert base64.b64decode(layer["raw_base64"]) == raw
     assert layer["payload"]["captured_inputs"][0]["GenerateRequest"]["prompt"] == "actual prompt"
     assert result["evidence_failures"] == []
-    assert "Actual graph provider / policy / tool input boundaries" in html_export(result)
+    assert "Actual graph provider / policy / tool input boundaries" in embedded_implementation(html_export(result))
     payload["run_id"] = "another_run"
     raw = canonical(payload)
     reader.runs[2]["output"]["graph_sub_boundary_ref"]["checksum"] = checksum(raw)
@@ -448,8 +459,8 @@ def test_large_captured_input_portable_encoding_preserves_original_bytes_and_exp
     assert 'raw_base64' not in captured
     assert captured['artifact_encoding'] == 'original-byte-gzip-chunks/1'
     assert captured['preview_is_complete'] is False
-    assert len(captured['payload']['numeric']['prepared']['complete_history']) == 40
-    assert {item['kind'] for item in captured['preview_truncations']} == {'text', 'array'}
+    assert captured['payload']['numeric']['prepared']['complete_history'] is None
+    assert {item['kind'] for item in captured['preview_truncations']} == {'selection_summary'}
     assert captured_input_bytes(result, captured) == raw
     assert json.loads(captured_input_bytes(result, captured)) == original['payload']
     assert captured['metadata']['input_id'] == 'input_rule_0'
@@ -556,7 +567,7 @@ def test_superseded_disposition_retains_recommendation_inputs_and_cost_without_f
     exported = next(r for r in csv.DictReader(io.StringIO(csv_export(result))) if r['run_id'] == row['run_id'])
     assert exported['fill_status'] == 'superseded_not_executed'
     assert json.loads(exported['execution_disposition'])['replacement_run_id'] == 'run_rule_1'
-    assert 'Not executed:' in html_export(result) and 'Replacement run' in html_export(result)
+    assert 'Not executed:' in embedded_implementation(html_export(result)) and 'Replacement run' in embedded_implementation(html_export(result))
 
 
 @pytest.mark.parametrize('mutation,message', [

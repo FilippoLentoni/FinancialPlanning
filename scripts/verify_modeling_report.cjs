@@ -13,7 +13,8 @@ async function main(){
  try{
   const page=await browser.newPage({acceptDownloads:true});const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('file://'+file);
-  const data=await page.locator('#report-data').evaluate(e=>JSON.parse(e.textContent));const checked=[];
+  await page.waitForFunction(()=>typeof DATA!=='undefined');
+  const data=await page.evaluate(()=>DATA);const checked=[];
   // Deterministically defer historical A while selecting B. This exercises the
   // actual asynchronous renderer, including compressed artifacts, rather than
   // checking source strings for a generation guard.
