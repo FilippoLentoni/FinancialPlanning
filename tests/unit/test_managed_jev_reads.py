@@ -45,6 +45,23 @@ def test_ordinary_user_synthetic_book_is_still_denied_to_managed_job(clients):
     assert clients.operator.get('/v1/portfolios/'+book['portfolio_id'])[0]==200
 
 
+def test_user_book_with_spoofed_experiment_settings_cannot_gain_managed_read(clients):
+    status,book,_=clients.operator.post('/v1/portfolios',{'name':'Spoofed ownership markers','base_currency':'USD','synthetic':True,
+        'settings':{'isolated_experiment':True,'experiment_id':'controlled-managed-read','approach_id':'jev_systemone'},
+        'idempotency_key':'spoofed-managed-read-negative'})
+    assert status==201
+    # A legitimate operator can initialize this ordinary book, but cannot choose
+    # its generated ID or thereby turn descriptive settings into internal ownership.
+    state={'cash_balance':100000.,'positions':[],'high_watermark':100000.,'as_of':book['created_at'][:10],
+        'base_currency':'USD','mode':'paper','source':'paper_initialization'}
+    status,_,_=clients.operator.call('PUT','/v1/portfolios/'+book['portfolio_id']+'/state',
+        {'expected_revision':0,'paper_state':state,'idempotency_key':'spoofed-managed-state-negative'})
+    assert status==200
+    for suffix in ('','/state'):
+        assert clients.fm_job.get('/v1/portfolios/'+book['portfolio_id']+suffix)[0]==403
+    assert clients.operator.get('/v1/portfolios/'+book['portfolio_id']+'/state')[0]==200
+
+
 @pytest.mark.parametrize('name',['finplan-beta-financemodel-job-execution-role-extra','finplan-gamma-financemodel-job-execution-role','finplan-prod-financemodel-job-execution-role'])
 def test_other_principals_and_every_write_remain_denied(svc,app,clock,name):
     book=ModelingEvidence(svc.repo,svc.artifacts).ensure_portfolio('controlled-managed-read','jev_systemone',100000.,['SPY'],to_timestamp(clock.now()))

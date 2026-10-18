@@ -582,9 +582,20 @@ class ApiApp:
             # Managed inference may inspect only new experiment books. Ordinary
             # user paper portfolios retain their existing access/confirmation path.
             portfolio = svc.repo.get("portfolio", path_params.get("portfolio_id", ""))
+            from ..core.modeling_evidence import _public_id
             settings = portfolio.doc.get("settings", {}) if portfolio else {}
-            if not portfolio or portfolio.doc.get("synthetic") is not True or settings.get("isolated_experiment") is not True or any(not isinstance(settings.get(k), str) or not settings[k] for k in ("experiment_id", "approach_id")):
-                raise PlatformError.forbidden("managed inference may read only isolated synthetic experiment books")
+            state = portfolio.attrs.get("paper_state", {}) if portfolio else {}
+            revision = portfolio.attrs.get("paper_state_revision") if portfolio else None
+            isolated = (portfolio is not None and portfolio.doc.get("synthetic") is True
+                and isinstance(settings, Mapping) and settings.get("isolated_experiment") is True
+                and all(isinstance(settings.get(k), str) and settings[k] for k in ("experiment_id", "approach_id")))
+            # User-visible settings are descriptive, not an ownership credential.
+            # Public creation mints IDs; only the internal experiment path creates
+            # the deterministic scoped ID and authoritative initialized state.
+            if (not isolated or portfolio.id != _public_id("pf", settings["experiment_id"], settings["approach_id"])
+                    or isinstance(revision, bool) or not isinstance(revision, int) or revision < 1
+                    or not isinstance(state, Mapping) or state.get("mode") != "paper"):
+                raise PlatformError.forbidden("managed inference may read only initialized isolated synthetic experiment books")
 
         on_behalf_of = self._caller_block(headers)
         check_declared_version(headers.get(CONTRACT_VERSION_HEADER), pointer="/contract_version")
