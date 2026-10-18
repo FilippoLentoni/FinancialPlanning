@@ -1082,16 +1082,21 @@ def html_export(report: dict) -> str:
     return (root / "template.html").read_text().replace("__REPORT_DATA__", data).replace("__REPORT_SCRIPT__", bootstrap)
 
 
-def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None, update_latest: bool = True) -> dict:
-    """Keep generated private exports private even for a permissive caller umask."""
+def write_report(report: dict, output_dir: Path, *, artifact_store: Any = None, update_latest: bool = True, consume_read_model: bool = False) -> dict:
+    """Keep exports private; optionally release a CLI-owned ephemeral read model.
+
+    Default callers retain their original dictionary unchanged. The explicit
+    consuming path replaces only local read-model content with its complete
+    lossless compact form; Dynamo/S3 evidence and existing archives are untouched.
+    """
     previous = os.umask(0o077)
     try:
-        return _write_report_private(report, output_dir, artifact_store=artifact_store, update_latest=update_latest)
+        return _write_report_private(report, output_dir, artifact_store=artifact_store, update_latest=update_latest, consume_read_model=consume_read_model)
     finally:
         os.umask(previous)
 
 
-def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any = None, update_latest: bool = True) -> dict:
+def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any = None, update_latest: bool = True, consume_read_model: bool = False) -> dict:
     """Atomic mutable local aliases + immutable checksum-addressed revisions.
 
     S3 reports are written through the platform's existing write-once reports role.
@@ -1102,6 +1107,7 @@ def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any
         raise EvidenceError("Report mode must explicitly distinguish forward/replay")
     # A new renderer revision can render historical immutable evidence. Bind the
     # exported client implementation, not a stale caller-provided renderer hash.
+    owned_read_model = report if consume_read_model else None
     report = dict(report)
     renderer_root = Path(__file__).parent
     report["renderer_checksum"] = checksum(b"".join((renderer_root / name).read_bytes() for name in
@@ -1110,6 +1116,16 @@ def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any
     if report["period"] == "weekly":
         target /= "weekly"
     target.mkdir(parents=True, exist_ok=True, mode=0o700)
+    csv_bytes = None
+    if consume_read_model:
+        # Only the CLI opts in for its owned ephemeral read model. Freeze CSV
+        # while complete original rows are present; release raw captures/rows
+        # only AFTER lossless compaction succeeds, before large outer encoding.
+        csv_bytes = csv_export(report).encode()
+        compacted = compact_report(report)
+        owned_read_model.clear()
+        owned_read_model.update(compacted)
+        report = owned_read_model
     transport = encode_transport(report)
     json_bytes = canonical(transport)
     rendered_html = html_export(transport).encode()
@@ -1118,7 +1134,7 @@ def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any
     safe_experiment = re.sub(r"[^A-Za-z0-9_.-]", "_", report["experiment_id"])
     archive = target / "archive" / period_name / revision
     archive.mkdir(parents=True, exist_ok=True, mode=0o700)
-    payloads = {"json": json_bytes, "csv": csv_export(report).encode(), "html": rendered_html}
+    payloads = {"json": json_bytes, "csv": csv_bytes if csv_bytes is not None else csv_export(report).encode(), "html": rendered_html}
     manifest = {"report_version": REPORT_VERSION, "experiment_id": report["experiment_id"], "revision": revision,
                 "generated_at": report["generated_at"], "data_cutoff": report["data_cutoff"], "mode": report["mode"],
                 "source_record_ids": report["source_record_ids"], "artifacts": {k: {"checksum": checksum(v), "size_bytes": len(v)} for k,v in payloads.items()}}

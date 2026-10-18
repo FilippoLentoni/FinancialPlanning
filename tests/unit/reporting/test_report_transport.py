@@ -150,3 +150,38 @@ def test_cached_lexical_fast_path_rejects_unrecognized_bytes_and_bounds_large_st
     raw=b'{"large":"'+b'x'*(1024*1024+10)+b'","value":1.0000}'
     pool={};lexemes=t.Lexemes();captured=t.pack_json_bytes(raw,pool,lexemes)
     assert t.unpack_json_bytes(captured,pool,lexemes.values)==raw
+
+
+def test_transient_fast_gzip_keeps_repeated_chunks_and_corruption_checks():
+    from finplan_platform.reporting.transport import pack_transient_bytes
+    raw = b'{ "lexical":[1.0000,-0.0,1e-07], "text":"' + b'0123456789abcdef'*22000 + b'" }\n'
+    pool = {}; capture = pack_transient_bytes(raw, pool)
+    assert len(capture['raw_chunks']) > len(set(capture['raw_chunks']))
+    assert unpack_bytes(capture, pool) == raw
+    damaged = copy.deepcopy(pool)
+    damaged[capture['raw_chunks'][1]]['data'] = base64.b64encode(b'corrupt').decode()
+    with pytest.raises(ValueError, match='Compressed evidence'):
+        unpack_bytes(capture, damaged)
+
+
+def test_temporary_gzip_levels_produce_identical_final_original_byte_transport():
+    from finplan_platform.reporting.transport import pack_transient_bytes
+    from finplan_platform.reporting.reports import captured_input_bytes
+    source = report();pool = {}
+    for run_id, capture in source['inputs'].items():
+        original = base64.b64decode(capture['raw_base64'])
+        raw = original.rstrip()[:-1] + b', "lexical":[1.0000,-0.0,1e-07], "text":' + json.dumps('original escaped \\ quote " unicode é '*3000,ensure_ascii=False).encode() + b'}'
+        metadata = {**capture['metadata'], 'checksum':sha(raw)}
+        source['inputs'][run_id] = {**capture, **pack_transient_bytes(raw,pool), 'metadata':metadata, 'payload':json.loads(raw)}
+        source['inputs'][run_id].pop('raw_base64')
+    source['artifact_chunks'] = pool
+    legacy = copy.deepcopy(source)
+    for chunk in legacy['artifact_chunks'].values():
+        original = gzip.decompress(base64.b64decode(chunk['data']))
+        compressed = gzip.compress(original,compresslevel=6,mtime=0)
+        chunk.update(data=base64.b64encode(compressed).decode(),compressed_checksum=sha(compressed))
+    encoded = encode_transport(source)
+    assert canonical(encoded) == canonical(encode_transport(legacy))
+    decoded = decode_transport(encoded)
+    for run_id,capture in decoded['inputs'].items():
+        assert captured_input_bytes(decoded,capture) == captured_input_bytes(source,source['inputs'][run_id])

@@ -39,6 +39,15 @@ def main(argv=None):
         parser.error("--repair-weekly-from-queue is a separate historical repair invocation")
     if args.closed_week and not args.weekly:
         parser.error("--closed-week requires --weekly")
+    # A disabled status-only repair must not create a production output directory.
+    if args.repair_weekly_from_queue and not os.environ.get("FINPLAN_REPORT_REFRESH_DIR"):
+        print(json.dumps({"weekly_repair":"disabled_no_queue"}));return 0
+    from finplan_platform.reporting.render_lock import render_lock
+    with render_lock(args.output):
+        return _run(args)
+
+
+def _run(args):
     queue=os.environ.get("FINPLAN_REPORT_REFRESH_DIR")
     repair_tasks=None;repair_state=None
     if args.repair_weekly_from_queue:
@@ -76,9 +85,11 @@ def main(argv=None):
             interim=aggregate_interim(evidence,primary_experiment=args.experiment,primary_registry=registries[args.experiment],
                 start_day=start_day,end_day=end_day,generated_at=now.isoformat(),finalized=finalized,mode=args.mode)
             if interim:reports.append(interim)
+            del interim
         report=consolidate(reports)
+        del reports  # The consolidated read model owns every required row/reference.
         if tasks:refresh.ensure_in_report(report,tasks)
-        written=write_report(report,args.output,artifact_store=None if args.no_s3_archive else evidence.store,update_latest=update_latest)
+        written=write_report(report,args.output,artifact_store=None if args.no_s3_archive else evidence.store,update_latest=update_latest,consume_read_model=True)
         if tasks:
             period_name=report['end_day'] if report['period']=='daily' else report['start_day']+'_'+report['end_day']
             if period_name not in written.get('aliases_published',[]):

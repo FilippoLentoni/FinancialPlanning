@@ -40,7 +40,7 @@ def test_closed_week_cli_requests_seven_completed_days_before_timer_day(monkeypa
     monkeypatch.setattr(cli, "aggregate", aggregate)
     monkeypatch.setattr(cli, "consolidate", lambda reports: reports[0])
     monkeypatch.setattr(cli, "write_report", lambda *a, **kw: {"directory": str(tmp_path), "archive": str(tmp_path), "revision": "controlled"})
-    assert cli.main(["--experiment", "controlled_test", "--weekly", "--closed-week", "--day", "2026-10-25", "--no-include-interim", "--no-s3-archive"]) == 0
+    assert cli.main(["--experiment", "controlled_test", "--weekly", "--closed-week", "--day", "2026-10-25", "--no-include-interim", "--no-s3-archive", "--output", str(tmp_path / "reports")]) == 0
     assert captured[0]["start_day"] == "2026-10-18"
     assert captured[0]["end_day"] == "2026-10-24"
     assert captured[0]["finalized"] is True
