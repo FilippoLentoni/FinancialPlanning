@@ -20,3 +20,16 @@ Beta evidence tables SHALL expose paginated experiment/day and experiment/approa
 #### Scenario: Historical report lookup
 - **WHEN** a report requests an earlier decision's input
 - **THEN** it SHALL retrieve and verify that decision's original captured artifact, rather than regenerate a feature or substitute current shared data
+
+### Requirement: First-valid forecast realization has strong completeness evidence
+The beta evidence backend SHALL select the first eligible realized observation using a bounded, resumable strong-read proof of deterministic scheduled run and valuation IDs. An observation-time secondary index SHALL NOT establish completeness. Original forecasts, inputs, valuations and portfolio ledger entries SHALL remain immutable while optional search-head attributes advance optimistically.
+
+#### Scenario: Earlier valuation is omitted by index propagation
+- **WHEN** a later valid mark is visible in an index but an earlier scheduled slot is missing, running or absent from that index
+- **THEN** strong original slot reads SHALL select the true earlier eligible mark or retain explicit pending status until the slot has terminal evidence
+- **AND** a later mark with otherwise correct error arithmetic SHALL NOT be permanently accepted without the first-valid proof
+
+#### Scenario: A long horizon requires multiple bounded proof chunks
+- **WHEN** more than168 original scheduled slots must be checked
+- **THEN** each call SHALL check at most168 slots and persist an immutable checked-prefix receipt plus optimistic continuation
+- **AND** restart or concurrent retries SHALL resume the authoritative cursor without changing original forecast bytes or repeating model inference

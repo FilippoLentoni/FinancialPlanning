@@ -214,7 +214,7 @@ def test_unavailable_artifact_keeps_day_row_with_integrity_blocker(evidence, mon
     assert rows[0]["outcome"] is None and rows[0]["evidence_error"]["code"]=="NOT_FOUND"
 
 
-def test_due_forecasts_survive_long_horizon_and_realization_is_permanent(evidence):
+def test_due_forecasts_survive_long_horizon_and_missing_slots_stay_pending(evidence):
     e=evidence
     book,_,run=ready(e)
     target="2026-02-12T15:00:00Z"
@@ -227,12 +227,13 @@ def test_due_forecasts_survive_long_horizon_and_realization_is_permanent(evidenc
     valuation=e.record_observation("experiment-test","optimizer",target,book["portfolio_id"],{"value":1080,"observed_at":target,"observation_kind":"valid","quote_status":"fresh","quote_provenance":{"source":"controlled_replay"}},target)
     payload={"run_id":run["run_id"],"forecast_checksum":"sha256:controlled-forecast","observation_id":valuation["observation_id"],"observed_at":target,"realized_value":1080,"signed_error":-20,"absolute_error":20,"squared_error":400}
     match=e.record_observation("experiment-test","optimizer",AT,book["portfolio_id"],payload,target,kind="forecast_match")
-    ref=e.mark_forecast_realized(run["run_id"],match["observation_id"],target)
-    assert e.mark_forecast_realized(run["run_id"],match["observation_id"],target)==ref
-    assert e.query_pending_forecasts("experiment-test","2027-01-01T00:00:00Z")[0]==[]
+    # A month-later mark alone cannot prove all earlier scheduled opportunities
+    # were accounted for. Preserve this due forecast until strong coverage exists.
+    with pytest.raises(PlatformError, match="first-valid strong"):
+        e.mark_forecast_realized(run["run_id"],match["observation_id"],target)
+    assert [r["run_id"] for r in e.query_pending_forecasts("experiment-test","2027-01-01T00:00:00Z")[0]]==[run["run_id"]]
     assert e.read_run(run["run_id"])["output_ref"]["checksum"]==output_before
-    assert e.read_run(run["run_id"])["forecast_state"]=="realized"
-    assert e.read_run(run["run_id"])["forecast_realization"]["realized_value"]==1080
+    assert e.read_run(run["run_id"])["forecast_state"]=="pending"
     historical,_=e.query_observations_after("experiment-test","optimizer",target,"2026-03-01T00:00:00Z")
     assert len(historical)==2 and all(r["observed_at"]==target for r in historical)
 
@@ -373,7 +374,16 @@ def test_forecast_horizon_uses_actual_valuation_time_not_late_eod_report_time(ev
     forecast={"status":"pending","available":True,"expected_value":1100.,"baseline_value":1000.,"units":"USD","target_at":target,"forecast_checksum":"sha256:controlled-close-forecast"}
     e.finish_run(run["run_id"],{"status":"hold","forecast":forecast},AT)
     original=e.read_run(run["run_id"])["output_ref"]["checksum"]
-    valuation=e.record_observation("experiment-test","optimizer",target,book["portfolio_id"],{"value":1080.,"observed_at":observed,"value_as_of":value_as_of,"observation_kind":"valid","quote_status":"fresh","quote_provenance":{"source":"controlled_replay","quote_status":"fresh_close"}},observed)
+    # Every preceding declared slot has an immutable explicit missing mark;
+    # the horizon can align with the actual22:05 observation, never report time.
+    for hour in range(15,23):
+        sid=f"2026-01-12T{hour}:00:00Z"
+        if hour>15:
+            _,_,other=ready(e,slot=sid)
+            e.finish_run(other["run_id"],{"status":"hold","forecast":{"available":False}},sid)
+        if hour<22:
+            e.record_observation("experiment-test","optimizer",sid,book["portfolio_id"],{"observed_at":sid,"value":None,"observation_kind":"missing","quote_status":"missing"},sid)
+    valuation=e.record_observation("experiment-test","optimizer","2026-01-12T22:00:00Z",book["portfolio_id"],{"value":1080.,"observed_at":observed,"value_as_of":value_as_of,"observation_kind":"valid","quote_status":"fresh","quote_provenance":{"source":"controlled_replay","quote_status":"fresh_close"}},observed)
     matched={"run_id":run["run_id"],"forecast_checksum":forecast["forecast_checksum"],"observation_id":valuation["observation_id"],"observed_at":observed,"realized_value":1080.,"signed_error":-20.,"absolute_error":20.,"squared_error":400.}
     candidate=e.record_observation("experiment-test","optimizer",AT,book["portfolio_id"],matched,observed,kind="forecast_match")
     if eligible:

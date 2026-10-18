@@ -606,6 +606,107 @@ class ModelingEvidence:
         rows, token = self.repo.query_index("portfolio_observation", "observation-time-index", partition, newest_first=False, limit=page_size, page_token=next_token, sort_lower_bound=_index_time(start_at) + "#", sort_upper_bound=_index_time(through) + "#~")
         return [{**r.doc, "payload": json.loads(self.read_artifact_bytes(r.doc))} for r in rows], token
 
+    def strong_forecast_observation(self, run_id: str, through: str, *, max_slots: int = 168) -> dict[str, Any]:
+        """Prove the first eligible mark with strong slot reads, never GSI absence.
+
+        Checked terminal slots and immutable valuation receipts form a resumable
+        chain. A missing/running slot stops the proof; later marks cannot skip it.
+        Only this search cursor changes. Forecasts, valuations and books do not.
+        """
+        if isinstance(max_slots, bool) or not isinstance(max_slots, int) or not 1 <= max_slots <= 168:
+            raise PlatformError.validation("forecast proof must check 1..168 slots")
+        through = _slot(through)
+        record = self.repo.require("research_run", run_id)
+        run = record.doc
+        forecast = (self.read_run(run_id).get("outcome") or {}).get("forecast") or {}
+        if not forecast.get("available") or forecast.get("status") != "pending":
+            raise PlatformError.validation("strong observation search requires an immutable pending forecast")
+        policy = self._registered_execution_policy(run["experiment_id"])
+        start = max(_timestamp(run["slot"]), _timestamp(policy["first_slot"]))
+        if start.minute or start.second or start.microsecond:
+            raise PlatformError.validation("forecast search requires an hourly decision slot")
+        prior_ref = record.attrs.get("forecast_search_ref")
+        prior = None
+        candidate = None
+        if prior_ref:
+            prior = json.loads(self.read_artifact_bytes(prior_ref))
+            if (prior.get("run_id") != run_id or prior.get("forecast_checksum") != forecast["forecast_checksum"]
+                    or prior.get("comparison_policy_checksum") != policy["comparison_policy_checksum"]):
+                raise PlatformError.validation("forecast search proof belongs to another forecast or policy")
+            start = _timestamp(prior["next_slot"])
+            if prior.get("candidate_ref"):
+                meta = self.repo.require("portfolio_observation", prior["candidate_ref"]["observation_id"]).doc
+                if meta["checksum"] != prior["candidate_ref"]["checksum"]:
+                    raise PlatformError.validation("forecast proof original valuation checksum differs")
+                candidate = {**json.loads(self.read_artifact_bytes(meta)), "observation_id": meta["observation_id"], "portfolio_id": meta["portfolio_id"]}
+        end = _timestamp(through).replace(minute=0, second=0, microsecond=0)
+        if candidate:
+            end = min(end, _timestamp(candidate["observed_at"]).replace(minute=0, second=0, microsecond=0))
+        checked = []
+        cursor = start
+        reason = "bounded_forecast_search_continues"
+        candidate_ref = prior.get("candidate_ref") if prior else None
+        while cursor <= end and len(checked) < max_slots:
+            slot = _slot(cursor.isoformat())
+            rid = _id("mr", run["experiment_id"], run["approach_id"], slot)
+            head = self.repo.get("research_run", rid)
+            oid = _id("mo", run["experiment_id"], run["approach_id"], slot, "valuation")
+            mark = self.repo.get("portfolio_observation", oid)
+            if head is None or head.doc["status"] == "running" or mark is None:
+                reason = "scheduled_run_or_valuation_not_terminal_or_missing"
+                break
+            meta = mark.doc
+            if ((head.doc["experiment_id"], head.doc["approach_id"], head.doc["slot"], head.doc["portfolio_id"]) != (run["experiment_id"], run["approach_id"], slot, run["portfolio_id"])
+                    or (meta["experiment_id"], meta["approach_id"], meta["portfolio_id"]) != (run["experiment_id"], run["approach_id"], run["portfolio_id"])
+                    or meta.get("kind") != "valuation" or meta["slot"] != slot
+                    or meta.get("run_id", rid) != rid or meta.get("input_id", head.doc["input_id"]) != head.doc["input_id"]):
+                raise PlatformError.validation("forecast search valuation belongs to another original slot/book/input")
+            value = json.loads(self.read_artifact_bytes(meta))
+            observed = _timestamp(value.get("observed_at", meta["observed_at"]))
+            if value.get("observed_at", meta["observed_at"]) != meta["observed_at"] or observed < cursor:
+                raise PlatformError.validation("forecast valuation observation time precedes its scheduled slot or differs from metadata")
+            if (("run_id" in value or "input_id" in value) and
+                    (value.get("run_id") != rid or value.get("input_id") != head.doc["input_id"])):
+                raise PlatformError.validation("forecast original valuation payload belongs to another run/input")
+            if observed > _timestamp(through):
+                reason = "original_valuation_not_yet_available_at_cutoff"
+                break
+            checked.append({"run_id": rid, "slot": slot, "status": head.doc["status"], "observation_id": oid, "checksum": meta["checksum"]})
+            eligible = (value.get("observation_kind") == "valid" and value.get("quote_status") == "fresh"
+                        and _timestamp(forecast["target_at"]) <= _timestamp(value.get("value_as_of", value["observed_at"])) <= observed
+                        and observed <= _timestamp(through))
+            if eligible and (candidate is None or (observed, oid) < (_timestamp(candidate["observed_at"]), candidate["observation_id"])):
+                candidate = {**value, "observation_id": oid, "portfolio_id": meta["portfolio_id"]}
+                candidate_ref = {"observation_id": oid, "checksum": meta["checksum"]}
+                end = min(end, observed.replace(minute=0, second=0, microsecond=0))
+            cursor += timedelta(hours=1)
+        complete = candidate is not None and cursor > end and _timestamp(candidate["observed_at"]) <= _timestamp(through)
+        proof_ref = prior_ref
+        if checked:
+            proof = {"schema_version": "modeling-forecast-search/1", "run_id": run_id,
+                     "forecast_checksum": forecast["forecast_checksum"], "comparison_policy_checksum": policy["comparison_policy_checksum"],
+                     "registry_input_ref": policy["registry_input_ref"], "previous_proof_ref": prior_ref,
+                     "checked": checked, "next_slot": _slot(cursor.isoformat()), "candidate_ref": candidate_ref,
+                     "complete": complete, "through": through, "ledger_committed": False}
+            digest = sha256_checksum(canonicalize(proof)).split(":")[1]
+            proof_ref = self._artifact("forecast-search", run_id + ":" + digest, proof)
+            revision = int(record.attrs.get("forecast_search_revision", 0))
+            try:
+                self.repo.commit([HeadMove("research_run", record_id=run_id, expected_revision=revision,
+                    revision_attr="forecast_search_revision", allow_missing_revision=(revision == 0),
+                    set_attrs={"forecast_search_ref": proof_ref})], audit=[audit_event(self._ctx(through),
+                    record_id=run_id, record_type="research_run", operation="checkpoint_forecast_observation_search",
+                    new={"next_slot": proof["next_slot"], "checked_slots": len(checked), "complete": complete})])
+            except PlatformError as exc:
+                if exc.code != "CONFLICT":
+                    raise
+                # The winning cursor is authoritative; retry without selecting
+                # observations from this losing attempt or repeating inference.
+                return {"status": "pending_incomplete", "reason": "concurrent_forecast_search_checkpoint", "observation": None}
+        return {"status": "complete" if complete else "pending_incomplete" if cursor <= end else "pending",
+                "reason": None if complete else reason, "observation": candidate if complete else None,
+                "next_slot": _slot(cursor.isoformat()), "proof_ref": proof_ref, "checked_slots": len(checked)}
+
     def mark_forecast_realized(self, run_id: str, observation_id: str, recorded_at: str) -> dict[str, Any]:
         """Link an immutable forecast match exactly once, without changing its forecast."""
         record = self.repo.require("research_run", run_id)
@@ -630,6 +731,9 @@ class ModelingEvidence:
             if record.attrs.get("realization_ref") != ref:
                 raise PlatformError.immutable("forecast already matched another observation")
             return ref
+        proof = self.strong_forecast_observation(run_id, recorded_at)
+        if proof["status"] != "complete" or proof["observation"]["observation_id"] != actual["observation_id"]:
+            raise PlatformError.precondition("forecast realization lacks a complete first-valid strong observation proof")
         self.repo.commit([HeadMove("research_run", record_id=run_id, expected_revision=int(record.attrs.get("forecast_revision", 0)), revision_attr="forecast_revision", set_attrs={"forecast_state": "realized", "forecast_partition": record.doc["experiment_id"] + "#realized", "realization_ref": ref}, additional_condition=Cond.eq("forecast_state", "pending"))], audit=[audit_event(self._ctx(recorded_at), record_id=run_id, record_type="research_run", operation="reconcile_frozen_forecast", new={"forecast_state": "realized"}, observation_id=observation_id)])
         return ref
 
@@ -803,6 +907,9 @@ class ModelingEvidence:
 
     def record_observation(self, experiment_id: str, approach_id: str, slot: str, portfolio_id: str, payload: Mapping[str, Any], observed_at: str, *, kind: str = "valuation") -> dict[str, Any]:
         slot = _slot(slot)
+        if kind == "valuation" and (_timestamp(observed_at) < _timestamp(slot)
+                or payload.get("observed_at", observed_at) != observed_at):
+            raise PlatformError.validation("valuation observation time must match its metadata and not precede its scheduled slot")
         book = self.get_portfolio(portfolio_id)
         if (book["experiment_id"], book["approach_id"]) != (experiment_id, approach_id):
             raise PlatformError.not_permitted("observation portfolio ownership mismatch")

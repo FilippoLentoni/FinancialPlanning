@@ -8,3 +8,4 @@
 - [x] Test exact input permanence, explicit failures, future availability, secret rejection, retry/lease recovery, concurrent revision and isolated authorization.
 - [ ] Central beta pipeline deployment and live data round trips (central owner).
 - [ ] Real hourly scheduler proofs and report explorer reconciliation (central owner/runtime/report owners).
+- [x] Prove first-valid forecast alignment with bounded strong scheduled-slot reads, immutable resumable search receipts and optimistic cursor recovery; reject a later GSI-visible observation when earlier evidence is missing.
