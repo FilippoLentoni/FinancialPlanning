@@ -362,7 +362,7 @@ def decode_transport(encoded):
 # JSON lexical tokens include their ORIGINAL quote/escape/numeric/whitespace bytes.
 # Dictionary compression never interprets/reformats their values.
 import re
-_JSON_TOKEN = re.compile(rb'"(?:\\.|[^"\\])*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null|\s+|[{}\[\],:]')
+_JSON_TOKEN = re.compile(rb'"[^"\\]*(?:\\.[^"\\]*)*"|[{}\[\],:]|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|true|false|null|\s+')
 
 
 class Lexemes:
@@ -384,7 +384,12 @@ class Lexemes:
         import sys
         if self.page_transport:
             hot=self.hot.get(token)
-            if hot is not None:self.hot.move_to_end(token);return hot
+            if hot is not None:
+                self.hot.move_to_end(token)
+                index=0;shift=0
+                for byte in hot:
+                    index|=(byte&127)<<shift;shift+=7
+                return index
         key=self.token_key(token);existing=self.indices.get(key)
         if existing is not None:
             if self.page_transport and _decode_lexeme(self.values[existing])!=token:
@@ -407,9 +412,14 @@ class Lexemes:
             if not self.page_transport and self.encoded_bytes>MAX_TRANSPORT_BYTES:
                 raise ValueError('Original lexeme evidence exceeds150MiB bound; no evidence was silently truncated')
         if self.page_transport and len(token)<=64:
+            # One combined bounded lookaside: exact bytes -> verified varint.
+            # Encoded bytes and the OrderedDict entry share this8MiB budget.
             amount=sys.getsizeof(token)+192
             if amount<=self.hot_limit:
-                self.hot[token]=index;self.hot_bytes+=amount
+                encoded=self.encoded_indices.get(index)
+                if encoded is None:
+                    encoded=bytes(_varint(index));self.encoded_indices[index]=encoded
+                self.hot[token]=encoded;self.hot_bytes+=amount
                 while self.hot_bytes>self.hot_limit:
                     old,_=self.hot.popitem(last=False);self.hot_bytes-=sys.getsizeof(old)+192
         return index
@@ -428,17 +438,44 @@ def pack_json_bytes(raw,pool,lexemes):
     # C-level findall avoids one Python Match object/method sequence per token.
     # Bound its temporary list to1MiB of original bytes; larger artifacts stream.
     source=_JSON_TOKEN.findall(raw) if len(raw)<=1024*1024 else (m.group() for m in _JSON_TOKEN.finditer(raw))
-    for token in source:
-        position+=len(token)
-        cache_key=intern(token) if lexemes.page_transport else token
-        encoded=lookup(cache_key)
-        if encoded is None:
-            encoded=bytes(_varint(cache_key if lexemes.page_transport else intern(token)));cached[cache_key]=encoded
-        extend(encoded);tokens+=1
-        if tokens%1024==0:
-            refs.append(_pack_index_chunk(bytes(indices),pool));indices.clear()
+    if lexemes.page_transport:
+        from itertools import islice
+        hot_get=lexemes.hot.get;hot_item=lexemes.hot.__getitem__
+        def encode_token(token):
+            # Byte-key equality proves a hit is the previously verified token.
+            # Cold entries still pass intern's full SHA/equality collision guard.
+            # FIFO access avoids per-token LRU mutation; eviction stays bounded.
+            hot=hot_get(token)
+            if hot is not None:return hot
+            index=intern(token);encoded=lookup(index)
+            if encoded is None:
+                encoded=bytes(_varint(index));cached[index]=encoded
+            return encoded
+        iterator=iter(source)
+        while True:
+            batch=list(islice(iterator,1024))
+            if not batch:break
+            position+=sum(map(len,batch))
+            # Same 1024-token original chunk boundaries; temporary list <=1024.
+            try:
+                encoded=b''.join(map(hot_item,batch))
+            except KeyError:
+                # Probe never changes indices. New tokens are interned strictly
+                # in first appearance order; local references stay <=1024.
+                local={token:encode_token(token)for token in dict.fromkeys(batch)}
+                encoded=b''.join(map(local.__getitem__,batch))
+            refs.append(_pack_index_chunk(encoded,pool))
+    else:
+        for token in source:
+            position+=len(token)
+            encoded=lookup(token)
+            if encoded is None:
+                encoded=bytes(_varint(intern(token)));cached[token]=encoded
+            extend(encoded);tokens+=1
+            if tokens%1024==0:
+                refs.append(_pack_index_chunk(bytes(indices),pool));indices.clear()
+        if indices:refs.append(_pack_index_chunk(bytes(indices),pool))
     if position!=len(raw):raise ValueError('Original captured JSON bytes have an unrecognized trailing interval')
-    if indices:refs.append(_pack_index_chunk(bytes(indices),pool))
     return {'checksum':sha(raw),'size_bytes':len(raw),'lexeme_chunks':refs,'artifact_encoding':'original-byte-json-lexemes/1'}
 
 
