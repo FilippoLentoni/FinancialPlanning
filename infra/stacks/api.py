@@ -46,7 +46,7 @@ from constructs import Construct
 from finplan_platform.core.config import BUCKET_ROLES, EnvConfig
 from finplan_platform.core.repository import TABLES, table_name
 from finplan_platform.core.upgrade import current_version
-from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
+from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, BETA_MANAGED_READER_ROLE, BETA_MANAGED_READ_OPERATIONS, CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
 
 from .common import PlatformStack, StageContext, lambda_code, platform_role, resource_name, role_arn_pattern, ssm_name, tag_role
 
@@ -87,7 +87,7 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
     """
     env = cfg.env
     platform = arn_for(f"finplan-{env}-financialplanning-*")
-    everyone = {"AWS": "*"}
+    everyone = "*" if env == "beta" else {"AWS": "*"}
     statements: list[dict[str, Any]] = [
         {
             "Sid": "AllowPlatformPrincipalsAllRoutes",
@@ -105,20 +105,49 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
     operators = [arn_for(name) for name in cfg.dev_desktop_role_names]
     allowed_patterns = [platform, *operators]
     routes = tuple(r for r in ROUTES if cfg.env == "beta" or r.operation not in BETA_LIFECYCLE_OPERATIONS)
+    tool_resources = {}
+    tool_patterns = {}
     for cls in CONSUMER_CLASSES:
         pattern = arn_for(cfg.principal_pattern(CONSUMER_CONFIG_KEYS[cls]))
         allowed_patterns.append(pattern)
-        resources = compact_route_resources([route_resource(r) for r in routes if route_allowed(r, cls)])
+        managed = env == "beta" and cls == "financemodel-job"
+        allowed_routes = [r for r in routes if route_allowed(r, cls) or (managed and r.operation in BETA_MANAGED_READ_OPERATIONS)]
+        resources = compact_route_resources([route_resource(r) for r in allowed_routes])
         cond = {"ArnLike": {"aws:PrincipalArn": pattern}}
         if env != "beta":
             statements.append({"Sid": f"Allow{_sid(cls)}Routes", "Effect": "Allow", "Principal": everyone, "Action": INVOKE, "Resource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
-        statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
+        if env == "beta" and cls in TOOL_CLASSES:
+            tool_resources[cls], tool_patterns[cls] = resources, pattern
+        else:
+            statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": resources[0] if len(resources) == 1 else resources, "Condition": cond})
         # IAM '*' spans '/': an allowed parent-ID read can otherwise include known
         # descendant routes. Deny only disallowed descendants, never their parents.
-        allowed_routes = [r for r in routes if route_allowed(r, cls)]
-        descendants = sorted({route_resource(r) for r in routes if not route_allowed(r, cls) and any(r.method == parent.method and r.path.startswith(parent.path + "/") for parent in allowed_routes)})
+        descendants = sorted({route_resource(r) for r in routes if r not in allowed_routes and any(r.method == parent.method and r.path.startswith(parent.path + "/") for parent in allowed_routes)})
         if descendants:
             statements.append({"Sid": f"Deny{_sid(cls)}ExcludedDescendants", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": descendants[0] if len(descendants) == 1 else descendants, "Condition": cond})
+    if env == "beta":
+        # Factor repeated identical tool read lists without changing any effective
+        # permission: outside the union is denied for all tools; each tool also
+        # explicitly denies the union members its own role does not receive.
+        union = sorted(set().union(*(set(v) for v in tool_resources.values())))
+        tool_names = [cfg.principal_pattern(CONSUMER_CONFIG_KEYS[cls]) for cls in TOOL_CLASSES]
+        family = "finplan-beta-financelambdastool-tool-role-"
+        other_names = [f"finplan-{env}-financialplanning-*", *cfg.dev_desktop_role_names, *(cfg.principal_pattern(CONSUMER_CONFIG_KEYS[cls]) for cls in FINANCEMODEL_CLASSES)]
+        # Compact only a DENY selector for the reserved tool-role family. Extra
+        # names in that family already fail DenyPrincipalsOutsideThisEnvironment;
+        # no other allowed principal may match the compact selector.
+        def literal_prefix(pattern):
+            return pattern[:min([pattern.index(c) for c in "*?[" if c in pattern] + [len(pattern)])]
+        disjoint = all(not family.startswith(literal_prefix(n)) and not literal_prefix(n).startswith(family) for n in other_names)
+        tool_deny = arn_for(family + "*") if all(n.startswith(family) for n in tool_names) and disjoint else list(tool_patterns.values())
+        statements.append({"Sid": "DenyToolOtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "NotResource": union, "Condition": {"ArnLike": {"aws:PrincipalArn": tool_deny}}})
+        for cls, resources in tool_resources.items():
+            forbidden = sorted(set(union) - set(resources))
+            if forbidden:
+                statements.append({"Sid": f"Deny{_sid(cls)}OtherRoutes", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": forbidden[0] if len(forbidden) == 1 else forbidden, "Condition": {"ArnLike": {"aws:PrincipalArn": tool_patterns[cls]}}})
+        # The consumer pattern's pre-existing snapshot grants remain unchanged.
+        # Only its exact deployed managed role receives the two additional reads.
+        statements.append({"Sid": "DenyJobPortfolioOthers", "Effect": "Deny", "Principal": everyone, "Action": INVOKE, "Resource": "execute-api:/*/GET/v1/portfolios/*", "Condition": {"ArnLike": {"aws:PrincipalArn": arn_for(cfg.principal_pattern("financemodel_job"))}, "ArnNotEquals": {"aws:PrincipalArn": arn_for(BETA_MANAGED_READER_ROLE)}}})
     if env == "beta":
         # One shared consumer allow avoids repeating each route union twice. Every
         # consumer retains its explicit NotResource deny plus excluded descendants,

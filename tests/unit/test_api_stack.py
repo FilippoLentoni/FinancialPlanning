@@ -16,7 +16,7 @@ import pytest
 from finplan_contracts.ownership import check_template
 from finplan_contracts.validate import validate
 from finplan_platform.core.config import load_config
-from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, FULL_ACCESS_CLASSES, ROUTES, route_allowed
+from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, FULL_ACCESS_CLASSES, beta_managed_read, ROUTES, route_allowed
 
 from infra.policy_sim import Principal, role_arn, simulate
 from infra.stacks.api import GATEWAY_RESPONSES, STAGE_NAME, compact_route_resources, resource_policy_document
@@ -142,7 +142,7 @@ def test_resource_policy_grants_exactly_the_route_table(api_synth: dict[str, Any
             if env != "beta" and route.operation in BETA_LIFECYCLE_OPERATIONS:
                 continue
             res = simulate("execute-api:Invoke", invoke_arn(route), principal, resource_policy=policy)
-            assert res.allowed == route_allowed(route, cls), (env, cls, route.method, route.path, res)
+            assert res.allowed == (route_allowed(route, cls) or beta_managed_read(route, env, name)), (env, cls, route.method, route.path, res)
 
 
 @pytest.mark.parametrize("env", ENVS)
