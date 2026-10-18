@@ -66,3 +66,22 @@ Holdings revisions, executed paper fills and valuation observations serve differ
 3. Deploy additive beta tables and verify one isolated synthetic input/run/valuation round trip.
 4. Run the Codex strategy and traditional controls over the same stored inputs through the common evaluator.
 5. Enable the requested one-minute snapshot test and thirty-minute collection/review schedules after the data path is complete. Use systemd timers, a run lock, bounded execution time, per-run logs and permanent slot IDs; keep snapshots independent from portfolio fills.
+
+Unreconciled held-asset corporate actions fail closed. The isolated portfolio's
+internal `unresolved_action_ref` head points to an immutable `execution_attempt`
+observation with status `PENDING_ACTION_DATA`, original captured action content,
+origin run, and verified artifact checksum. `latch_action_blocker` conditionally
+creates this permanent pointer and an audit event before execution cleanup. Its
+separate internal revision does not change holdings, the public portfolio document,
+or paper ledger revision. There is no automatic clear or replacement interface;
+a future authoritative action reconciler is required to resolve the entitlement.
+
+Execution frontier readers merge that strong book pointer with the original
+immutable cleanup proof, explicitly identifying the pointer as a later book head.
+A late action discovered after a frontier exists never rewrites or disappears
+behind that earlier proof. Subsequent policies and empty/rolled source windows
+inherit the pointer. The paper ledger transaction independently requires no action
+latch, so a concurrent latch prevents a new fill transaction. Valuation readers
+retain the original event evidence and mark affected books pending rather than
+fabricating split/dividend adjustments. This guard preserves evidence; it does
+not implement corporate-action accounting or assert complete provider coverage.
