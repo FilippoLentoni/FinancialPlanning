@@ -97,7 +97,7 @@ def test_managed_frontend_bytes_and_full_renderer_source_checksum_are_embedded()
     data=collect(report(fixture('failed')['inference_evidence']))
     html=html_export(data)
     embedded=[base64.b64decode(value) for value in re.findall(r"atob\('([A-Za-z0-9+/=]+)'\)",html)]
-    for filename in ('report.js','managed_evidence.js','page_codec.js'):
+    for filename in ('report.js','managed_evidence.js','page_codec.js','csv_export.js'):
         path=root/filename
         if path.exists():assert any(path.read_bytes()in source for source in embedded),filename
     assert 'managedWorkerExplorer'in (root/'managed_evidence.js').read_text()

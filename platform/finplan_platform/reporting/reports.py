@@ -885,7 +885,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                                       and timestamp(first_slot).astimezone(EASTERN).date() <= start
                                       and timestamp(generated_at).astimezone(EASTERN).date() >= end),
               "comparison_policy": comparison_policy, "expected_slot_manifest_available": bool(first_slot),
-              "renderer_checksum": checksum(b"".join((Path(__file__).parent / name).read_bytes() for name in ("template.html", "report.js", "managed_evidence.js", "page_codec.js") if (Path(__file__).parent / name).exists())),
+              "renderer_checksum": checksum(b"".join((Path(__file__).parent / name).read_bytes() for name in ("template.html", "report.js", "managed_evidence.js", "page_codec.js", "csv_export.js") if (Path(__file__).parent / name).exists())),
               "ranking_rule": "Observed shared-window net realized return after common execution costs; then shared-mark drawdown; then approach ID. Identical policy/universe/initial capital and actual observation intersection only. Full calendar coverage/failures remain visible; observed winner is not universal optimality.",
               "registry": registry, "runs": sorted(runs, key=lambda r: (r["decision_time"], r["approach_id"])),
               "inputs": inputs, "artifact_chunks": artifact_chunks, "additional_inputs": additional_inputs, "observations": observations, "ancillary_evidence": ancillary, "execution_events": execution_events, "managed_cost_events": managed_cost_events, "forecasts": forecasts,
@@ -1014,6 +1014,8 @@ def csv_export(report: dict) -> str:
     writer = csv.DictWriter(stream, fields, extrasaction="ignore")
     writer.writeheader()
     for run in report["runs"]:
+        if run.get("source_evidence_ref"):
+            run = json.loads(captured_input_bytes(report, run["source_evidence_ref"]))
         row = {k: json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v for k, v in run.items() if k in fields}
         # Spreadsheet formulas in untrusted model/news text are not executable.
         row = {k: "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v for k, v in row.items()}
@@ -1038,7 +1040,7 @@ def csv_export(report: dict) -> str:
 def html_export(report: dict) -> str:
     root = Path(__file__).parent
     data = canonical(encode_transport(report)).decode().replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
-    script = (root / "report.js").read_text() + "\n" + (root / "managed_evidence.js").read_text()
+    script = (root / "report.js").read_text() + "\n" + (root / "managed_evidence.js").read_text() + "\n" + (root / "csv_export.js").read_text()
     script_b64 = base64.b64encode(script.encode()).decode()
     page_codec_b64 = base64.b64encode((root / 'page_codec.js').read_bytes()).decode()
     bootstrap = """globalThis.__reportReadyPromise=(async()=>{const encoded=JSON.parse(document.getElementById('report-data').textContent);if(encoded.transport_codec==='modeling-report-gzip/1'){if(encoded.decoded_size_bytes>384*1024*1024)throw new Error('Decoded report exceeds384MiB bound');const compressed=Uint8Array.from(atob(encoded.data),c=>c.charCodeAt(0)),reader=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip')).getReader(),raw=new Uint8Array(encoded.decoded_size_bytes);let at=0;while(true){const item=await reader.read();if(item.done)break;if(at+item.value.length>raw.length){await reader.cancel();throw new Error('Decoded report exceeds declared size')}raw.set(item.value,at);at+=item.value.length}if(at!==raw.length)throw new Error('Decoded report size mismatch');const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',raw)),sha='sha256:'+Array.from(digest,v=>v.toString(16).padStart(2,'0')).join('');if(sha!==encoded.decoded_checksum)throw new Error('Decoded report checksum mismatch');globalThis.__packedReport=JSON.parse(new TextDecoder().decode(raw))}const pageCodec=document.createElement('script');pageCodec.textContent=new TextDecoder().decode(Uint8Array.from(atob('__PAGE_CODEC_B64__'),c=>c.charCodeAt(0)));document.body.appendChild(pageCodec);await globalThis.__prepareReportBytePages(globalThis.__packedReport||encoded);const script=document.createElement('script');script.textContent=new TextDecoder().decode(Uint8Array.from(atob('__SCRIPT_B64__'),c=>c.charCodeAt(0)));document.body.appendChild(script)})().catch(error=>{document.getElementById('coverage').textContent='Report integrity/size failure: '+error.message;throw error});""".replace('__SCRIPT_B64__',script_b64).replace('__PAGE_CODEC_B64__',page_codec_b64)
@@ -1063,6 +1065,12 @@ def _write_report_private(report: dict, output_dir: Path, *, artifact_store: Any
     """
     if report["mode"] not in {"forward", "controlled_replay"}:
         raise EvidenceError("Report mode must explicitly distinguish forward/replay")
+    # A new renderer revision can render historical immutable evidence. Bind the
+    # exported client implementation, not a stale caller-provided renderer hash.
+    report = dict(report)
+    renderer_root = Path(__file__).parent
+    report["renderer_checksum"] = checksum(b"".join((renderer_root / name).read_bytes() for name in
+        ("template.html", "report.js", "managed_evidence.js", "page_codec.js", "csv_export.js") if (renderer_root / name).exists()))
     target = output_dir / ("replay" if report["mode"] == "controlled_replay" else "")
     if report["period"] == "weekly":
         target /= "weekly"
