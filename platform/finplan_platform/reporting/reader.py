@@ -56,25 +56,43 @@ class ReportReader:
                 self.cache_failures.append(type(exc).__name__)
 
     def _pooled_backend(self, backend, workers):
-        # Real EC2 backends are constructed by ModelingEvidence.from_ec2 using
-        # boto3's normal cached credential chain. Create report-owned clients on
+        # Create report-owned clients using the supplied credential provider on
         # the main thread; do not mutate a shared client's TLS/config/hooks.
         from botocore.client import BaseClient
         if type(backend) is not ModelingEvidence or not isinstance(backend.repo.client, BaseClient):
             return backend
         if not isinstance(backend.store._s3, BaseClient):
             return backend
-        import boto3
         from botocore.config import Config
+        from botocore.credentials import CredentialProvider
+        from botocore.session import Session
         from ..core.artifacts import ArtifactStore
         from ..core.repository import MetadataRepository
         from copy import copy
+        originals=(backend.repo.client, backend.store._s3)
+        # Keep the supplied client's existing credential provider/refresh scope.
+        # Re-resolving DEFAULT_SESSION could silently switch an assumed caller.
+        credentials=[original._request_signer._credentials for original in originals]
+        if any(scope is None for scope in credentials):
+            return backend
         clients=[]
-        for original in (backend.repo.client, backend.store._s3):
-            client=boto3.client(original.meta.service_model.service_name,
-                region_name=original.meta.region_name,endpoint_url=original.meta.endpoint_url,
-                config=original.meta.config.merge(Config(max_pool_connections=workers)))
-            clients.append(client)
+        try:
+            for original, scope in zip(originals, credentials):
+                class SuppliedScope(CredentialProvider):
+                    METHOD = "report_supplied_client_scope"
+                    def load(self, supplied=scope):
+                        return supplied
+                session=Session()
+                session.get_component("credential_provider").insert_before("env", SuppliedScope())
+                client=session.create_client(original.meta.service_model.service_name,
+                    region_name=original.meta.region_name,endpoint_url=original.meta.endpoint_url,
+                    verify=original._endpoint.http_session._verify,
+                    config=original.meta.config.merge(Config(max_pool_connections=workers)))
+                clients.append(client)
+        except BaseException:
+            for client in clients:
+                client.close()
+            raise
         self._owned_clients=clients
         copied=copy(backend)
         copied.repo=MetadataRepository(clients[0],backend.repo.env,names=backend.repo.names,

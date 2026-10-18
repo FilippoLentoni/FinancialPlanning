@@ -283,3 +283,39 @@ def test_cache_beneficial_compression_bounds_original_expansion_and_full_sha(tmp
         altered=bytearray(cached.read_bytes());altered[-1]^=1;cached.write_bytes(altered)
         assert cache.get(checksum(raw),max_size=len(raw)) is None
     finally:cache.close()
+
+
+def test_report_owned_client_pool_preserves_supplied_scope_not_default_caller(artifacts):
+    import boto3
+    from finplan_platform.core.repository import MetadataRepository
+    supplied=boto3.client('dynamodb',region_name='us-east-2',aws_access_key_id='scoped-test-key',aws_secret_access_key='scoped-test-secret',aws_session_token='scoped-test-token')
+    backend=ModelingEvidence(MetadataRepository(supplied,'beta'),artifacts)
+    reader=ReportReader(backend)
+    try:
+        assert reader.backend is not backend
+        assert reader.backend.repo.client._request_signer._credentials is supplied._request_signer._credentials
+        assert reader.backend.store._s3._request_signer._credentials is artifacts._s3._request_signer._credentials
+        assert reader.backend.repo.client.meta.config.max_pool_connections==32
+        assert supplied.meta.config.max_pool_connections!=32
+    finally:reader.close();supplied.close()
+
+
+def test_singleflight_waiter_checks_its_own_conflicting_declared_size():
+    from threading import Event
+    backend=Backend(1);reference=backend.records['r000'].doc['output_ref']
+    entered=Event();release=Event();original=backend.read_artifact_bytes
+    def delayed(ref):
+        entered.set();assert release.wait(timeout=5)
+        return original(ref)
+    backend.read_artifact_bytes=delayed
+    reader=ReportReader(backend)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first=pool.submit(reader.read_artifact_bytes,reference)
+            assert entered.wait(timeout=5)
+            waiter=pool.submit(reader.read_artifact_bytes,{**reference,'size_bytes':1})
+            time.sleep(.01);release.set()
+            assert first.result()==backend.raws[reference['artifact_key']]
+            with pytest.raises(ValueError,match='size differs'):waiter.result()
+        assert backend.calls[('artifact',reference['artifact_key'])]==1
+    finally:release.set();reader.close()
