@@ -5,11 +5,17 @@ its bytes exist; failed transactions may leave harmless unreferenced artifacts. 
 permanent run ID owns an experiment/approach/slot, independently of expiring request
 idempotency. The only automated ledger method conditions on isolated-book ownership.
 This backend interface is for the authorized EC2 operator, never a browser credential.
+
+With ``mirror_content`` every artifact's exact bytes are also written to DynamoDB, next
+to the records that reference them, so a deep dive needs only the tables: gzip of the
+canonical JSON, split into write-once ``content#<artifact_key>#<part>`` items (see
+:meth:`ModelingEvidence.read_content`). The S3 artifact stays the canonical copy.
 """
 from __future__ import annotations
 
 import base64
 import copy
+import gzip
 import hashlib
 import json
 import math
@@ -28,10 +34,14 @@ from .errors import PlatformError
 from .ids import IdFactory
 from .repository import Check, Cond, HeadMove, MetadataRepository, PutNew, Transition
 from .contract_io import require_valid
+from botocore.exceptions import ClientError
 
 FAMILIES = frozenset({"reinforcement_learning", "optimization", "language_model", "agentic", "control"})
 TERMINAL = frozenset({"succeeded", "hold", "skipped", "failed", "unavailable", "reused"})
 KINDS = {"runs": "research_run", "inputs": "research_input", "observations": "portfolio_observation"}
+# Artifact kind -> table holding its DynamoDB content copy (everything else: research_run).
+CONTENT_TABLES = {"inputs": "research_input", "observations": "portfolio_observation"}
+CONTENT_PART_BYTES = 350_000  # gzip bytes per item, below DynamoDB's 400 KB item limit
 SECRET_KEYS = re.compile(r"^(authorization|password|token|credentials|api[_-]?token|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret[_-]?access[_-]?key|session[_-]?token|aws[_-]?credentials)$", re.I)
 
 
@@ -87,10 +97,11 @@ def _safe(payload: Any) -> None:
 class ModelingEvidence:
     execution_events_supported = True
 
-    def __init__(self, repo: MetadataRepository, store: ArtifactStore, *, principal: str = "authorized-beta-experiment-operator"):
+    def __init__(self, repo: MetadataRepository, store: ArtifactStore, *, principal: str = "authorized-beta-experiment-operator", mirror_content: bool = False):
         if repo.env != "beta":
             raise PlatformError.not_permitted("autonomous experiment evidence is beta only")
         self.repo, self.store, self.principal = repo, store, principal
+        self.mirror_content = mirror_content
         self._execution_policy_cache = {}
 
     def _ctx(self, at: str) -> OperationContext:
@@ -110,7 +121,45 @@ class ModelingEvidence:
         checksum = sha256_checksum(raw)
         key = f"modeling-evidence/v1/{kind}/{rid}/{checksum.split(':')[1]}.json"
         saved = self.store.put_once_or_verify("reports", key, raw)
+        if self.mirror_content:
+            self._put_content(CONTENT_TABLES.get(kind, "research_run"), key, saved.checksum, raw)
         return {"artifact_key": key, "checksum": saved.checksum, "size_bytes": len(raw), "serialization": "RFC8785 JSON", "bucket_role": "reports"}
+
+    def _put_content(self, table: str, key: str, checksum: str, raw: bytes) -> None:
+        """Write-once DynamoDB copy of an artifact's bytes; a retry must carry identical bytes."""
+        packed = gzip.compress(raw, mtime=0)
+        parts = [packed[i:i + CONTENT_PART_BYTES] for i in range(0, len(packed), CONTENT_PART_BYTES)] or [b""]
+        name = self.repo.names[table]
+        for index, data in enumerate(parts):
+            item = {"pk": {"S": f"content#{key}#{index:04d}"}, "record_type": {"S": "artifact_content"},
+                    "artifact_key": {"S": key}, "checksum": {"S": checksum}, "part": {"N": str(index)},
+                    "parts": {"N": str(len(parts))}, "size_bytes": {"N": str(len(raw))},
+                    "encoding": {"S": "gzip(RFC8785 JSON)"}, "data": {"B": data}}
+            try:
+                self.repo.client.put_item(TableName=name, Item=item, ConditionExpression="attribute_not_exists(pk)")
+            except ClientError as exc:
+                if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                    raise
+                old = self.repo.client.get_item(TableName=name, Key={"pk": item["pk"]}, ConsistentRead=True).get("Item") or {}
+                if old.get("checksum", {}).get("S") != checksum or bytes(old.get("data", {}).get("B", b"")) != data:
+                    raise PlatformError.immutable("DynamoDB artifact content conflicts with retry", record_type=table) from None
+
+    def read_content(self, ref: Mapping[str, Any], *, table: str | None = None) -> Any:
+        """Decode an artifact reference from its DynamoDB content copy (checksum verified)."""
+        key = ref.get("artifact_key", "")
+        if not key.startswith("modeling-evidence/v1/"):
+            raise PlatformError.not_permitted("invalid modeling artifact reference")
+        table = table or CONTENT_TABLES.get(key.split("/")[2], "research_run")
+        name, chunks, total = self.repo.names[table], [], None
+        while total is None or len(chunks) < total:
+            item = self.repo.client.get_item(TableName=name, Key={"pk": {"S": f"content#{key}#{len(chunks):04d}"}}, ConsistentRead=True).get("Item")
+            if not item:
+                raise PlatformError.not_found("artifact content is not in DynamoDB", record_type=table)
+            total = int(item["parts"]["N"]); chunks.append(bytes(item["data"]["B"]))
+        raw = gzip.decompress(b"".join(chunks))
+        if sha256_checksum(raw) != ref["checksum"]:
+            raise PlatformError.immutable("DynamoDB artifact content checksum mismatch", record_type=table)
+        return json.loads(raw)
 
     def read_artifact_bytes(self, ref: Mapping[str, Any]) -> bytes:
         key = ref.get("artifact_key", "")
@@ -994,4 +1043,4 @@ class ModelingEvidence:
         s3 = s3_client(region)
         encryption = s3.get_bucket_encryption(Bucket=name)["ServerSideEncryptionConfiguration"]["Rules"][0]["ApplyServerSideEncryptionByDefault"]
         principal = boto3.client("sts", region_name=region).get_caller_identity()["Arn"]
-        return cls(MetadataRepository(boto3.client("dynamodb", region_name=region), "beta"), ArtifactStore(s3, {"reports": name}, kms_key_id=encryption.get("KMSMasterKeyID")), principal=principal)
+        return cls(MetadataRepository(boto3.client("dynamodb", region_name=region), "beta"), ArtifactStore(s3, {"reports": name}, kms_key_id=encryption.get("KMSMasterKeyID")), principal=principal, mirror_content=True)
