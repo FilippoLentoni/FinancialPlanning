@@ -21,21 +21,18 @@ Bucket policy (every bucket)
   conditional create) and ``DenyDeleteImmutableArtifacts`` (only the orphan sweeper may
   delete, and only in ``plans``/``snapshots``) (STO-04).
 
-Consumer grants
----------------
-* snapshots: the FinanceModel job role may ``GetObject`` only objects tagged
-  ``snapshot-status=approved``; reads of untagged/unapproved objects and all writes are
-  denied (STO-03, ING-12).
-* outputs: the FinanceModel job role may only ``PutObject`` under ``staging/run_*/``; it
-  has no read, list or delete anywhere in the bucket (STO-03 "writes outside staging",
-  STG-01 "cross-run reads denied").
-* raw: ``uploads/*`` is readable only by the plan-API (import) role and operators (STO-07).
+Consumer access (experimental project, 2026-10-18)
+-------------------------------------------------
+Per-role allowlists were removed at the owner's request: any role of the SAME
+environment (FinanceModel, FinanceLambdasTool, FinanceAgent included) may use these
+buckets and tables, subject only to its own IAM policy. ``AllowFinanceModel*`` grants
+remain so the FinanceModel job role keeps working without its own bucket grant.
+Environment isolation, TLS, KMS, write-once and append-only rules are unchanged.
 
 Metadata table resource policy (3.1, 3.5)
 -----------------------------------------
-* ``DenyDataAccessOutsidePlatform``: item-level actions by any principal that is not a
-  platform role of this environment (MDS-01: FinanceLambdasTool and FinanceModel roles
-  are denied direct access; MDS-07: other environments are denied).
+* ``DenyOtherEnvironmentPrincipals``: item-level actions by roles of another environment
+  (MDS-07). Roles of this environment are not restricted by the table policy.
 * audit table: ``DenyAuditMutation`` of ``UpdateItem``/``DeleteItem``/``BatchWriteItem``
   and PartiQL writes for every principal (MDS-06 append-only).
 """
@@ -122,16 +119,8 @@ def bucket_policy_statements(
         raise ValueError(env)
     objects = f"{bucket_arn}/*"
     others = [arn_for(f"finplan-{o}-*") for o in ENVIRONMENTS if o != env]
-    platform = arn_for(_platform(env))
-    operator = arn_for(consumers["operator"])
     fm_job = arn_for(consumers["financemodel_job"])
     sweeper = arn_for(_role(env, "metadata-sweeper"))
-    importer = arn_for(_role(env, "plan-api-handler"))
-
-    operators = [arn_for(name) for name in dev_desktop_roles] if env == "beta" else []
-    allowed = [platform, operator, *operators]
-    if role in ("snapshots", "outputs"):
-        allowed.append(fm_job)
 
     st: list[dict] = [
         {
@@ -166,14 +155,6 @@ def bucket_policy_statements(
             "Action": "s3:*",
             "Resource": [bucket_arn, objects],
             "Condition": {"ArnLike": {"aws:PrincipalArn": others}},
-        },
-        {
-            "Sid": "DenyObjectAccessOutsideEnvironment",
-            "Effect": "Deny",
-            "Principal": "*",
-            "Action": list(OBJECT_ACTIONS),
-            "Resource": objects,
-            "Condition": {"ArnNotLike": {"aws:PrincipalArn": allowed}},
         },
     ]
 
@@ -211,22 +192,6 @@ def bucket_policy_statements(
                 "Resource": objects,
                 "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}, "StringEquals": {f"s3:ExistingObjectTag/{SNAPSHOT_STATUS_TAG}": "approved"}},
             },
-            {
-                "Sid": "DenyFinanceModelUnapprovedSnapshotRead",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:GetObject*",
-                "Resource": objects,
-                "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}, "StringNotEquals": {f"s3:ExistingObjectTag/{SNAPSHOT_STATUS_TAG}": "approved"}},
-            },
-            {
-                "Sid": "DenyFinanceModelSnapshotWrites",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": ["s3:PutObject*", "s3:DeleteObject*", "s3:RestoreObject", "s3:AbortMultipartUpload"],
-                "Resource": objects,
-                "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}},
-            },
         ]
     if role == "outputs":
         staging = f"{bucket_arn}/staging/run_*/*"
@@ -239,49 +204,22 @@ def bucket_policy_statements(
                 "Resource": staging,
                 "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}},
             },
-            {
-                "Sid": "DenyFinanceModelWritesOutsideStaging",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:PutObject*",
-                "NotResource": staging,
-                "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}},
-            },
-            {
-                "Sid": "DenyFinanceModelReadListDelete",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": ["s3:GetObject*", "s3:ListBucket*", "s3:DeleteObject*", "s3:RestoreObject"],
-                "Resource": [bucket_arn, objects],
-                "Condition": {"ArnLike": {"aws:PrincipalArn": [fm_job]}},
-            },
         ]
-    if role == "raw":
-        st.append(
-            {
-                "Sid": "DenyUploadReadsExceptImportAndOperators",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:GetObject*",
-                "Resource": f"{bucket_arn}/uploads/*",
-                "Condition": {"ArnNotLike": {"aws:PrincipalArn": [importer, operator, *operators]}},
-            }
-        )
     return st
 
 
 def table_policy_statements(*, env: str, logical: str, table_arn: str, arn_for: ArnFor, dev_desktop_roles: Iterable[str] = ()) -> list[dict]:
     """Resource policy statements for one metadata table (plus its indexes)."""
-    operators = [arn_for(name) for name in dev_desktop_roles] if env == "beta" else []
     resources = [table_arn, f"{table_arn}/index/*"]
+    others = [arn_for(f"finplan-{o}-*") for o in ENVIRONMENTS if o != env]
     st: list[dict] = [
         {
-            "Sid": "DenyDataAccessOutsidePlatform",
+            "Sid": "DenyOtherEnvironmentPrincipals",
             "Effect": "Deny",
             "Principal": "*",
             "Action": list(DYNAMODB_DATA_ACTIONS),
             "Resource": resources,
-            "Condition": {"ArnNotLike": {"aws:PrincipalArn": [arn_for(_platform(env)), *operators]}},
+            "Condition": {"ArnLike": {"aws:PrincipalArn": others}},
         }
     ]
     if logical in ("audit_event", "portfolio_history", "activity_event", "research_input", "portfolio_observation"):

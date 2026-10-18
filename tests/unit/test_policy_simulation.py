@@ -1,9 +1,9 @@
 """IAM policy simulation over the synthesized resource policies (offline).
 
-STO-02 (TLS, key), STO-03 (cross-env, least privilege, approved-snapshot grant, staging
-write-only), STO-04 (delete and unconditional overwrite denied), STO-07 (upload prefix),
-STG-01 (staging write-only by run prefix), MDS-01 (consumer roles denied direct metadata
-access), MDS-06 (no update/delete of audit items), MDS-07 (cross-environment table access).
+STO-02 (TLS, key), STO-03 (cross-env), STO-04 (delete and unconditional overwrite denied),
+MDS-06 (no update/delete of audit items), MDS-07 (cross-environment table access). Since
+2026-10-18 same-environment roles of other repositories are no longer restricted by these
+resource policies (experimental project); only their own IAM policies apply.
 
 Consumers are given a worst-case identity policy (``s3:*``, ``dynamodb:*``, ``kms:*`` on
 ``*``) so the denials shown come from the platform's resource policies and the contract
@@ -48,6 +48,12 @@ def tool(env: str, cls: str) -> Principal:
     return Principal.role(f"finplan-{env}-financelambdastool-tool-role-{cls}", WORST, boundary=env_permission_boundary(env))
 
 
+def fm_lambda(env: str) -> Principal:
+    # FinanceModel Lambda roles carry the general environment boundary (the research
+    # job boundary keeps its own metadata-table deny, owned by finplan_contracts).
+    return Principal.role(f"finplan-{env}-financemodel-job-api-handler-forward-role", WORST, boundary=env_permission_boundary(env))
+
+
 def operator(env: str) -> Principal:
     return Principal.role(f"finplan-{env}-financialplanning-operator", WORST)
 
@@ -84,39 +90,19 @@ def test_same_env_platform_role_reads_plans(policies: dict[str, Any]) -> None:
     assert s3sim(policies, "s3:GetObject", "beta", "plans", "pl_A/pv_A/content.json", platform("beta", "plan-api-handler"))
 
 
-def test_foreign_principals_have_no_object_access(policies: dict[str, Any]) -> None:
-    for who in (tool("beta", "reader"), Principal.role("some-other-role", WORST)):
+def test_same_env_consumer_roles_are_not_blocked_by_bucket_policies(policies: dict[str, Any]) -> None:
+    for who in (tool("beta", "reader"), fm_job("beta"), Principal.role("finplan-beta-financeagent-runtime-role", WORST)):
         for stem in ("raw", "curated", "plans", "reports", "snapshots"):
-            assert not s3sim(policies, "s3:GetObject", "beta", stem, "x/y", who, **APPROVED)
+            res = s3sim(policies, "s3:GetObject", "beta", stem, "x/y", who)
+            assert res.decision != "explicitDeny", (who.arn, stem)
+    # other environments stay isolated
+    assert s3sim(policies, "s3:GetObject", "beta", "reports", "x/y", fm_job("gamma")).decision == "explicitDeny"
 
 
-# ------------------------------------------------------------------ STO-03 FinanceModel grants
-def test_model_job_reads_approved_snapshot_only(policies: dict[str, Any]) -> None:
+def test_model_job_keeps_snapshot_and_staging_grants(policies: dict[str, Any]) -> None:
     fm = fm_job("beta")
-    key = "snap_A/payload/observations.json"
-    assert s3sim(policies, "s3:GetObject", "beta", "snapshots", key, fm, **APPROVED)
-    unapproved = s3sim(policies, "s3:GetObject", "beta", "snapshots", key, fm, **{"s3:ExistingObjectTag/snapshot-status": "committed"})
-    assert unapproved.decision == "explicitDeny" and "DenyFinanceModelUnapprovedSnapshotRead" in unapproved.resource_denies
-    untagged = s3sim(policies, "s3:GetObject", "beta", "snapshots", key, fm)
-    assert not untagged
-    # the same role cannot read plans
-    assert not s3sim(policies, "s3:GetObject", "beta", "plans", "pl_A/pv_A/content.json", fm)
-    # nor write snapshots
-    assert not s3sim(policies, "s3:PutObject", "beta", "snapshots", key, fm, **{"s3:if-none-match": "*"})
-
-
-def test_model_job_writes_only_under_staging_run_prefix_STG_01(policies: dict[str, Any]) -> None:
-    fm = fm_job("beta")
+    assert s3sim(policies, "s3:GetObject", "beta", "snapshots", "snap_A/payload/observations.json", fm, **APPROVED)
     assert s3sim(policies, "s3:PutObject", "beta", "run-staging-area", "staging/run_01KDVDNAZ83BAMMYCEGWF33DPM/manifest.json", fm)
-    for key in ("accepted/run_X/out.json", "staging/notarun/x.json", "other/x"):
-        assert not s3sim(policies, "s3:PutObject", "beta", "run-staging-area", key, fm), key
-    for bucket_stem in ("plans", "raw", "curated", "reports"):
-        assert not s3sim(policies, "s3:PutObject", "beta", bucket_stem, "x", fm)
-    # no cross-run reads (no read at all), no listing, no delete
-    assert not s3sim(policies, "s3:GetObject", "beta", "run-staging-area", "staging/run_OTHER/manifest.json", fm)
-    assert not s3sim(policies, "s3:ListBucket", "beta", "run-staging-area", None, fm)
-    assert not s3sim(policies, "s3:DeleteObject", "beta", "run-staging-area", "staging/run_X/a", fm)
-    # another environment's model job cannot write beta staging
     assert not s3sim(policies, "s3:PutObject", "beta", "run-staging-area", "staging/run_X/manifest.json", fm_job("gamma"))
 
 
@@ -168,25 +154,13 @@ def test_non_tls_and_other_key_denied(policies: dict[str, Any], foundation_synth
     assert ok
 
 
-# ------------------------------------------------------------------ STO-07
-def test_excel_uploads_readable_only_by_import_role_and_operators(policies: dict[str, Any]) -> None:
-    key = "uploads/excel/abc.xlsx"
-    assert s3sim(policies, "s3:GetObject", "beta", "raw", key, platform("beta", "plan-api-handler"))
-    assert s3sim(policies, "s3:GetObject", "beta", "raw", key, operator("beta"))
-    assert not s3sim(policies, "s3:GetObject", "beta", "raw", key, platform("beta", "ingestion-handler"))
-    assert not s3sim(policies, "s3:GetObject", "beta", "raw", key, tool("beta", "plan-writer"))
-    # the import role writes the incoming upload slot (presigned POST is signed by it)
-    assert s3sim(policies, "s3:PutObject", "beta", "raw", "uploads/incoming/imp_X.xlsx", platform("beta", "plan-api-handler"))
-
-
-# ------------------------------------------------------------------ MDS-01, MDS-07
+# ------------------------------------------------------------------ MDS-07
 @pytest.mark.parametrize("logical", ["portfolio", "plan", "plan_version", "publication", "execution", "snapshot_catalog", "staged_output", "idempotency", "audit_event"])
-def test_consumer_roles_denied_direct_metadata_access_MDS_01(policies: dict[str, Any], logical: str) -> None:
+def test_same_env_consumer_roles_are_not_blocked_by_table_policies(policies: dict[str, Any], logical: str) -> None:
     name = logical.replace("_", "-")
-    for who in (tool("beta", "reader"), tool("beta", "plan-writer"), fm_job("beta"), Principal.role("finplan-beta-financeagent-runtime-role", WORST)):
+    for who in (tool("beta", "reader"), fm_lambda("beta"), Principal.role("finplan-beta-financeagent-runtime-role", WORST)):
         for action in ("dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem"):
-            res = ddbsim(policies, action, "beta", name, who)
-            assert res.decision == "explicitDeny", (who.arn, action, logical)
+            assert ddbsim(policies, action, "beta", name, who).decision != "explicitDeny", (who.arn, action, logical)
     assert ddbsim(policies, "dynamodb:GetItem", "beta", name, platform("beta", "plan-api-handler"))
 
 
@@ -195,7 +169,7 @@ def test_gamma_platform_role_cannot_read_prod_metadata_MDS_07(policies: dict[str
     assert not ddbsim(policies, "dynamodb:GetItem", "prod", "plan-version", g)
     unbounded = Principal(g.arn, (WORST,))
     res = ddbsim(policies, "dynamodb:GetItem", "prod", "plan-version", unbounded)
-    assert res.decision == "explicitDeny" and "DenyDataAccessOutsidePlatform" in res.resource_denies
+    assert res.decision == "explicitDeny" and "DenyOtherEnvironmentPrincipals" in res.resource_denies
 
 
 # ------------------------------------------------------------------ MDS-06

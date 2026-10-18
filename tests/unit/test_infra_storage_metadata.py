@@ -105,7 +105,7 @@ def test_encryption_public_access_ownership_versioning(foundation_synth: dict[st
             assert p["VersioningConfiguration"] == {"Status": "Enabled"}  # STO-05: protection only
         for pol in _resources(foundation_synth, env, "storage", "AWS::S3::BucketPolicy").values():
             sids = {s.get("Sid") for s in pol["Properties"]["PolicyDocument"]["Statement"]}
-            assert {"DenyInsecureTransport", "DenyNonKmsEncryption", "DenyOtherKmsKey", "DenyOtherEnvironmentPrincipals", "DenyObjectAccessOutsideEnvironment"} <= sids
+            assert {"DenyInsecureTransport", "DenyNonKmsEncryption", "DenyOtherKmsKey", "DenyOtherEnvironmentPrincipals"} <= sids
 
 
 def test_write_once_policies_on_immutable_buckets(foundation_synth: dict[str, Any]) -> None:
@@ -181,7 +181,7 @@ def test_metadata_tables_on_demand_pitr_kms_tagged(foundation_synth: dict[str, A
         assert "Fn::ImportValue" in p["SSESpecification"]["KMSMasterKeyId"]  # the environment platform key
         tags = _tags(by_name[table_name(env, logical)])
         assert tags["environment"] == env and tags["logical-role"] == spec.logical_role and TAG_KEYS <= set(tags)
-        assert {s["Sid"] for s in p["ResourcePolicy"]["PolicyDocument"]["Statement"]} >= {"DenyDataAccessOutsidePlatform"}
+        assert {s["Sid"] for s in p["ResourcePolicy"]["PolicyDocument"]["Statement"]} >= {"DenyOtherEnvironmentPrincipals"}
         if spec.ttl_attribute:
             assert p["TimeToLiveSpecification"] == {"AttributeName": spec.ttl_attribute, "Enabled": True}
         gsi = {g["IndexName"] for g in p.get("GlobalSecondaryIndexes", [])}
