@@ -55,7 +55,7 @@ def test_crash_between_exports_replays_one_verified_revision_before_older_skip(t
     target=Path(first['directory']);assert (target/'.report-publication.pending.json').exists()
     monkeypatch.setattr(publication,'_atomic',original)
     recovered=write_report(old,tmp_path)
-    assert recovered['aliases_published']==[]
+    assert recovered['aliases_published']==[] and recovered['publication_recovered'] is True
     import json
     head=json.loads((target/'.report-heads/latest.json').read_bytes())
     result={'directory':str(target),'archive':str(target/head['archive'])}
@@ -126,3 +126,26 @@ def test_missing_cutoff_is_honest_empty_and_cannot_replace_known_data(tmp_path):
     real=write_report(candidate('2026-10-12T18:00:00Z'),tmp_path)
     empty['generated_at']='2026-10-12T19:00:00Z'
     assert write_report(empty,tmp_path)['aliases_published']==[];assert_aliases(real)
+
+
+def test_normal_publication_does_not_claim_crash_recovery(tmp_path):
+    assert write_report(candidate('2026-10-12T18:00:00Z'),tmp_path)['publication_recovered'] is False
+
+
+@pytest.mark.parametrize('changes',[{'start_day':'../../outside'}, {'end_day':'2026-02-30'}, {'period':'../../outside'}, {'mode':'unknown'}, {'end_day':'2026-10-01'}])
+def test_invalid_legacy_metadata_rejected_before_archive_read(tmp_path,monkeypatch,changes):
+    import json
+    from finplan_platform.reporting.transport import decode_transport,encode_transport
+    result=write_report(candidate('2026-10-12T18:00:00Z'),tmp_path)
+    target=Path(result['directory']);data=decode_transport(json.loads((target/'latest.json').read_bytes()));data.update(changes)
+    (target/'latest.json').write_text(json.dumps(encode_transport(data)))
+    (target/'.report-heads/latest.json').unlink()
+    original=publication._read;outside=[]
+    def guarded(path,*args,**kwargs):
+        if 'archive' in path.parts:
+            assert '..' not in path.parts
+            if not str(path.resolve()).startswith(str(target.resolve())+'/'):outside.append(str(path))
+        return original(path,*args,**kwargs)
+    monkeypatch.setattr(publication,'_read',guarded)
+    with pytest.raises(EvidenceError,match='Invalid legacy report'):write_report(candidate('2026-10-12T19:00:00Z'),tmp_path)
+    assert not outside
