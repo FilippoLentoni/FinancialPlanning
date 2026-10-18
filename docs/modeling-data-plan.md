@@ -1,10 +1,17 @@
 # Modeling data: deployed beta inventory and next schema change
 
-This is the storage design for the next implementation phase. It does not claim that new tables, model families, or schedulers have been deployed. The permission change preserves every deployed table key and record.
+This document preserves the original design and pre-change inventory. The beta
+implementation is now documented in [modeling-evidence-storage.md](modeling-evidence-storage.md)
+and [beta-modeling-reports.md](beta-modeling-reports.md). Live verification on
+2026-10-17 confirmed the three additive evidence tables and their nine indexes,
+bringing the beta inventory to sixteen tables while preserving the original
+thirteen tables' keys and indexes. Deployment and scheduled-run evidence are
+recorded in the EC2 `.worktmp/beta-modeling/CHECKPOINT.md`; the design below alone
+is not proof that a model or scheduled cycle ran.
 
 ## Existing authoritative stores
 
-The live beta inventory contains twelve FinancialPlanning tables plus the FinanceModel job-control table. FinancialPlanning tables use a string `pk`; audit events add `sk`. Application documents are canonical JSON in `doc`, with selected scalar fields copied to top-level attributes for conditions and indexes. DynamoDB accepts additional non-key attributes; adding model input/output fields does not require replacing every table.
+The original beta inventory contained twelve FinancialPlanning tables plus the FinanceModel job-control table. FinancialPlanning tables use a string `pk`; audit events add `sk`. Application documents are canonical JSON in `doc`, with selected scalar fields copied to top-level attributes for conditions and indexes. DynamoDB accepts additional non-key attributes; adding model input/output fields does not require replacing every table.
 
 | Existing store | Retain its purpose |
 | --- | --- |
