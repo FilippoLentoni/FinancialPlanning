@@ -456,3 +456,24 @@ If a legacy/concurrent producer left more than the queue cap, the reader process
 a bounded prefix and reports a lower-bound pending count; it does not discard
 excess tasks or refuse all progress. Weekly task publication serializes its capacity
 check with a private lock. Concurrent/new task files survive acknowledgments.
+
+Report publication uses a target-directory `flock` shared by all writers of that
+alias directory. Private `.report-heads/<period>.json` and `latest.json` bind the
+current aliases to a checksum-verified immutable archive. A durable
+`.report-publication.pending.json` records at most two alias updates before the
+first export changes. The next writer completes interrupted publication from
+that exact archive before considering a new revision; it verifies an existing
+newer head before recovering an older intent. Immutable source files and their
+parent directories are fsynced before this intent is written. Dated aliases never
+regress either their data cutoff or generated timestamp. The latest alias also
+never regresses its reporting period; historical repairs use
+`update_latest=False`. Existing aliases without heads are migrated once by a
+bounded transport decode and direct verification against their computed archive
+revision, with no archive directory scan. A mismatched or corrupt legacy export
+fails visibly rather than replacing evidence whose freshness cannot be proved.
+
+An external reader opening separate files while a publication is in progress
+should use the immutable archive path/manifest for a single revision. After a
+crash, invoke the normal report command to recover the small pending publication
+before using the mutable aliases. No original captured input or archived report
+is rewritten by this recovery.
