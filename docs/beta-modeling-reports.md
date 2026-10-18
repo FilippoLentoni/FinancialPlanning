@@ -506,3 +506,16 @@ report tasks are removed only after the exact receipt appears in a successfully
 published dated archive. The same late-day and bounded weekly repair queue
 preserves historical worker inputs and costs. Controlled worker fixture tests
 are replay evidence, not live GPU/model performance.
+
+If a managed policy is issued before New York midnight and the managed job ends
+after midnight, its immutable `finplan-managed-inference-issue-link/1` observation
+is indexed at the original `issued_at`. It references the original inference and
+cost observation IDs/checksums without copying artifacts or moving costs. The
+issue-day archive uses at most two strong receipt reads per link, including when
+the day index lags. The terminal-day view labels the same policy as an outcome
+update, not a new recommendation. A weekly window contains one permanent worker
+attempt/recommendation and one cost event. The third prior-day refresh task must
+be durable before Model outbox acknowledgement; report acknowledgement still
+requires its exact link receipt in the published dated archive. Controlled tests
+exercise NY23:59:58 issue/00:00:05 terminal, both dated archives, original artifact
+downloads, weekly deduplication and no portfolio revision/fill changes.

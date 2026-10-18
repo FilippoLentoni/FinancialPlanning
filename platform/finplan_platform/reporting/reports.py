@@ -591,6 +591,8 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         observations.extend(dict(receipt) for receipt in required_observations)
     runs = _unique(runs, "run_id")
     observations = _unique(observations, "observation_id")
+    from .managed_evidence import resolve_issue_links
+    observations.extend(resolve_issue_links(reader, observations, experiment_id=experiment_id, generated_at=generated_at))
     # Normalize authoritative storage field names without reconstructing inputs.
     for run in runs:
         run.setdefault("scheduled_slot", run.get("slot"))
@@ -957,7 +959,7 @@ def consolidate(reports: list[dict]) -> dict:
     combined = dict(reports[0])
     combined["report_io_by_experiment"] = {r["experiment_id"]:r.get("report_io",{}) for r in reports}
     combined.update(registry=[], runs=[], observations=[], forecasts=[], missing_slots=[], evidence_failures=[],
-                    inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], managed_cost_events=[], managed_inference_events=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
+                    inputs={}, artifact_chunks={}, additional_inputs={}, ancillary_evidence=[], managed_cost_events=[], managed_inference_events=[], managed_inference_issue_links=[], execution_events=[] if all(r.get("execution_events") is not None for r in reports) else None, source_record_ids={"runs": [], "observations": []},
                     experiments=[{"experiment_id": r["experiment_id"], "comparison_policy": r["comparison_policy"],
                                   "expected_slot_manifest_available": r["expected_slot_manifest_available"]} for r in reports])
     book_ids, run_ids = set(), set()
@@ -985,6 +987,7 @@ def consolidate(reports: list[dict]) -> dict:
         combined["ancillary_evidence"].extend(report.get("ancillary_evidence", []))
         combined["managed_cost_events"].extend({**e,"source_approach_id":e["approach_id"],"approach_id":f"{experiment}::{e['approach_id']}"} for e in report.get("managed_cost_events",[]))
         combined["managed_inference_events"].extend({**e,"source_approach_id":e["approach_id"],"approach_id":f"{experiment}::{e['approach_id']}"} for e in report.get("managed_inference_events",[]))
+        combined["managed_inference_issue_links"].extend(report.get("managed_inference_issue_links",[]))
         if combined["execution_events"] is not None:
             combined["execution_events"].extend({**e, "source_approach_id": e["approach_id"], "approach_id": f"{experiment}::{e['approach_id']}"} for e in report["execution_events"])
         for key in ("runs", "observations"):
@@ -1017,7 +1020,7 @@ def csv_export(report: dict) -> str:
         writer.writerow(row)
     for event in report.get("managed_inference_events",[]):
         policy=event.get("policy") or {}
-        row={"row_kind":"managed_worker_nontrading", "event_id":event['event_id'],"run_id":event['event_id'],
+        row={"row_kind":"managed_worker_outcome_update"if event.get("outcome_update_only")else"managed_worker_nontrading", "event_id":event['event_id'],"run_id":event['event_id'],
              "managed_run_id":event['managed_run_id'],"origin_run_id":event.get('origin_run_id'),"origin_input_id":event.get('origin_input_id'),
              "experiment_id":event['experiment_id'],"approach_id":event['approach_id'],"source_approach_id":event.get('source_approach_id',event['approach_id']),"portfolio_id":event['portfolio_id'],
              "decision_time":event.get('decision_time'),"worker_occurred_at":event['occurred_at'],"scheduled_slot":event.get('scheduled_slot'),"availability_cutoff":event.get('availability_cutoff'),
