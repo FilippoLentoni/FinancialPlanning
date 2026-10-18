@@ -622,7 +622,10 @@ class ModelingEvidence:
         settings = rec.doc.get("settings", {})
         if rec.doc.get("synthetic") is not True or settings.get("isolated_experiment") is not True:
             raise PlatformError.not_permitted("automatic experiment path requires an isolated synthetic book")
-        return {"portfolio_id": portfolio_id, "revision": rec.attrs["paper_state_revision"], "paper_state": copy.deepcopy(rec.attrs["paper_state"]), **settings}
+        # Book inception is immutable metadata, unlike paper_state.as_of (the
+        # latest rebalance/mark). Action eligibility must never infer acquisition
+        # from an advancing state timestamp or a caller's settings.
+        return {"portfolio_id": portfolio_id, "revision": rec.attrs["paper_state_revision"], "paper_state": copy.deepcopy(rec.attrs["paper_state"]), **settings, "created_at": rec.doc.get("created_at")}
 
     def _native_input_identity(self, source, shared_ref, run, book):
         """Verify an already captured native source; never manufacture a snapshot ID."""

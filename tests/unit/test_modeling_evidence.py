@@ -1,5 +1,7 @@
 """Exact inference evidence and permanent isolated-ledger guards; fake and real Dynamo syntax."""
+import copy
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -73,10 +75,42 @@ def test_paper_commit_permanent_retry_and_competing_revision(evidence):
     result = e.commit_paper_step(run["run_id"], 1, state, fills, execution, AT)
     assert e.commit_paper_step(run["run_id"], 1, state, fills, execution, AT) == result
     assert e.get_portfolio(book["portfolio_id"])["revision"] == 2
+    assert e.get_portfolio(book["portfolio_id"])["created_at"] == book["created_at"]
     with pytest.raises(PlatformError, match="revision changed"):
         e.commit_paper_step(competing["run_id"], 1, state, fills, execution, LATER)
     assert e.repo.get("portfolio_history", f"{book['portfolio_id']}:00000000000000000002")
     assert e.repo.get("portfolio_decision", result["decision_id"])
+
+
+def test_book_creation_metadata_read_is_authoritative_without_writes_or_extra_reads(evidence, monkeypatch):
+    book = evidence.ensure_portfolio("creation-bound", "cash", 1000, ["SPY"], AT)
+    record = evidence.repo.require("portfolio", book["portfolio_id"])
+    original_doc, original_attrs = copy.deepcopy(record.doc), copy.deepcopy(record.attrs)
+    require = evidence.repo.require
+    calls = []
+    def read(logical, record_id):
+        calls.append((logical, record_id))
+        return require(logical, record_id)
+    def no_write(*args, **kwargs):
+        raise AssertionError("Portfolio metadata read must not publish a mutation")
+    monkeypatch.setattr(evidence.repo, "require", read)
+    monkeypatch.setattr(evidence.repo, "commit", no_write)
+    loaded = evidence.get_portfolio(book["portfolio_id"])
+    assert loaded["created_at"] == original_doc["created_at"]
+    assert calls == [("portfolio", book["portfolio_id"])]
+    assert record.doc == original_doc and record.attrs == original_attrs
+    loaded["paper_state"]["as_of"] = "2026-02-01"
+    assert evidence.get_portfolio(book["portfolio_id"])["created_at"] == original_doc["created_at"]
+
+
+def test_book_settings_cannot_override_original_creation_metadata(evidence, monkeypatch):
+    book = evidence.ensure_portfolio("creation-setting", "cash", 1000, ["SPY"], AT)
+    record = evidence.repo.require("portfolio", book["portfolio_id"])
+    doc = copy.deepcopy(record.doc)
+    doc["settings"]["created_at"] = LATER
+    shadow = replace(record, doc=doc)
+    monkeypatch.setattr(evidence.repo, "require", lambda *args: shadow)
+    assert evidence.get_portfolio(book["portfolio_id"])["created_at"] == record.doc["created_at"]
 
 
 def test_no_automatic_user_book_and_no_off_session_fills(evidence):
