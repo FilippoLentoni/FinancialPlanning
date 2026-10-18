@@ -21,7 +21,7 @@ T2 = DAY + "T16:00:00+00:00"
 def embedded_implementation(html):
     # The trusted self-contained implementation is installed after bounded gzip
     # bootstrap; this helper is only for existing source-smoke assertions.
-    return base64.b64decode(re.search(r"atob\('([A-Za-z0-9+/=]+)'\)", html).group(1)).decode()
+    return "\n".join(base64.b64decode(value).decode() for value in re.findall(r"atob\('([A-Za-z0-9+/=]+)'\)", html))
 
 
 def registry():

@@ -2,6 +2,7 @@
 from __future__ import annotations
 import base64
 from collections import Counter
+from .pages import PAGE_CODEC, PageStore, PageChunks, PageLexemes, page_columnar, restore_page_strings
 import gzip
 import hashlib
 import json
@@ -72,9 +73,17 @@ def pack_transient_bytes(raw, pool):
 
 def unpack_bytes(capture, pool):
     if capture['size_bytes'] > MAX_ARTIFACT_BYTES: raise ValueError('Original evidence exceeds32MiB limit')
-    parts = []
+    parts = []; total=0
     for cid in capture['raw_chunks']:
-        chunk = pool[cid]; compressed = base64.b64decode(chunk['data'], validate=True)
+        chunk = pool[cid]
+        if chunk['size_bytes'] > capture['size_bytes']-total: raise ValueError('Original chunks exceed declared artifact size')
+        total+=chunk['size_bytes']
+        if chunk.get('encoding') == 'byte-page-range/1':
+            part = pool.page_store.read('index', chunk['offset'], chunk['size_bytes'])
+            if sha(part) != cid: raise ValueError('Original index chunk checksum mismatch')
+            parts.append(part)
+            continue
+        compressed = base64.b64decode(chunk['data'], validate=True)
         if chunk.get('compressed_checksum') and sha(compressed) != chunk['compressed_checksum']:
             raise ValueError('Compressed evidence chunk checksum mismatch')
         if chunk['size_bytes'] > MAX_ARTIFACT_BYTES: raise ValueError('Original chunk exceeds32MiB limit')
@@ -118,11 +127,11 @@ OBS_LAZY = {'payload','market_session_evidence','report_key','time_key','approac
 
 def compact_report(report):
     """Keep complete normalized metrics plus lazy lossless source/evidence documents."""
-    if report.get('transport_codec') in (CODEC,'modeling-report-columnar/1'):
+    if report.get('transport_codec') in (CODEC,'modeling-report-columnar/1',PAGE_CODEC):
         return report
     if report.get('read_model_compacted'):
         return report
-    result = dict(report); pool = {}; lexemes=Lexemes(); inputs = {}; additional = {}
+    result = dict(report); pool = {}; lexemes=Lexemes(page_transport=True); inputs = {}; additional = {}
     pack=lambda raw:pack_json_bytes(raw,pool,lexemes)
     for run_id, capture in report['inputs'].items():
         raw = _original(capture, report.get('artifact_chunks', {})); payload = json.loads(raw)
@@ -135,9 +144,9 @@ def compact_report(report):
     for run_id, layers in report.get('additional_inputs',{}).items():
         additional[run_id] = [{**pack(_original(layer,report.get('artifact_chunks',{}))),
                               'metadata':layer.get('metadata',{}),'kind':layer['kind']} for layer in layers]
-    for field, lazy in [('runs',RUN_LAZY),('observations',OBS_LAZY)]:
+    for field, lazy in [('runs',RUN_LAZY),('observations',OBS_LAZY),('ancillary_evidence',OBS_LAZY)]:
         rows=[]
-        for row in report[field]:
+        for row in report.get(field,[]):
             evidence=pack(canonical(row))
             normalized={k:v for k,v in row.items() if k not in lazy and v is not None and v != [] and v != {}}
             triggers=[v for v in (row.get('trigger'),(row.get('metadata') or {}).get('trigger'),(row.get('outcome') or {}).get('trigger'),(row.get('output') or {}).get('trigger')) if v]
@@ -145,21 +154,43 @@ def compact_report(report):
             normalized['source_evidence_ref']=evidence
             rows.append(normalized)
         result[field]=rows
-    result.update(inputs=inputs,additional_inputs=additional,artifact_chunks=pool,artifact_lexemes=lexemes.values,read_model_compacted=True,
+    result.update(inputs=inputs,additional_inputs=additional,artifact_chunks=pool,artifact_lexemes=lexemes.values,read_model_compacted=True,ancillary_evidence_compacted=True,
                   source_evidence_serialization='Canonical lossless full report-normalized row; input references preserve original captured bytes, not regenerated JSON.')
     return result
 
 
-def _encode_columnar(report):
+def _compact_existing_ancillary(report):
+    if not report.get('read_model_compacted') or report.get('ancillary_evidence_compacted'):
+        return report
+    result=dict(report); pool=report['artifact_chunks']
+    if isinstance(pool,PageChunks):
+        raise ValueError('Paged report lacks ancillary compaction marker; mixed index encodings are forbidden')
+    else: pool=dict(pool)
+    lexemes=Lexemes(page_transport=True); source=report.get('artifact_lexemes',[])
+    lexemes.values=list(source)
+    # Legacy archives are transcoded without changing any original token/index.
+    if isinstance(source,PageLexemes):
+        lexemes.values=[base64.b64encode(source.page_store.read('lexeme',*v)).decode() for v in source]
+    lexemes.indices={_decode_lexeme(v):i for i,v in enumerate(lexemes.values)}
+    lexemes.encoded_bytes=sum(len(canonical(v))+1 for v in lexemes.values)
+    rows=[]
+    for row in report.get('ancillary_evidence',[]):
+        ref=pack_json_bytes(canonical(row),pool,lexemes)
+        rows.append({**{k:v for k,v in row.items() if k not in OBS_LAZY and v is not None and v!=[] and v!={}},'source_evidence_ref':ref})
+    result.update(ancillary_evidence=rows,artifact_chunks=pool,artifact_lexemes=lexemes.values,ancillary_evidence_compacted=True)
+    return result
+
+
+def _encode_columnar(report,*,measure=True):
     """Columnar repeated row keys and interned repeated strings reduce the read model.
 
     This is reversible encoding, not omission. Decoder expands normalized rows;
     bulky evidence and actual model inputs remain lazy original-byte artifacts.
     """
-    if report.get('transport_codec') in (CODEC,'modeling-report-columnar/1'):
+    if report.get('transport_codec') in (CODEC,'modeling-report-columnar/1',PAGE_CODEC):
         return report
-    compact=compact_report(report); data=dict(compact)
-    for field in ('runs','observations'):
+    compact=_compact_existing_ancillary(compact_report(report)); data=dict(compact)
+    for field in ('runs','observations','ancillary_evidence'):
         rows=data.pop(field); keys=sorted({k for row in rows for k in row})
         data[field+'_columns']=keys
         data[field+'_values']=[[row.get(k) for k in keys] for row in rows]
@@ -173,7 +204,8 @@ def _encode_columnar(report):
             return {k:([chunk_indices[cid] for cid in v] if owned and k in ('raw_chunks','lexeme_chunks') else index_refs(v)) for k,v in value.items()}
         return value
     data=index_refs(data)
-    chunk_values=[[cid,pool[cid]['size_bytes'],pool[cid]['data']] for cid in chunk_ids]
+    paged=isinstance(pool,PageChunks)
+    chunk_values=[[cid,pool[cid]['size_bytes'],pool[cid]['offset']] for cid in chunk_ids] if paged else [[cid,pool[cid]['size_bytes'],pool[cid]['data']] for cid in chunk_ids]
     def visit(value):
         if isinstance(value,str) and len(value)>=20: counts[value]+=1
         elif isinstance(value,list):
@@ -189,8 +221,12 @@ def _encode_columnar(report):
             result={k:encode(v) for k,v in value.items()}
             return {'$literal':result} if set(result) in ({'$s'},{'$literal'}) else result
         return value
-    encoded={'transport_codec':CODEC,'strings':strings,'data':encode(data),'artifact_chunk_values':chunk_values,'artifact_lexemes':lexemes,
+    encoded={'transport_codec':PAGE_CODEC if paged else CODEC,'strings':strings,'data':encode(data),'artifact_chunk_values':chunk_values,'artifact_lexemes':lexemes,
              'limits':{'max_transport_bytes':MAX_TRANSPORT_BYTES,'max_original_artifact_bytes':MAX_ARTIFACT_BYTES,'decoded_artifact_cache_entries':2}}
+    if paged:
+        encoded.update(index_pages=pool.page_store.groups['index'],lexeme_pages=pool.page_store.groups['lexeme'])
+        encoded['data'].pop('artifact_pages',None)
+    if not measure:return encoded
     size=len(canonical(encoded))
     if size>MAX_DECODED_TRANSPORT_BYTES:
         raise ValueError(f'Decoded report transport exceeds384MiB limit ({size}bytes); no evidence was silently truncated. Preserve current revision and investigate source growth.')
@@ -206,8 +242,10 @@ def decode_transport(encoded):
         inflater=zlib.decompressobj(16+zlib.MAX_WBITS);raw=inflater.decompress(base64.b64decode(encoded['data'],validate=True),size+1)
         if len(raw)!=size or not inflater.eof or sha(raw)!=encoded['decoded_checksum']:raise ValueError('Decoded report transport size/checksum mismatch')
         return decode_transport(json.loads(raw))
-    if encoded.get('transport_codec') not in (CODEC,'modeling-report-columnar/1'):return encoded
-    strings=encoded['strings']
+    if encoded.get('transport_codec') not in (CODEC,'modeling-report-columnar/1',PAGE_CODEC):return encoded
+    paged=encoded.get('transport_codec')==PAGE_CODEC
+    store=PageStore(encoded['index_pages'],encoded['lexeme_pages']) if paged else None
+    strings=restore_page_strings(encoded,store) if paged else encoded['strings']
     def decode(value):
         if isinstance(value,list):return [decode(v) for v in value]
         if isinstance(value,dict):
@@ -224,9 +262,17 @@ def decode_transport(encoded):
             return {k:([chunk_values[i][0] for i in v] if owned and k in ('raw_chunks','lexeme_chunks') else restore_refs(v)) for k,v in value.items()}
         return value
     if chunk_values is not None:data=restore_refs(data)
-    for field in ('runs','observations'):
+    for field in ('runs','observations','ancillary_evidence'):
+        if field+'_columns' not in data: continue
         keys=data.pop(field+'_columns'); data[field]=[{k:v for k,v in zip(keys,row) if v is not None} for row in data.pop(field+'_values')]
-    data['inputs']=dict(data.pop('input_values'));data['artifact_chunks']={cid:{'encoding':'gzip+base64','checksum':cid,'size_bytes':size,'data':value,'compressed_checksum':sha(base64.b64decode(value))} for cid,size,value in chunk_values} if chunk_values is not None else encoded['artifact_chunks'];data['artifact_lexemes']=encoded.get('artifact_lexemes',[])
+    data['inputs']=dict(data.pop('input_values'))
+    if paged:
+        data['artifact_chunks']=PageChunks({cid:{'encoding':'byte-page-range/1','checksum':cid,'size_bytes':size,'offset':value} for cid,size,value in chunk_values},store)
+        data['artifact_lexemes']=PageLexemes(encoded['artifact_lexemes'],store)
+        data['artifact_pages']={'index_pages':encoded['index_pages'],'lexeme_pages':encoded['lexeme_pages']}
+    else:
+        data['artifact_chunks']={cid:{'encoding':'gzip+base64','checksum':cid,'size_bytes':size,'data':value,'compressed_checksum':sha(base64.b64decode(value))} for cid,size,value in chunk_values} if chunk_values is not None else encoded['artifact_chunks']
+        data['artifact_lexemes']=encoded.get('artifact_lexemes',[])
     return data
 
 # JSON lexical tokens include their ORIGINAL quote/escape/numeric/whitespace bytes.
@@ -236,7 +282,9 @@ _JSON_TOKEN = re.compile(rb'"(?:\\.|[^"\\])*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?
 
 
 class Lexemes:
-    def __init__(self): self.values=[]; self.indices={};self.encoded_indices={};self.encoded_bytes=0
+    def __init__(self,*,page_transport=False):
+        self.values=[]; self.indices={};self.encoded_indices={};self.encoded_bytes=0
+        self.page_transport=page_transport;self.builder_bytes=0
     def intern(self,token):
         existing=self.indices.get(token)
         if existing is not None:return existing
@@ -245,7 +293,12 @@ class Lexemes:
             compressed=base64.b64encode(gzip.compress(token,compresslevel=6,mtime=0)).decode()
             if len(compressed)+32<len(encoded): encoded=[len(token),compressed]
         self.values.append(encoded);self.encoded_bytes+=len(canonical(encoded))+1
-        if self.encoded_bytes>MAX_TRANSPORT_BYTES:raise ValueError('Original lexeme evidence exceeds150MiB bound; no evidence was silently truncated')
+        if self.page_transport:
+            import sys
+            from .pages import MAX_BUILDER_MEMORY_BYTES,encoded_memory
+            self.builder_bytes+=sys.getsizeof(token)+encoded_memory(encoded)+256
+            if self.builder_bytes>MAX_BUILDER_MEMORY_BYTES:raise ValueError('Report byte dictionary exceeds explicit1GiB builder-memory budget; no evidence truncated')
+        if not self.page_transport and self.encoded_bytes>MAX_TRANSPORT_BYTES:raise ValueError('Original lexeme evidence exceeds150MiB bound; no evidence was silently truncated')
         return index
 
 
@@ -286,7 +339,7 @@ def unpack_json_bytes(capture,pool,lexemes):
                 shift+=7
                 if shift>35:raise ValueError('Invalid lexeme index')
             else:
-                output.extend(_decode_lexeme(lexemes[number]));number=0;shift=0
+                output.extend(_decode_lexeme(lexemes[number],getattr(lexemes,'page_store',None)));number=0;shift=0
                 if len(output)>capture['size_bytes']:raise ValueError('Lexeme expansion exceeds original artifact bound')
         if shift:raise ValueError('Incomplete lexeme index')
     raw=bytes(output)
@@ -302,7 +355,9 @@ def _pack_index_chunk(raw,pool):
     return cid
 
 
-def _decode_lexeme(value):
+def _decode_lexeme(value,page_store=None):
+    if page_store is not None:
+        return page_store.read('lexeme',*value)
     if isinstance(value,str):return base64.b64decode(value,validate=True)
     size,encoded=value
     if size>MAX_ARTIFACT_BYTES:raise ValueError('Original lexeme exceeds artifact bound')
@@ -314,9 +369,10 @@ def _decode_lexeme(value):
 
 def encode_transport(report):
     if report.get('transport_codec')==GZIP_CODEC:return report
-    columnar=_encode_columnar(report);raw=canonical(columnar)
+    columnar=page_columnar(_encode_columnar(report,measure=False));raw=canonical(columnar)
+    if len(raw)>MAX_DECODED_TRANSPORT_BYTES:raise ValueError(f'Decoded report transport exceeds384MiB limit ({len(raw)}bytes); no evidence was silently truncated. Preserve current revision and investigate source growth.')
     result={'transport_codec':GZIP_CODEC,'encoding':'gzip+base64','decoded_checksum':sha(raw),'decoded_size_bytes':len(raw),
-            'data':base64.b64encode(gzip.compress(raw,compresslevel=6,mtime=0)).decode(),
+            'data':base64.b64encode(gzip.compress(raw,compresslevel=9,mtime=0)).decode(),
             'limits':{'max_transport_bytes':MAX_TRANSPORT_BYTES,'max_decoded_transport_bytes':MAX_DECODED_TRANSPORT_BYTES,
                       'max_original_artifact_bytes':MAX_ARTIFACT_BYTES,'decoded_artifact_cache_bytes':64*1024*1024,'decoded_lexeme_cache_bytes':8*1024*1024}}
     size=len(canonical(result))
