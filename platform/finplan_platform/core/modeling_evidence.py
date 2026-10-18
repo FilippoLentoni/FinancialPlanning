@@ -258,7 +258,194 @@ class ModelingEvidence:
         if record.attrs.get("realization_ref"):
             result["forecast_realization_ref"] = record.attrs["realization_ref"]
             result["forecast_realization"] = json.loads(self.read_artifact_bytes(record.attrs["realization_ref"]))
+        if doc.get("execution_disposition_ref"):
+            result["execution_disposition"] = json.loads(self.read_artifact_bytes(doc["execution_disposition_ref"]))
         return result
+
+    @staticmethod
+    def _run_header(record) -> dict[str, Any]:
+        # Metadata only. In particular, do not read output/input/forecast artifacts
+        # merely to decide which old policy is still eligible for execution.
+        fields = ("invocation_revision", "lease_owner", "lease_until", "forecast_state", "forecast_target", "realization_ref", "execution_frontier_revision", "execution_frontier_ref")
+        return {**record.doc, **{key: record.attrs[key] for key in fields if key in record.attrs}}
+
+    def read_run_header(self, run_id: str) -> dict[str, Any]:
+        """One strongly consistent metadata read, without any S3 expansion."""
+        return self._run_header(self.repo.require("research_run", run_id))
+
+    def query_run_headers(self, experiment_id: str, approach_id: str, before_slot: str, *, page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
+        """Bounded newest-first run metadata strictly before a decision slot.
+
+        The existing GSI is eventually consistent. Call read_run_header on a
+        selected candidate/barrier/lease before acting; mutations independently
+        recheck affected heads and conditionally commit. This method performs no
+        per-row GET or artifact read, so historical model tensors are not fetched.
+        """
+        if not 1 <= page_size <= 100:
+            raise PlatformError.validation("run header page must contain 1..100 rows")
+        before_slot = _slot(before_slot)
+        partition = f"{experiment_id}#{approach_id}"
+        scope = f"research_run:approach-index:{partition}:{before_slot}"
+        cursor = None
+        if next_token:
+            try:
+                token = json.loads(base64.urlsafe_b64decode(next_token))
+                if token["scope"] != scope:
+                    raise ValueError()
+                cursor = token["cursor"]
+            except (ValueError, KeyError, TypeError):
+                raise PlatformError.validation("run header token has wrong query scope") from None
+        # _keys uses UTC isoformat (+00:00), not the Z-form observation-time key.
+        # Omitting '#run_id' excludes every run exactly at before_slot.
+        rows, cursor = self.repo.query_index("research_run", "approach-index", partition, newest_first=True, limit=page_size, page_token=cursor, sort_upper_bound=_timestamp(before_slot).isoformat())
+        encoded = base64.urlsafe_b64encode(json.dumps({"scope": scope, "cursor": cursor}).encode()).decode() if cursor else None
+        return [self._run_header(row) for row in rows], encoded
+
+    def mark_execution_superseded(self, run_id: str, replacement_run_id: str, recorded_at: str) -> dict[str, Any]:
+        """Permanently retire an older policy without creating any paper execution.
+
+        Only the run status/disposition pointer, immutable ancillary observation,
+        and audit change. Original inference/input/forecast bytes and portfolio
+        state/history remain untouched. The status CAS makes execution and
+        supersession mutually exclusive. Callers cleaning multiple old policies
+        must work oldest first and stop on failure before using a terminal header
+        as proof that every older pending policy has already been disposed.
+        """
+        recorded_at = _slot(recorded_at)
+        old = self.repo.require("research_run", run_id).doc
+        if old.get("execution_disposition_ref"):
+            return json.loads(self.read_artifact_bytes(old["execution_disposition_ref"]))
+        eligible = {"succeeded", "hold", "reused", "pending_execution"}
+        if old.get("execution_ref") or old["status"] not in eligible:
+            raise PlatformError.precondition("only an unexecuted completed policy can be superseded")
+        replacement = self.repo.require("research_run", replacement_run_id).doc
+        identity = ("experiment_id", "approach_id", "portfolio_id")
+        if any(old[field] != replacement[field] for field in identity) or _timestamp(replacement["slot"]) <= _timestamp(old["slot"]):
+            raise PlatformError.validation("replacement policy must belong to the same approach/book at a later slot")
+        if replacement["status"] not in eligible | {"applied", "no_op"} or replacement.get("execution_disposition_ref") or not replacement.get("output_ref"):
+            raise PlatformError.precondition("replacement must be a genuine completed policy")
+        if _timestamp(replacement.get("finished_at", replacement["started_at"])) > _timestamp(recorded_at):
+            raise PlatformError.validation("replacement policy was not available at disposition time")
+        outcome = json.loads(self.read_artifact_bytes(replacement["output_ref"]))
+        if outcome.get("status") not in {"succeeded", "hold", "reused"} or "target_weights" not in outcome or "cash_weight" not in outcome:
+            raise PlatformError.precondition("replacement has no validated allocation policy")
+        book = self.get_portfolio(old["portfolio_id"])
+        if (book["experiment_id"], book["approach_id"]) != (old["experiment_id"], old["approach_id"]):
+            raise PlatformError.not_permitted("run does not own its isolated synthetic book")
+        weights = outcome["target_weights"]
+        if isinstance(weights, list):
+            if any(not isinstance(row, dict) or "instrument_id" not in row or "weight" not in row for row in weights) or len({row["instrument_id"] for row in weights}) != len(weights):
+                raise PlatformError.precondition("replacement has an invalid allocation policy")
+            weights = {row["instrument_id"]: row["weight"] for row in weights}
+        cash_weight = outcome["cash_weight"]
+        values = [*weights.values(), cash_weight] if isinstance(weights, dict) else []
+        if not isinstance(weights, dict) or not set(weights) <= set(book["universe"]) or not all(isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 1 for value in values) or not math.isclose(sum(values), 1, rel_tol=1e-9, abs_tol=1e-8):
+            raise PlatformError.precondition("replacement has an invalid allocation policy")
+        payload = {"schema_version": "modeling-execution-disposition/1", "status": "superseded", "run_id": run_id, "input_id": old["input_id"], "experiment_id": old["experiment_id"], "approach_id": old["approach_id"], "portfolio_id": old["portfolio_id"], "decision_slot": old["slot"], "replacement_run_id": replacement_run_id, "replacement_input_id": replacement["input_id"], "replacement_slot": replacement["slot"], "reason": "A newer completed policy supersedes this pending policy before any eligible execution", "recorded_at": recorded_at, "ledger_committed": False, "simulated_fills": []}
+        ref = self._artifact("execution-dispositions", run_id, payload)
+        new = {**old, "status": "superseded", "execution_disposition_state": "superseded", "execution_disposition_ref": ref}
+        oid = _id("mo", run_id, "execution_disposition")
+        event = {"schema_version": "modeling-evidence/1", "environment": "beta", "synthetic": True, "observation_id": oid, "kind": "execution_disposition", "experiment_id": old["experiment_id"], "approach_id": old["approach_id"], "portfolio_id": old["portfolio_id"], "portfolio_revision": old["portfolio_revision"], "run_id": run_id, "input_id": old["input_id"], "slot": recorded_at, "decision_slot": old["slot"], "observed_at": recorded_at, "observed_key": _index_time(recorded_at) + "#" + oid, **ref, **self._keys(old["experiment_id"], old["approach_id"], recorded_at, oid)}
+        try:
+            self.repo.commit([Transition("research_run", record_id=run_id, old_doc=old, new_doc=new), Check("research_run", record_id=replacement_run_id, condition=Cond.eq("status", replacement["status"])), PutNew("portfolio_observation", doc=event)], audit=[audit_event(self._ctx(recorded_at), record_id=run_id, record_type="research_run", operation="supersede_pending_experiment_policy", prior={"status": old["status"]}, new={"status": "superseded"}, replacement_run_id=replacement_run_id)])
+        except PlatformError:
+            current = self.repo.require("research_run", run_id).doc
+            if not current.get("execution_disposition_ref"):
+                raise
+            return json.loads(self.read_artifact_bytes(current["execution_disposition_ref"]))
+        return payload
+
+    def read_execution_frontier(self, run_id: str) -> dict[str, Any] | None:
+        """Strongly read a small cleanup proof, never the model input/output."""
+        header = self.read_run_header(run_id)
+        ref = header.get("execution_frontier_ref")
+        if not ref:
+            return None
+        payload = json.loads(self.read_artifact_bytes(ref))
+        if payload.get("frontier_run_id") != run_id or any(payload.get(field) != header[field] for field in ("experiment_id", "approach_id", "portfolio_id")) or _timestamp(payload["covered_through_slot"]) != _timestamp(header["slot"]):
+            raise PlatformError.validation("execution frontier proof belongs to another run/book")
+        return payload
+
+    def record_execution_frontier(self, frontier_run_id: str, pending_run_id: str | None, recorded_at: str, *, previous_frontier_run_id: str | None = None) -> dict[str, Any]:
+        """Checkpoint all older execution candidates except one explicit pending run.
+
+        The first proof checks bounded metadata history; later proofs check only
+        the interval since a verified previous frontier, plus its pending pointer.
+        No model artifacts, forecasts, ledger state or observations are rewritten.
+        Call only after oldest-first cleanup succeeds. Any unresolved extra run,
+        running lease, corrupt prior proof or page overflow prevents advancement.
+        A caller must follow the retained pending pointer on subsequent ticks,
+        even if the newest many runs have failed/unavailable outcomes.
+        """
+        recorded_at = _slot(recorded_at)
+        frontier = self.read_run_header(frontier_run_id)
+        existing = self.read_execution_frontier(frontier_run_id)
+        if existing:
+            return existing
+        identity = ("experiment_id", "approach_id", "portfolio_id")
+        if _timestamp(frontier["started_at"]) > _timestamp(recorded_at):
+            raise PlatformError.validation("execution frontier is not yet available")
+        book = self.get_portfolio(frontier["portfolio_id"])
+        if (book["experiment_id"], book["approach_id"]) != (frontier["experiment_id"], frontier["approach_id"]):
+            raise PlatformError.not_permitted("frontier does not own an isolated synthetic book")
+        eligible = {"succeeded", "hold", "reused", "pending_execution"}
+        checked = {}
+
+        def check(header):
+            if any(header[field] != frontier[field] for field in identity) or _timestamp(header["slot"]) > _timestamp(frontier["slot"]):
+                raise PlatformError.validation("execution frontier candidate belongs to another scope")
+            if header["status"] == "running":
+                raise PlatformError.precondition("execution frontier cannot conceal a running invocation")
+            unresolved = header["status"] in eligible and not header.get("execution_ref") and not header.get("execution_disposition_ref")
+            if unresolved and header["run_id"] != pending_run_id:
+                raise PlatformError.precondition("execution frontier has another unresolved policy", run_id=header["run_id"])
+            checked[header["run_id"]] = {"run_id": header["run_id"], "slot": header["slot"], "status": header["status"], "execution_checksum": (header.get("execution_ref") or {}).get("checksum"), "disposition_checksum": (header.get("execution_disposition_ref") or {}).get("checksum")}
+            return unresolved
+
+        if pending_run_id:
+            pending = self.read_run_header(pending_run_id)
+            if not check(pending) or not pending.get("output_ref"):
+                raise PlatformError.precondition("frontier pending pointer must name an unexecuted completed policy")
+        check(frontier)
+        previous = None
+        previous_ref = None
+        if previous_frontier_run_id:
+            previous = self.read_run_header(previous_frontier_run_id)
+            prior = self.read_execution_frontier(previous_frontier_run_id)
+            if not prior or any(previous[field] != frontier[field] for field in identity) or _timestamp(previous["slot"]) >= _timestamp(frontier["slot"]) or _timestamp(prior["recorded_at"]) > _timestamp(recorded_at):
+                raise PlatformError.validation("previous execution frontier is missing or belongs to another scope/time")
+            previous_ref = {"frontier_run_id": previous_frontier_run_id, **previous["execution_frontier_ref"]}
+            if prior.get("pending_run_id"):
+                # A failed streak can retain an old recommendation outside the
+                # newly scanned interval. It cannot silently expire or disappear.
+                check(self.read_run_header(prior["pending_run_id"]))
+        cursor = None
+        partition = f"{frontier['experiment_id']}#{frontier['approach_id']}"
+        for _ in range(100):
+            rows, cursor = self.repo.query_index("research_run", "approach-index", partition, newest_first=False, limit=100, page_token=cursor, sort_lower_bound=previous["time_key"] if previous else None, sort_upper_bound=frontier["time_key"])
+            for row in rows:
+                if previous and row.id == previous_frontier_run_id:
+                    continue
+                header = self._run_header(row)
+                # Terminal failures are immutable. A projected running or usable
+                # policy can have moved since GSI propagation; refresh only it.
+                if header["status"] == "running" or header["status"] in eligible:
+                    header = self.read_run_header(row.id)
+                check(header)
+            if not cursor:
+                break
+        if cursor:
+            raise PlatformError.precondition("execution frontier metadata exceeds bounded 10000 rows; cleanup checkpoint not advanced")
+        payload = {"schema_version": "modeling-execution-frontier/1", "frontier_run_id": frontier_run_id, "experiment_id": frontier["experiment_id"], "approach_id": frontier["approach_id"], "portfolio_id": frontier["portfolio_id"], "covered_through_slot": frontier["slot"], "pending_run_id": pending_run_id, "previous_frontier_ref": previous_ref, "checked_headers": sorted(checked.values(), key=lambda row: (_timestamp(row["slot"]), row["run_id"])), "recorded_at": recorded_at, "ledger_committed": False, "semantics": "Every older execution candidate is resolved except the explicit pending pointer; original inference and forecasts remain unchanged"}
+        ref = self._artifact("execution-frontiers", frontier_run_id, payload)
+        try:
+            self.repo.commit([HeadMove("research_run", record_id=frontier_run_id, expected_revision=0, revision_attr="execution_frontier_revision", allow_missing_revision=True, set_attrs={"execution_frontier_ref": ref}, additional_condition=Cond.not_exists("execution_frontier_ref"))], audit=[audit_event(self._ctx(recorded_at), record_id=frontier_run_id, record_type="research_run", operation="checkpoint_execution_cleanup", new={"pending_run_id": pending_run_id, "covered_through_slot": frontier["slot"]})])
+        except PlatformError:
+            existing = self.read_execution_frontier(frontier_run_id)
+            if not existing:
+                raise
+            return existing
+        return payload
 
     def query_pending_forecasts(self, experiment_id: str, through: str, *, page_size: int = 100, next_token: str | None = None) -> tuple[list[dict[str, Any]], str | None]:
         """Due unmatched forecasts independent of decision age; no historic table scan."""
