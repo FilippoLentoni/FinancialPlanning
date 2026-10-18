@@ -16,7 +16,9 @@ The one-minute snapshot scheduler and thirty-minute research scheduler are a lat
 The exact existing `finplan-beta-financemodel-job-execution-role` may additionally
 read `GET /v1/portfolios/{portfolio_id}` and `/state` for isolated synthetic
 experiment books. The handler checks original portfolio metadata: synthetic true,
-isolated_experiment true, and named experiment/approach ownership. Ordinary user
+isolated_experiment true, named experiment/approach ownership, the deterministic
+internal experiment portfolio ID, and initialized authoritative paper state/revision.
+User-editable settings alone cannot grant this access. Ordinary user
 portfolios, other managed-role names, descendant history/decision routes, and all
 writes remain forbidden. The worker independently validates experiment/approach,
 revision, cash and positions before an approved managed Jev invocation. This grants

@@ -6,12 +6,14 @@ books, without granting portfolio writes or direct metadata storage access.
 
 #### Scenario: Exact managed role reads an experiment book
 - **WHEN** the exact beta managed job role requests portfolio metadata or state
-for a synthetic isolated book with named experiment and approach
+for an initialized synthetic isolated book with named experiment and approach
+and the deterministic internal experiment portfolio ID
 - **THEN** the application returns the original contract-valid metadata/state.
 
 #### Scenario: Ordinary user book or another principal is rejected
 - **WHEN** a managed caller requests an ordinary user book, uses a different
-managed role name, or calls a write or excluded descendant route
+managed role name, spoofs experiment markers on a public-created book, or calls
+a write or excluded descendant route
 - **THEN** the resource/application authorization rejects the request.
 
 ### Requirement: Preserve higher-environment isolation and policy integrity
