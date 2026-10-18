@@ -203,7 +203,7 @@ TRANSITIONS: dict[str, dict[str, frozenset[str]]] = {
     "snapshot_catalog": {"committed": frozenset({"approved", "expired"}), "approved": frozenset({"expired"}), "expired": frozenset()},
     # execution status is an open vocabulary in contracts 0.1/1.0; transitions are declared by the API module
     "execution": {},
-    "research_run": {"running": frozenset({"succeeded", "hold", "skipped", "failed", "unavailable", "reused"}), **{s: frozenset({"applied", "no_op", "pending_execution", "superseded"}) for s in ("succeeded", "hold", "reused")}, "pending_execution": frozenset({"applied", "no_op", "superseded"}), "superseded": frozenset(), "applied": frozenset(), "no_op": frozenset(), "failed": frozenset(), "skipped": frozenset(), "unavailable": frozenset()},
+    "research_run": {"running": frozenset({"succeeded", "hold", "skipped", "failed", "unavailable", "reused"}), **{s: frozenset({"applied", "no_op", "pending_execution", "superseded", "execution_excluded"}) for s in ("succeeded", "hold", "reused")}, "pending_execution": frozenset({"applied", "no_op", "superseded", "execution_excluded"}), "superseded": frozenset(), "execution_excluded": frozenset(), "applied": frozenset(), "no_op": frozenset(), "failed": frozenset(), "skipped": frozenset(), "unavailable": frozenset()},
     "portfolio_decision": {"proposed": frozenset({"accepted", "rejected"}), "accepted": frozenset(), "rejected": frozenset()},
 }
 
