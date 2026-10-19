@@ -284,23 +284,63 @@ cases:
       published_at: '2026-01-05T22:00:00Z'
       synthetic: true
     synthetic: true
-- fixture: tools/recommend-portfolio-invocation-request/invalid/advisory.json
-  schema: tools/recommend-portfolio-invocation-request
+- fixture: tools/generate-portfolio-recommendation-ppo-request/valid/advisory.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
+  expect: valid
+  document:
+    input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+    as_of: '2026-01-06'
+    holdings:
+      weights:
+      - instrument_id: SYNTH
+        weight: 0.5
+      cash_weight: 0.5
+      portfolio_value: 1000
+      high_watermark: 1000
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-ppo-request/valid/saved-default.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
+  expect: valid
+  document:
+    instruments:
+    - SYNTH
+    - VOO
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-ppo-request/valid/saved-identified.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
+  expect: valid
+  document:
+    portfolio_id: pf_01KDVDNAZ83BAMMYCEGWF33DPM
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/advisory.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
     portfolio_id: pf_01KDVDNAZ83BAMMYCEGWF33DPM
     holdings: {}
     synthetic: true
-- fixture: tools/recommend-portfolio-invocation-request/invalid/date-without-snapshot.json
-  schema: tools/recommend-portfolio-invocation-request
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/date-without-snapshot.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
     as_of: '2026-01-09'
     synthetic: true
-- fixture: tools/recommend-portfolio-invocation-request/invalid/holdings-without-snapshot.json
-  schema: tools/recommend-portfolio-invocation-request
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/holdings-without-snapshot.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
@@ -310,110 +350,53 @@ cases:
       portfolio_value: 10000
       high_watermark: 10000
     synthetic: true
-- fixture: tools/recommend-portfolio-invocation-request/invalid/snapshot-without-date.json
-  schema: tools/recommend-portfolio-invocation-request
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/snapshot-without-date.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
     input_snapshot_id: snap_01KDVDNAZ83BAMMYCEGWF33DPM
     synthetic: true
-- fixture: tools/recommend-portfolio-invocation-request/valid/advisory.json
-  schema: tools/recommend-portfolio-invocation-request
-  expect: valid
-  document:
-    input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
-    as_of: '2026-01-06'
-    holdings:
-      weights:
-      - instrument_id: SYNTH
-        weight: 0.5
-      cash_weight: 0.5
-      portfolio_value: 1000
-      high_watermark: 1000
-    synthetic: true
-- fixture: tools/recommend-portfolio-invocation-request/valid/saved-default.json
-  schema: tools/recommend-portfolio-invocation-request
-  expect: valid
-  document: {}
-  exception: the empty object deliberately tests saved-default invocation without supplied state
-- fixture: tools/recommend-portfolio-invocation-request/valid/saved-identified.json
-  schema: tools/recommend-portfolio-invocation-request
-  expect: valid
-  document:
-    portfolio_id: pf_01KDVDNAZ83BAMMYCEGWF33DPM
-    synthetic: true
-- fixture: tools/recommend-portfolio-request/invalid/advisory.json
-  schema: tools/recommend-portfolio-request
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/missing-instruments.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
     synthetic: true
-- fixture: tools/recommend-portfolio-request/valid/advisory.json
-  schema: tools/recommend-portfolio-request
-  expect: valid
-  document:
-    input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
-    as_of: '2026-01-06'
-    holdings:
-      weights:
-      - instrument_id: SYNTH
-        weight: 0.5
-      cash_weight: 0.5
-      portfolio_value: 1000
-      high_watermark: 1000
-    synthetic: true
-- fixture: tools/recommend-portfolio-response/invalid/advisory.json
-  schema: tools/recommend-portfolio-response
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/empty-instruments.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
+    instruments: []
     synthetic: true
-- fixture: tools/recommend-portfolio-response/invalid/missing-provenance.json
-  schema: tools/recommend-portfolio-response
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/duplicate-instruments.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
-    recommendation:
-      mode: advisory_paper
-      strategy: ppo
-      policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
-      export_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
-      configuration_id: cfg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
-      as_of: '2026-10-08'
-      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      policy_seeds:
-      - 0
-      - 1
-      - 2
-      - 3
-      - 4
-      aggregation: mean_target_weights
-      decision_timing: after_completed_close_for_next_session
-      forecast:
-        status: not_available
-        reason: The policy does not publish a calibrated return forecast.
-      limitations:
-      - research_only
-      - no_trade_execution
-      cash_weight: 0.2
-      target_weights:
-      - instrument_id: VOO
-        weight: 0.8
-      estimated_turnover: 0.8
-      decisions:
-      - instrument_id: VOO
-        action: buy
-        delta_weight: 0.8
-        indicative_notional: 800
-      constraint_outcome:
-        action: accepted
-        violations: []
-      solution_status: feasible
-      diagnostics: {}
+    instruments:
+    - SYNTH
+    - SYNTH
     synthetic: true
-- fixture: tools/recommend-portfolio-response/valid/advisory.json
-  schema: tools/recommend-portfolio-response
+- fixture: tools/generate-portfolio-recommendation-ppo-request/invalid/unknown-field.json
+  schema: tools/generate-portfolio-recommendation-ppo-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments:
+    - SYNTH
+    - VOO
+    algorithm: ppo
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-ppo-response/valid/advisory.json
+  schema: tools/generate-portfolio-recommendation-ppo-response
   expect: valid
   document:
     recommendation:
@@ -456,8 +439,8 @@ cases:
       solution_status: feasible
       diagnostics: {}
     synthetic: true
-- fixture: tools/recommend-portfolio-response/valid/saved-paper.json
-  schema: tools/recommend-portfolio-response
+- fixture: tools/generate-portfolio-recommendation-ppo-response/valid/saved-paper.json
+  schema: tools/generate-portfolio-recommendation-ppo-response
   expect: valid
   document:
     recommendation:
@@ -519,4 +502,54 @@ cases:
           quantity: 20
           reference_price: 450
           price_as_of: '2026-01-09'
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-ppo-response/invalid/advisory.json
+  schema: tools/generate-portfolio-recommendation-ppo-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-ppo-response/invalid/missing-provenance.json
+  schema: tools/generate-portfolio-recommendation-ppo-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    recommendation:
+      mode: advisory_paper
+      strategy: ppo
+      policy_source_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      export_run_id: run_01JABCDEFGHJKMNPQRSTVWXY01
+      configuration_id: cfg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      input_snapshot_id: snap_01JABCDEFGHJKMNPQRSTVWXY01
+      as_of: '2026-10-08'
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      policy_seeds:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      aggregation: mean_target_weights
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: The policy does not publish a calibrated return forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      cash_weight: 0.2
+      target_weights:
+      - instrument_id: VOO
+        weight: 0.8
+      estimated_turnover: 0.8
+      decisions:
+      - instrument_id: VOO
+        action: buy
+        delta_weight: 0.8
+        indicative_notional: 800
+      constraint_outcome:
+        action: accepted
+        violations: []
+      solution_status: feasible
+      diagnostics: {}
     synthetic: true

@@ -112,8 +112,17 @@ def test_compat_gate_passes_as_minor_without_zero_exemption() -> None:
     assert {c.kind for c in report.changes} <= {compat.ADDITIVE, compat.ANNOTATION}
 
 
+#: 1.14.0 replaced these tools with generate_portfolio_recommendation_{min_variance,cvar,ppo};
+#: their fixtures moved to the new schema names.
+REMOVED_IN_1_14_0 = (
+    "tools/recommend-classical-portfolio-request/", "tools/recommend-classical-portfolio-response/",
+    "tools/recommend-portfolio-request/", "tools/recommend-portfolio-invocation-request/",
+    "tools/recommend-portfolio-response/",
+)
+
+
 def test_prior_1_3_0_fixtures_keep_their_bytes() -> None:
-    """Every fixture from the immediately preceding released wheel keeps its exact bytes."""
+    """Every fixture from the 1.3.0 wheel keeps its exact bytes, except removed tools' fixtures."""
     wheel = CONTRACTS.parent / "vendor/finplan-contracts/finplan_contracts-1.3.0-py3-none-any.whl"
     assert hashlib.sha256(wheel.read_bytes()).hexdigest() == "ee347e88ecdd80f135a4cd79c0eec8bc98ca8744b4ec5acf9961e1ada7728638"
     with zipfile.ZipFile(wheel) as archive:
@@ -121,6 +130,9 @@ def test_prior_1_3_0_fixtures_keep_their_bytes() -> None:
         assert len(members) > 300
         for name in members:
             rel = name.split("/data/fixtures/", 1)[1]
+            if rel.startswith(REMOVED_IN_1_14_0):
+                assert not (CONTRACTS / "fixtures" / rel).exists(), rel
+                continue
             assert archive.read(name) == (CONTRACTS / "fixtures" / rel).read_bytes(), rel
 
 

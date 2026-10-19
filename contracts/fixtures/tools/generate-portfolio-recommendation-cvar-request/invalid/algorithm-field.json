@@ -1,0 +1,8 @@
+{
+  "algorithm": "cvar",
+  "instruments": [
+    "SYNTH",
+    "VOO"
+  ],
+  "synthetic": true
+}

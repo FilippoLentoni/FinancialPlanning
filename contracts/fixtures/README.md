@@ -57,5 +57,4 @@ listed below (the conformance hygiene check reads this list):
 - `tools/get-etf-research-inputs-request/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
 - `tools/get-etf-research-inputs-response/invalid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
 - `tools/get-etf-research-inputs-response/valid/synthetic.json`: Legacy finance API schema excludes the synthetic fixture marker; values are made up.
-- `tools/recommend-portfolio-invocation-request/valid/saved-default.json`: the empty object deliberately tests saved-default invocation without supplied state
 <!-- synthetic-exceptions:end -->

@@ -206,7 +206,7 @@ def test_activity_is_sanitized_durable_and_binds_authenticated_identity(repo_any
     svc = Services(cfg=load_config("beta"), repo=repo_any, artifacts=artifacts)
     ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
     request = {"event_kind": "tool_result", "portfolio_id": pid, "session_id": "durable-session", "correlation_id": ctx.correlation_id,
-               "payload": {"tool": "recommend_portfolio", "quantity": 10, "authorization": "Bearer secret", "api_key": "hidden",
+               "payload": {"tool": "generate_portfolio_recommendation_ppo", "quantity": 10, "authorization": "Bearer secret", "api_key": "hidden",
                            "nested": {"aws_access_key_id": "hidden", "download_grant": {"url": "signed"}, "ok": "retained"},
                            "strings": ["Bearer hidden", "https://example.test/?x-amz-signature=hidden"]}, "idempotency_key": "activity"}
     result = record_activity(ctx, svc, request)

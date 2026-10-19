@@ -1,5 +1,11 @@
 # Selected strategy contract, 1.3.0
 
+> Contracts 1.14.0 removed `recommend-portfolio-invocation-request`, `recommend-portfolio-request`
+> and `recommend-portfolio-response`. The PPO tool is now `generate_portfolio_recommendation_ppo`
+> (`finance/v1/tools/generate-portfolio-recommendation-ppo-{request,response}`); its request is the
+> invocation request below plus a required `instruments` universe, and the response is unchanged.
+> The history below describes the 1.3.0 design.
+
 The MCP tool now uses the additive `finance/v1/tools/recommend-portfolio-invocation-request`.
 An empty request `{}` loads the saved default paper portfolio and latest approved market snapshot.
 An optional `portfolio_id` selects another saved paper book. Snapshot/date overrides must appear

@@ -213,8 +213,8 @@ cases:
         synthetic: true
     synthetic: true
   code: VALIDATION_FAILED
-- fixture: tools/recommend-portfolio-response/valid/current-news-timing.json
-  schema: tools/recommend-portfolio-response
+- fixture: tools/generate-portfolio-recommendation-ppo-response/valid/current-news-timing.json
+  schema: tools/generate-portfolio-recommendation-ppo-response
   expect: valid
   document:
     recommendation:

@@ -9,27 +9,48 @@ from finplan_contracts.validate import validate
 ANALYSIS_ID = 'ca_' + '1' * 32
 
 
-@pytest.mark.parametrize('document', [
-    {'algorithm':'min_variance'},
-    {'algorithm':'mean_variance','settings':{'risk_aversion':2,'lookback_days':120}},
-    {'algorithm':'cvar','settings':{'cvar_alpha':.9}},
+MIN_VARIANCE = 'tools/generate-portfolio-recommendation-min-variance-request'
+CVAR = 'tools/generate-portfolio-recommendation-cvar-request'
+PPO = 'tools/generate-portfolio-recommendation-ppo-request'
+UNIVERSE = ['AAPL', 'AMZN', 'GOOGL', 'META', 'MSFT', 'NVDA', 'TSLA', 'VOO']
+
+
+@pytest.mark.parametrize(('schema', 'document'), [
+    (MIN_VARIANCE, {'instruments': UNIVERSE}),
+    (MIN_VARIANCE, {'instruments': UNIVERSE, 'settings': {'lookback_days': 120, 'max_weight': .6}}),
+    (CVAR, {'instruments': UNIVERSE, 'settings': {'cvar_alpha': .9}}),
+    (PPO, {'instruments': UNIVERSE}),
 ])
-def test_valid_optimization_settings(document):
-    assert validate(document, 'tools/recommend-classical-portfolio-request').valid
+def test_valid_optimization_settings(schema, document):
+    assert validate(document, schema).valid
 
 
+@pytest.mark.parametrize('schema', [MIN_VARIANCE, CVAR])
 @pytest.mark.parametrize('document', [
     {'settings':{'lookback_days':2000}},
     {'settings':{'cash_weight':.9}},
-    {'settings':{'risk_aversion':0}},
+    {'settings':{'risk_aversion':2}},
+    {'algorithm':'min_variance'},
     {'algorithm':'ppo'},
     {'settings':{'arbitrary_factor':10}},
     {'as_of':'2026-01-09'},
     {'input_snapshot_id':'snap_01JA2B3C4D5E6F7G8H9JKMNPQR'},
     {'output_uri':'s3:'+'//not-accepted/path'},
 ])
-def test_invalid_optimization_requests_are_rejected(document):
-    assert not validate(document, 'tools/recommend-classical-portfolio-request').valid
+def test_invalid_optimization_requests_are_rejected(schema, document):
+    assert not validate({'instruments': UNIVERSE, **document}, schema).valid
+
+
+@pytest.mark.parametrize('schema', [MIN_VARIANCE, CVAR, PPO])
+@pytest.mark.parametrize('instruments', [None, [], ['AAPL', 'AAPL'], [''], ['X' * 65], [f'S{i}' for i in range(101)]])
+def test_instruments_are_required_unique_and_bounded(schema, instruments):
+    document = {'synthetic': True} if instruments is None else {'instruments': instruments}
+    assert not validate(document, schema).valid
+
+
+def test_cvar_alpha_is_only_a_cvar_setting():
+    assert validate({'instruments': UNIVERSE, 'settings': {'cvar_alpha': .9}}, CVAR).valid
+    assert not validate({'instruments': UNIVERSE, 'settings': {'cvar_alpha': .9}}, MIN_VARIANCE).valid
 
 
 def test_analysis_identifier_is_distinct_and_wrong_kind_is_invalid_identifier():

@@ -98,7 +98,6 @@ def test_requests_are_closed_and_responses_open(store):
             legacy = {
                 "tools/get-performance-evidence-request", "tools/get-publication-request",
                 "tools/list-executions-request", "tools/list-publications-request",
-                "tools/recommend-portfolio-invocation-request", "tools/recommend-portfolio-request",
             }
             if info.name not in legacy:
                 assert "no_storage_locations" in info.checks, info.name

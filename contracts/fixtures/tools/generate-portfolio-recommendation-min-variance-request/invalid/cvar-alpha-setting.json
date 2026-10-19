@@ -1,0 +1,10 @@
+{
+  "instruments": [
+    "SYNTH",
+    "VOO"
+  ],
+  "settings": {
+    "cvar_alpha": 0.9
+  },
+  "synthetic": true
+}

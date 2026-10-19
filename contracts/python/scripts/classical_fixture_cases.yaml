@@ -76,80 +76,6 @@ cases:
     contract_version: 1.4.0
     synthetic: true
   code: VALIDATION_FAILED
-- fixture: tools/recommend-classical-portfolio-request/valid/synthetic.json
-  schema: tools/recommend-classical-portfolio-request
-  expect: valid
-  document:
-    synthetic: true
-- fixture: tools/recommend-classical-portfolio-request/invalid/unknown-field.json
-  schema: tools/recommend-classical-portfolio-request
-  expect: invalid
-  document:
-    synthetic: true
-    unknown_field: true
-  code: VALIDATION_FAILED
-- fixture: tools/recommend-classical-portfolio-response/valid/synthetic.json
-  schema: tools/recommend-classical-portfolio-response
-  expect: valid
-  document:
-    analysis_id: ca_11111111111111111111111111111111
-    analysis_kind: recommendation
-    created_at: '2026-01-09T16:00:00Z'
-    analysis_ref: *id001
-    summary: Synthetic classical optimization evidence.
-    contract_version: 1.4.0
-    synthetic: true
-    recommendation:
-      mode: advisory_paper
-      strategy: min_variance
-      as_of: '2026-01-09'
-      input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
-      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-      decision_timing: after_completed_close_for_next_session
-      forecast:
-        status: not_available
-        reason: Synthetic fixture supplies no forecast.
-      limitations:
-      - research_only
-      - no_trade_execution
-      target_weights:
-      - instrument_id: SYNTH
-        weight: 0.8
-      cash_weight: 0.2
-      decisions:
-      - instrument_id: SYNTH
-        action: buy
-        delta_weight: 0.3
-        indicative_notional: 300.0
-        current_quantity: 5.0
-        target_quantity: 8.0
-        delta_quantity: 3.0
-        reference_price: 100.0
-        price_as_of: '2026-01-09'
-      constraint_outcome:
-        action: accepted
-        violations: []
-    explanation:
-      objective_gain: 1.0
-      shapley:
-        method: exact_shapley
-        groups:
-        - SYNTH
-        baseline: 0.0
-        final: 1.0
-        contributions:
-        - group: SYNTH
-          value: 1.0
-        reconciliation_residual: 0.0
-        coalition_count: 2
-        tolerance: 1.0e-08
-      force_keep: []
-- fixture: tools/recommend-classical-portfolio-response/invalid/missing-required.json
-  schema: tools/recommend-classical-portfolio-response
-  expect: invalid
-  document:
-    synthetic: true
-  code: VALIDATION_FAILED
 - fixture: tools/explain-classical-recommendation-request/valid/synthetic.json
   schema: tools/explain-classical-recommendation-request
   expect: valid
@@ -530,16 +456,16 @@ cases:
     confirmed_by_user: false
     synthetic: true
   code: VALIDATION_FAILED
-- fixture: tools/recommend-classical-portfolio-request/invalid/unbounded-settings.json
-  schema: tools/recommend-classical-portfolio-request
-  expect: invalid
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/valid/synthetic.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: valid
   document:
-    settings:
-      lookback_days: 5000
+    instruments:
+    - SYNTH
+    - VOO
     synthetic: true
-  code: VALIDATION_FAILED
-- fixture: tools/recommend-classical-portfolio-request/valid/explicit-historical.json
-  schema: tools/recommend-classical-portfolio-request
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/valid/explicit-historical.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
   expect: valid
   document:
     input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
@@ -552,8 +478,35 @@ cases:
       portfolio_value: 10000
       high_watermark: 10000
     synthetic: true
-- fixture: tools/recommend-classical-portfolio-request/invalid/holdings-without-snapshot.json
-  schema: tools/recommend-classical-portfolio-request
+    instruments:
+    - SYNTH
+    - VOO
+    settings:
+      lookback_days: 120
+      max_weight: 0.6
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/unknown-field.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+    unknown_field: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/unbounded-settings.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    settings:
+      lookback_days: 5000
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/holdings-without-snapshot.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
@@ -563,8 +516,11 @@ cases:
       portfolio_value: 10000
       high_watermark: 10000
     synthetic: true
-- fixture: tools/recommend-classical-portfolio-request/invalid/holdings-with-portfolio-id.json
-  schema: tools/recommend-classical-portfolio-request
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/holdings-with-portfolio-id.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
   expect: invalid
   code: VALIDATION_FAILED
   document:
@@ -576,4 +532,318 @@ cases:
       cash_weight: 1
       portfolio_value: 10000
       high_watermark: 10000
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/missing-instruments.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/empty-instruments.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments: []
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/duplicate-instruments.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments:
+    - SYNTH
+    - SYNTH
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/algorithm-field.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    algorithm: min_variance
+    instruments:
+    - SYNTH
+    - VOO
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/risk-aversion-setting.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments:
+    - SYNTH
+    - VOO
+    settings:
+      risk_aversion: 2
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-min-variance-request/invalid/cvar-alpha-setting.json
+  schema: tools/generate-portfolio-recommendation-min-variance-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments:
+    - SYNTH
+    - VOO
+    settings:
+      cvar_alpha: 0.9
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-min-variance-response/valid/synthetic.json
+  schema: tools/generate-portfolio-recommendation-min-variance-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recommendation
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    recommendation:
+      mode: advisory_paper
+      strategy: min_variance
+      as_of: '2026-01-09'
+      input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: Synthetic fixture supplies no forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      target_weights:
+      - instrument_id: SYNTH
+        weight: 0.8
+      cash_weight: 0.2
+      decisions:
+      - instrument_id: SYNTH
+        action: buy
+        delta_weight: 0.3
+        indicative_notional: 300.0
+        current_quantity: 5.0
+        target_quantity: 8.0
+        delta_quantity: 3.0
+        reference_price: 100.0
+        price_as_of: '2026-01-09'
+      constraint_outcome:
+        action: accepted
+        violations: []
+    explanation:
+      objective_gain: 1.0
+      shapley:
+        method: exact_shapley
+        groups:
+        - SYNTH
+        baseline: 0.0
+        final: 1.0
+        contributions:
+        - group: SYNTH
+          value: 1.0
+        reconciliation_residual: 0.0
+        coalition_count: 2
+        tolerance: 1.0e-08
+      force_keep: []
+- fixture: tools/generate-portfolio-recommendation-min-variance-response/invalid/missing-required.json
+  schema: tools/generate-portfolio-recommendation-min-variance-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-cvar-request/valid/synthetic.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: valid
+  document:
+    instruments:
+    - SYNTH
+    - VOO
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-cvar-request/valid/explicit-historical.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: valid
+  document:
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    as_of: '2026-01-09'
+    holdings:
+      weights:
+      - instrument_id: SYNTH
+        weight: 0.5
+      cash_weight: 0.5
+      portfolio_value: 10000
+      high_watermark: 10000
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+    settings:
+      cvar_alpha: 0.9
+      lookback_days: 120
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/unknown-field.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+    unknown_field: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/unbounded-settings.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    settings:
+      lookback_days: 5000
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/holdings-without-snapshot.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    holdings:
+      weights: []
+      cash_weight: 1
+      portfolio_value: 10000
+      high_watermark: 10000
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/holdings-with-portfolio-id.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    portfolio_id: pf_01JA2B3C4D5E6F7G8H9JKMNPQR
+    input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+    as_of: '2026-01-09'
+    holdings:
+      weights: []
+      cash_weight: 1
+      portfolio_value: 10000
+      high_watermark: 10000
+    synthetic: true
+    instruments:
+    - SYNTH
+    - VOO
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/missing-instruments.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/empty-instruments.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments: []
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/duplicate-instruments.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments:
+    - SYNTH
+    - SYNTH
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/algorithm-field.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    algorithm: cvar
+    instruments:
+    - SYNTH
+    - VOO
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-cvar-request/invalid/risk-aversion-setting.json
+  schema: tools/generate-portfolio-recommendation-cvar-request
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
+    instruments:
+    - SYNTH
+    - VOO
+    settings:
+      risk_aversion: 2
+    synthetic: true
+- fixture: tools/generate-portfolio-recommendation-cvar-response/valid/synthetic.json
+  schema: tools/generate-portfolio-recommendation-cvar-response
+  expect: valid
+  document:
+    analysis_id: ca_11111111111111111111111111111111
+    analysis_kind: recommendation
+    created_at: '2026-01-09T16:00:00Z'
+    analysis_ref:
+      artifact_id: ca_11111111111111111111111111111111
+      owner: financemodel
+      kind: classical_analysis
+      checksum: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      content_type: application/json
+    summary: Synthetic classical optimization evidence.
+    contract_version: 1.4.0
+    synthetic: true
+    recommendation:
+      mode: advisory_paper
+      strategy: cvar
+      as_of: '2026-01-09'
+      input_snapshot_id: snap_01JA2B3C4D5E6F7G8H9JKMNPQR
+      snapshot_checksum: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      decision_timing: after_completed_close_for_next_session
+      forecast:
+        status: not_available
+        reason: Synthetic fixture supplies no forecast.
+      limitations:
+      - research_only
+      - no_trade_execution
+      target_weights:
+      - instrument_id: SYNTH
+        weight: 0.8
+      cash_weight: 0.2
+      decisions:
+      - instrument_id: SYNTH
+        action: buy
+        delta_weight: 0.3
+        indicative_notional: 300.0
+        current_quantity: 5.0
+        target_quantity: 8.0
+        delta_quantity: 3.0
+        reference_price: 100.0
+        price_as_of: '2026-01-09'
+      constraint_outcome:
+        action: accepted
+        violations: []
+    explanation:
+      objective_gain: 1.0
+      shapley:
+        method: exact_shapley
+        groups:
+        - SYNTH
+        baseline: 0.0
+        final: 1.0
+        contributions:
+        - group: SYNTH
+          value: 1.0
+        reconciliation_residual: 0.0
+        coalition_count: 2
+        tolerance: 1.0e-08
+      force_keep: []
+- fixture: tools/generate-portfolio-recommendation-cvar-response/invalid/missing-required.json
+  schema: tools/generate-portfolio-recommendation-cvar-response
+  expect: invalid
+  code: VALIDATION_FAILED
+  document:
     synthetic: true

@@ -1,0 +1,8 @@
+{
+  "instruments": [
+    "SYNTH",
+    "VOO"
+  ],
+  "algorithm": "ppo",
+  "synthetic": true
+}

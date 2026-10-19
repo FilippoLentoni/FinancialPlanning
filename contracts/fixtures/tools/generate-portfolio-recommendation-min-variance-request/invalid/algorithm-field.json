@@ -1,0 +1,8 @@
+{
+  "algorithm": "min_variance",
+  "instruments": [
+    "SYNTH",
+    "VOO"
+  ],
+  "synthetic": true
+}

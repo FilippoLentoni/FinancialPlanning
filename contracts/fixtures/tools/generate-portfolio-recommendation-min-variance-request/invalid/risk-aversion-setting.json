@@ -1,0 +1,10 @@
+{
+  "instruments": [
+    "SYNTH",
+    "VOO"
+  ],
+  "settings": {
+    "risk_aversion": 2
+  },
+  "synthetic": true
+}

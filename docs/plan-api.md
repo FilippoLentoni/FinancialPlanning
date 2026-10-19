@@ -706,11 +706,17 @@ recommendation requests load this book through a read-only MCP tool and leave it
 unchanged until an explicit operator state update records hypothetical fills or other
 paper-state changes.
 
-The existing explicit `tools/recommend-portfolio-request` remains unchanged. New consumers
-use `tools/recommend-portfolio-invocation-request`, which accepts `{}` for the saved
-default portfolio, an optional `portfolio_id`, or the complete explicit holdings mode.
-Snapshot and date overrides must be paired; supplied holdings and a saved portfolio ID
-cannot be mixed. The response adds optional state valuation and fractional share fields.
+Contracts 1.14.0 replace the `recommend_portfolio` and `recommend_classical_portfolio` tools
+(and their `tools/recommend-portfolio-*` / `tools/recommend-classical-portfolio-*` schemas) with
+three tools whose name fixes the model: `generate_portfolio_recommendation_min_variance`,
+`generate_portfolio_recommendation_cvar` and `generate_portfolio_recommendation_ppo`
+(`tools/generate-portfolio-recommendation-<model>-{request,response}`). Every request requires
+`instruments`, the explicit universe (1-100 distinct symbols); weights are returned only for
+those instruments and the PPO tool serves only a frozen policy trained on exactly that universe.
+There is no `algorithm` field. `{"instruments": [...]}` uses the saved default portfolio, an
+optional `portfolio_id` selects another saved book, or the complete explicit holdings mode is
+supplied. Snapshot and date overrides must be paired; supplied holdings and a saved portfolio ID
+cannot be mixed. The PPO response keeps optional state valuation and fractional share fields.
 
 The API Gateway resource policy removes redundant resource entries already covered
 by an existing terminal wildcard, using the identical resource union for Allow and
