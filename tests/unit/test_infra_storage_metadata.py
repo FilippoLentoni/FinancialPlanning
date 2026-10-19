@@ -200,6 +200,19 @@ def test_metadata_tables_on_demand_pitr_kms_tagged(foundation_synth: dict[str, A
             assert not stream_actions & set(actions), s["Sid"]
 
 
+def test_activity_event_table_indexes_tool_calls_by_correlation(foundation_synth: dict[str, Any]) -> None:
+    """Agent tool-call evidence is queryable by session, portfolio and correlation id (beta only)."""
+    tables = _resources(foundation_synth, "beta", "metadata", "AWS::DynamoDB::Table")
+    p = next(v["Properties"] for v in tables.values() if v["Properties"]["TableName"] == table_name("beta", "activity_event"))
+    gsis = {g["IndexName"]: g for g in p["GlobalSecondaryIndexes"]}
+    assert set(gsis) == {"portfolio-index", "session-index", "correlation-index"}
+    assert gsis["correlation-index"]["KeySchema"] == [{"AttributeName": "correlation_id", "KeyType": "HASH"}, {"AttributeName": "activity_event_id", "KeyType": "RANGE"}]
+    assert gsis["correlation-index"]["Projection"] == {"ProjectionType": "ALL"}
+    assert {"AttributeName": "correlation_id", "AttributeType": "S"} in p["AttributeDefinitions"]
+    # Content parts are written with conditional PutItem; updates/deletes stay denied.
+    assert "DenyAuditMutation" in {s["Sid"] for s in p["ResourcePolicy"]["PolicyDocument"]["Statement"]}
+
+
 def test_idempotency_ttl_and_retention_at_least_seven_days() -> None:
     for env in ENVS:
         assert load_config(env).metadata["idempotency_ttl_days"] >= 7

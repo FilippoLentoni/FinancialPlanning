@@ -47,6 +47,7 @@ import importlib
 import inspect
 import json
 import logging
+import os
 import re
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -514,6 +515,37 @@ def _convert_query(route: Route, raw: Sequence[tuple[str, str]]) -> dict[str, An
     return out
 
 
+def describe_cause(exc: BaseException, depth: int = 4) -> str:
+    """The chained causes of an error: exception types and AWS error codes, never payloads or credentials."""
+    out: list[str] = []
+    cur = exc.__cause__ or exc.__context__
+    while cur is not None and len(out) < depth:
+        part = type(cur).__name__
+        response = getattr(cur, "response", None)
+        if isinstance(response, Mapping):
+            err = response.get("Error") or {}
+            part += f"[{err.get('Code', '')}]"
+            reasons = response.get("CancellationReasons") or []
+            if reasons:
+                part += "{" + ",".join(str((r or {}).get("Code", "")) for r in reasons) + "}"
+            op = getattr(cur, "operation_name", None)
+            if op:
+                part += f"@{op}"
+        elif isinstance(cur, PlatformError):
+            part += f"[{cur.code}]"
+        out.append(part)
+        cur = cur.__cause__ or cur.__context__
+    return " <- ".join(out) or "none"
+
+
+def _safe_details(details: Any) -> str:
+    try:
+        text = json.dumps(details, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        text = "unserializable"
+    return text[:1000]
+
+
 # ===================================================================== app
 class ApiApp:
     """The router bound to one environment's :class:`Services` (a Lambda container or a test)."""
@@ -541,6 +573,11 @@ class ApiApp:
             status, body, extra = self._dispatch(event, headers, cid)
         except PlatformError as exc:
             status, body, extra = http_status(exc.code), self._envelope(exc, cid), {}
+            if status >= 500:
+                # The envelope hides server-side causes from callers; the log must not.
+                log.error("server error %s (correlation_id=%s method=%s resource=%s): %s details=%s cause=%s", exc.code, cid,
+                          str(event.get("httpMethod") or "")[:8], str(event.get("resource") or event.get("path") or "")[:200],
+                          exc.message, _safe_details(exc.details), describe_cause(exc))
         except Exception:
             log.exception("unhandled error (correlation_id=%s)", cid)
             status, body, extra = 500, self._envelope(PlatformError.internal(), cid), {}
@@ -721,3 +758,23 @@ def handler(event: Mapping[str, Any], context: Any) -> dict[str, Any]:  # pragma
     if _APP is None:
         _APP = ApiApp(Services.from_lambda_environment)
     return _APP.handle(event)
+
+
+def _warm() -> None:  # pragma: no cover - AWS entry point
+    """Build clients and load the contract schema registry during Lambda init, not on the first request.
+
+    A cold first request used to take ~10 s at 256 MB; under concurrent agent sessions every new
+    container paid that inside a caller's timeout budget.
+    """
+    global _APP
+    try:
+        app = ApiApp(Services.from_lambda_environment)
+        app.svc
+        validate_document({}, "api/activity-event-request")
+        _APP = app
+    except Exception:
+        log.exception("plan-api warm-up failed; building lazily on the first request")
+
+
+if os.environ.get("AWS_LAMBDA_FUNCTION_NAME") and os.environ.get("FINPLAN_ENV"):  # pragma: no cover
+    _warm()

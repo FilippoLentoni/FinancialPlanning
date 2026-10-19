@@ -94,6 +94,7 @@ def test_function_role_output_and_tags(api_synth: dict[str, Any], env: str) -> N
     p = fn["Properties"]
     assert p["Runtime"] == "python3.12" and p["Architectures"] == ["arm64"] and "VpcConfig" not in p
     assert "ReservedConcurrentExecutions" not in p and p["Timeout"] <= 29
+    assert p["MemorySize"] >= 1024  # CPU for cold starts and up-to-3 MiB activity events
     assert p["Environment"]["Variables"]["FINPLAN_ENV"] == env
     (role,) = [r for r in resources(t, "AWS::IAM::Role") if r["Properties"]["RoleName"] == f"finplan-{env}-financialplanning-plan-api-handler-role"]
     assert role["Properties"]["RoleName"] == f"finplan-{env}-financialplanning-plan-api-handler-role"

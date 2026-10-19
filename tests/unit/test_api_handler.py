@@ -174,6 +174,29 @@ def test_non_conformant_responses_are_never_sent(clients: Any, monkeypatch: pyte
     assert code == 500 and body["code"] == "INTERNAL"
 
 
+def test_handled_server_errors_are_logged_with_their_cause(clients: Any, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    """A PlatformError INTERNAL used to reach the caller with no log line at all."""
+    from botocore.exceptions import ClientError
+    from finplan_platform.core import portfolio_lifecycle
+    from finplan_platform.core.errors import PlatformError
+
+    def failing(*_a: Any, **_k: Any) -> Any:
+        try:
+            raise ClientError({"Error": {"Code": "TransactionCanceledException", "Message": "x"}, "CancellationReasons": [{"Code": "None"}, {"Code": "ValidationError"}]}, "TransactWriteItems")
+        except ClientError:
+            raise PlatformError.internal("metadata transaction was cancelled") from None
+
+    monkeypatch.setattr(portfolio_lifecycle, "record_activity", failing)
+    body = {"event_kind": "tool_call", "correlation_id": "cor_x", "payload": {"authorization": "Bearer hidden-value"}, "idempotency_key": "k"}
+    with caplog.at_level("ERROR", logger=api_module.__name__):
+        code, out, _ = clients.fm_job_api.post("/v1/activity-events", body)
+    assert code == 500 and out["code"] == "INTERNAL"
+    (line,) = [r.getMessage() for r in caplog.records if "server error" in r.getMessage()]
+    assert "metadata transaction was cancelled" in line and out["correlation_id"] in line
+    assert "ClientError[TransactionCanceledException]{None,ValidationError}@TransactWriteItems" in line
+    assert "hidden-value" not in line
+
+
 def test_http_status_mapping_covers_every_registered_code() -> None:
     from finplan_platform.core.errors import registered_codes
 

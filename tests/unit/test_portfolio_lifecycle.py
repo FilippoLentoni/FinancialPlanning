@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import json
+import os
 import threading
 
 import pytest
@@ -342,6 +344,16 @@ def test_exact_activity_lookup_detects_tampered_immutable_payload(svc, s3, bucke
                                       "payload": {"original": 1}, "idempotency_key": "receipt"}).response
     aid = stored["activity_event_id"]
     record = svc.repo.require("activity_event", aid)
+    name = svc.repo.names["activity_event"]
+    # The DynamoDB content copy is read first and checksum-verified against the index.
+    part = svc.repo.client.get_item(TableName=name, Key={"pk": {"S": f"content#{record.doc['artifact_key']}#0000"}})["Item"]
+    svc.repo.client.put_item(TableName=name, Item={**part, "data": {"B": gzip.compress(b'{"tampered":true}', mtime=0)}})
+    with pytest.raises(PlatformError) as exc:
+        list_activity(ctx, svc, {"portfolio_id": pid, "next_token": _activity_cursor({"activity_event_id": aid})})
+    assert exc.value.code == "INTERNAL"
+    # Events recorded before mirroring fall back to S3, which is verified the same way.
+    svc.repo.client.delete_item(TableName=name, Key={"pk": part["pk"]})
+    assert list_activity(ctx, svc, {"portfolio_id": pid})["events"][0]["payload"] == {"original": 1}
     s3.put_object(Bucket=buckets["reports"], Key=record.doc["artifact_key"], Body=b'{"tampered":true}', Metadata={"sha256": stored["checksum"][7:]})
     with pytest.raises(PlatformError) as exc:
         list_activity(ctx, svc, {"portfolio_id": pid, "next_token": _activity_cursor({"activity_event_id": aid})})
@@ -359,3 +371,116 @@ def test_ordinary_activity_pagination_remains_partition_scoped(svc, clock, ctx_f
     second = list_activity(ctx, svc, {"portfolio_id": pid, "page_size": 2, "next_token": first["next_token"]})
     assert [e["activity_event_id"] for e in first["events"] + second["events"]] == list(reversed(ids))
     assert second["next_token"] is None
+
+
+# ---------------------------------------------------------------- tool-call evidence in DynamoDB
+def _content_items(svc, key):
+    name = svc.repo.names["activity_event"]
+    items, i = [], 0
+    while True:
+        item = svc.repo.client.get_item(TableName=name, Key={"pk": {"S": f"content#{key}#{i:04d}"}}).get("Item")
+        if not item:
+            return items
+        items.append(item); i += 1
+
+
+def _tool_call(ctx, pid, payload, key, session="agent-session"):
+    return {"event_kind": "tool_call", "portfolio_id": pid, "session_id": session, "correlation_id": ctx.correlation_id,
+            "payload": payload, "idempotency_key": key}
+
+
+def test_tool_call_arguments_and_result_are_stored_in_dynamodb(repo_any, artifacts, s3, buckets, clock, ctx_factory):
+    from finplan_platform.core import content_mirror
+    svc = Services(cfg=load_config("beta"), repo=repo_any, artifacts=artifacts)
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    payload = {"tool": "generate_portfolio_recommendation_cvar", "arguments": {"instruments": ["AAPL", "VOO"], "alpha": 0.95},
+               "result": {"weights": {"AAPL": 0.25, "VOO": 0.75}, "narrative": "x" * 1000}}
+    stored = record_activity(ctx, svc, _tool_call(ctx, pid, payload, "tool-1")).response
+    record = svc.repo.require("activity_event", stored["activity_event_id"])
+    day = clock.now().date().isoformat()
+    assert record.attrs["correlation_id"] == ctx.correlation_id and record.attrs["day_key"] == day
+    assert record.doc["artifact_key"] == f"activity-events/{day}/{stored['activity_event_id']}.json"
+    parts = _content_items(svc, record.doc["artifact_key"])
+    assert len(parts) == 1 and parts[0]["record_type"]["S"] == "artifact_content" and parts[0]["checksum"]["S"] == stored["checksum"]
+    # No index attributes on content items: they stay out of every GSI.
+    assert not {"portfolio_id", "session_id", "correlation_id", "activity_event_id"} & set(parts[0])
+    raw = content_mirror.read_content_bytes(svc.repo.client, svc.repo.names["activity_event"], record.doc["artifact_key"],
+                                            expected_checksum=stored["checksum"], allowed_prefixes=("activity-events/",))
+    doc = json.loads(raw)
+    assert doc["payload"] == payload and doc["correlation_id"] == ctx.correlation_id
+    # DynamoDB alone serves the read: S3 can disappear.
+    s3.delete_object(Bucket=buckets["reports"], Key=record.doc["artifact_key"])
+    assert list_activity(ctx, svc, {"session_id": "agent-session"})["events"][0]["payload"] == payload
+
+
+def test_large_tool_result_is_chunked_and_reassembled(repo_any, artifacts, clock, ctx_factory):
+    svc = Services(cfg=load_config("beta"), repo=repo_any, artifacts=artifacts)
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    payload = {"tool": "big", "result": {"blob": os.urandom(600_000).hex()}}  # ~1.2 MB, incompressible-ish hex
+    stored = record_activity(ctx, svc, _tool_call(ctx, pid, payload, "tool-big")).response
+    record = svc.repo.require("activity_event", stored["activity_event_id"])
+    parts = _content_items(svc, record.doc["artifact_key"])
+    assert len(parts) >= 2 and all(len(p["data"]["B"]) <= 350_000 for p in parts)
+    assert {int(p["parts"]["N"]) for p in parts} == {len(parts)}
+    event = list_activity(ctx, svc, {"portfolio_id": pid})["events"][0]
+    assert event["payload"] == payload and event["checksum"] == stored["checksum"]
+
+
+def test_activity_size_cap_is_four_mib(svc, clock, ctx_factory):
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    stored = record_activity(ctx, svc, _tool_call(ctx, pid, {"blob": "a" * (4 * 1024 * 1024 - 2048)}, "just-fits")).response
+    record = svc.repo.require("activity_event", stored["activity_event_id"])
+    assert all(len(p["data"]["B"]) <= 350_000 for p in _content_items(svc, record.doc["artifact_key"]))
+    with pytest.raises(PlatformError) as exc:
+        record_activity(ctx, svc, _tool_call(ctx, pid, {"blob": "a" * (4 * 1024 * 1024)}, "too-big"))
+    assert exc.value.code == "VALIDATION_FAILED"
+
+
+def test_tool_calls_are_found_by_correlation_id_newest_first(repo_any, artifacts, clock, ctx_factory):
+    svc = Services(cfg=load_config("beta"), repo=repo_any, artifacts=artifacts)
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    ids = [record_activity(ctx, svc, _tool_call(ctx, pid, {"n": i}, f"corr-{i}")).response["activity_event_id"] for i in range(3)]
+    other = ctx_factory(role_class="operator")
+    assert other.correlation_id != ctx.correlation_id
+    record_activity(other, svc, _tool_call(other, pid, {"n": 99}, "corr-other"))
+    records, token = svc.repo.query_index("activity_event", "correlation-index", ctx.correlation_id)
+    assert [r.id for r in records] == list(reversed(ids)) and token is None
+    assert all(not r.id.startswith("content#") for r in records)
+
+
+def test_idempotent_replay_does_not_duplicate_content(repo_any, artifacts, clock, ctx_factory):
+    from finplan_platform.core import content_mirror
+    svc = Services(cfg=load_config("beta"), repo=repo_any, artifacts=artifacts)
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    request = _tool_call(ctx, pid, {"tool": "t", "result": {"ok": True}}, "replay")
+    first = record_activity(ctx, svc, request)
+    again = record_activity(ctx, svc, request)
+    assert again.replayed and again.response == first.response
+    key = svc.repo.require("activity_event", first.response["activity_event_id"]).doc["artifact_key"]
+    assert len(_content_items(svc, key)) == 1
+    with pytest.raises(PlatformError):
+        record_activity(ctx, svc, {**request, "payload": {"different": 1}})
+    # A content retry with the same bytes is a no-op; different bytes are rejected.
+    name = svc.repo.names["activity_event"]
+    raw = gzip.decompress(bytes(_content_items(svc, key)[0]["data"]["B"]))
+    content_mirror.put_content(svc.repo.client, name, key, first.response["checksum"], raw)
+    with pytest.raises(PlatformError) as exc:
+        content_mirror.put_content(svc.repo.client, name, key, first.response["checksum"], raw + b" ")
+    assert exc.value.code == "IMMUTABLE_RECORD"
+
+
+def test_list_pages_stay_under_the_response_budget(repo_any, artifacts, clock, ctx_factory, monkeypatch):
+    from finplan_platform.core import portfolio_lifecycle as pl
+    svc = Services(cfg=load_config("beta"), repo=repo_any, artifacts=artifacts)
+    ctx, pid, _, _ = _setup(svc, clock, ctx_factory)
+    ids = [record_activity(ctx, svc, _tool_call(ctx, pid, {"blob": "b" * 2000, "n": i}, f"budget-{i}")).response["activity_event_id"] for i in range(5)]
+    monkeypatch.setattr(pl, "ACTIVITY_PAGE_BUDGET_BYTES", 5000)
+    seen, token = [], None
+    for _ in range(10):
+        page = list_activity(ctx, svc, {"session_id": "agent-session", "page_size": 10, **({"next_token": token} if token else {})})
+        assert 1 <= len(page["events"]) <= 2
+        seen += [e["activity_event_id"] for e in page["events"]]
+        token = page["next_token"]
+        if not token:
+            break
+    assert seen == list(reversed(ids))

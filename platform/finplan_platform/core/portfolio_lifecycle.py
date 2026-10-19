@@ -17,12 +17,13 @@ from typing import Any
 
 from finplan_contracts.canonical import CanonicalizationError, canonicalize, loads_strict
 
+from . import content_mirror
 from .artifacts import sha256_checksum
 from .audit import audit_event
 from .context import OperationContext
 from .contract_io import GET_BY_ID_REQUEST, require_valid
 from .errors import PlatformError
-from .repository import Check, Cond, HeadMove, IdempotentOutcome, Mutation, PutNew, Transition, decode_page_token
+from .repository import Check, Cond, HeadMove, IdempotentOutcome, Mutation, PutNew, Transition, decode_page_token, encode_page_token
 from .services import Services
 from .snapshot_reads import load_payloads
 from .upgrade import check_declared_version, current_version, serve
@@ -31,6 +32,18 @@ _DECISION_RE = re.compile(r"^pd_[0-9A-HJKMNP-TV-Z]{26}$")
 _ACTIVITY_RE = re.compile(r"^act_[0-7][0-9A-HJKMNP-TV-Z]{25}$")
 _ACTIVITY_LOOKUP_PREFIX = "ae1_"
 MAX_ARTIFACT_BYTES = 512 * 1024
+# Activity events carry the agent's exact tool arguments and results. End-to-end limits:
+# API Gateway REST payload 10 MB; Lambda synchronous invocation 6 MB (6,291,456 bytes) for
+# the proxy event, in which the body is a JSON string (each '"' and '\\' escaped) next to
+# ~4 KB of headers. A 4 MiB canonical document therefore still fits unless about half of
+# its bytes need escaping; an oversized request is refused by Lambda before this code
+# runs. The DynamoDB copy is <=350,000-byte gzip parts (at most ~13 items, each under
+# DynamoDB's 400 KB item limit).
+MAX_ACTIVITY_BYTES = 4 * 1024 * 1024
+# Canonical event bytes per list page (at least one event is always returned), so a page
+# stays below Lambda's 6 MB synchronous response limit.
+ACTIVITY_PAGE_BUDGET_BYTES = 4 * 1024 * 1024
+ACTIVITY_CONTENT_PREFIXES = ("activity-events/",)
 
 
 def _check_beta(ctx: OperationContext) -> None:
@@ -59,11 +72,15 @@ def _decision_id(value: str) -> None:
         raise PlatformError.validation("invalid decision identifier", pointer="/decision_id")
 
 
-def _write_json(svc: Services, key: str, doc: Mapping[str, Any]) -> str:
+def _write_json(svc: Services, key: str, doc: Mapping[str, Any], *, max_bytes: int = MAX_ARTIFACT_BYTES, mirror_table: str | None = None) -> str:
     raw = canonicalize(dict(doc))
-    if len(raw) > MAX_ARTIFACT_BYTES:
+    if len(raw) > max_bytes:
         raise PlatformError.validation("financial evidence exceeds the supported artifact size")
-    return svc.store.put_once_or_verify("reports", key, raw).checksum
+    checksum = svc.store.put_once_or_verify("reports", key, raw).checksum
+    if mirror_table:
+        # Full bytes in DynamoDB next to the index item (S3 stays the canonical copy).
+        content_mirror.put_content(svc.repo.client, svc.repo.names[mirror_table], key, checksum, raw, record_type=mirror_table)
+    return checksum
 
 
 def _read_json(svc: Services, key: str, checksum: str) -> dict[str, Any]:
@@ -394,10 +411,11 @@ def record_activity(ctx: OperationContext, svc: Services, request: Mapping[str, 
         aid = ctx.new_id("activity_event_id")
         doc = {k: _sanitize(v) for k, v in req.items() if k not in ("idempotency_key", "contract_version")}
         doc.update(activity_event_id=aid, recorded_at=ctx.now_ts(), caller=ctx.caller.audit_view(), contract_version=current_version())
-        key = f"activity-events/{ctx.now().date().isoformat()}/{aid}.json"
-        checksum = _write_json(svc, key, doc)
-        index = {k: doc[k] for k in ("activity_event_id", "event_kind", "recorded_at", "portfolio_id", "session_id") if k in doc}
-        index.update(artifact_key=key, checksum=checksum)
+        day = ctx.now().date().isoformat()
+        key = f"activity-events/{day}/{aid}.json"
+        checksum = _write_json(svc, key, doc, max_bytes=MAX_ACTIVITY_BYTES, mirror_table="activity_event")
+        index = {k: doc[k] for k in ("activity_event_id", "event_kind", "recorded_at", "portfolio_id", "session_id", "correlation_id") if k in doc}
+        index.update(day_key=day, artifact_key=key, checksum=checksum)
         response = {"activity_event_id": aid, "recorded_at": doc["recorded_at"], "checksum": checksum, "contract_version": current_version()}
         return Mutation(ops=[PutNew("activity_event", doc=index, contract_version=current_version())], response=response)
     return svc.repo.run_idempotent(ctx, operation="record_activity_event", idempotency_key=req.get("idempotency_key"), request_body=req, execute=execute)
@@ -432,11 +450,31 @@ def list_activity(ctx: OperationContext, svc: Services, query: Mapping[str, Any]
         record = svc.repo.require("activity_event", activity_id)
         if record.doc.get(field) != value:
             raise PlatformError.validation("activity lookup belongs to another history", pointer="/next_token")
-        event = _read_json(svc, record.doc["artifact_key"], record.doc["checksum"])
+        event = _read_activity(svc, record)
         if event.get(field) != value or event.get("activity_event_id") != activity_id:
             raise PlatformError.internal("activity evidence does not match its committed index")
         return {"events": [{**event, "checksum": record.doc["checksum"]}], "next_token": None, "contract_version": current_version()}
     limit, token = _page(svc, query, partition=field, value=value)
     records, token = svc.repo.query_index("activity_event", "portfolio-index" if field == "portfolio_id" else "session-index", value, limit=limit, page_token=token)
-    events = [{**_read_json(svc, r.doc["artifact_key"], r.doc["checksum"]), "checksum": r.doc["checksum"]} for r in records]
+    events, used = [], 0
+    for r in records:
+        event = _read_activity(svc, r)
+        size = len(canonicalize(event))
+        if events and used + size > ACTIVITY_PAGE_BUDGET_BYTES:
+            # Stop before the response outgrows Lambda's limit; resume after the last event returned.
+            last = events[-1]["activity_event_id"]
+            token = encode_page_token({"pk": {"S": last}, "activity_event_id": {"S": last}, field: {"S": value}})
+            break
+        used += size
+        events.append({**event, "checksum": r.doc["checksum"]})
     return {"events": events, "next_token": token, "contract_version": current_version()}
+
+
+def _read_activity(svc: Services, record: Any) -> dict[str, Any]:
+    """An activity document from its DynamoDB content copy, or from S3 for events recorded before mirroring."""
+    key, checksum = record.doc["artifact_key"], record.doc["checksum"]
+    try:
+        raw = content_mirror.read_content_bytes(svc.repo.client, svc.repo.names["activity_event"], key, expected_checksum=checksum, allowed_prefixes=ACTIVITY_CONTENT_PREFIXES, record_type="activity_event")
+    except PlatformError as exc:
+        raise PlatformError.internal("activity evidence does not match its committed index") from exc
+    return json.loads(raw) if raw is not None else _read_json(svc, key, checksum)

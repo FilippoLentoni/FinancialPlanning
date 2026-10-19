@@ -309,7 +309,10 @@ class ApiStack(PlatformStack):
             handler="finplan_platform.handlers.api.handler",
             code=lambda_code("plan-api"),
             role=self.role,
-            memory_size=256,
+            # 1024 MB buys ~4x the CPU of 256 MB: the cold first request (clients + contract schema
+            # registry) took ~10 s at 256 MB and timed out callers under concurrent agent sessions.
+            # Activity events of up to 3 MiB are also canonicalized, gzipped and hashed here.
+            memory_size=1024,
             timeout=Duration.seconds(29),
             log_group=self.log_group,
             environment={

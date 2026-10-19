@@ -147,6 +147,14 @@ check before they are sent.
 | `INTERNAL` | 500 | no | producer bug, including a response that failed its own schema (never sent) |
 | `DEPENDENCY_UNAVAILABLE` | 503 | per case | metadata store busy, delegated module absent, producer release missing |
 
+The envelope never shows a server-side cause. The plan-api log shows it instead: every
+5xx response writes one `server error <CODE> (correlation_id=… method=… resource=…)`
+line to `/aws/lambda/finplan-<env>-financialplanning-plan-api`. The line has the
+message, the details, and the chained cause as exception types and AWS error codes, for
+example `ClientError[TransactionCanceledException]{None,ValidationError}@TransactWriteItems`.
+It never contains request bodies or credentials. Search it with the caller's
+`correlation_id`.
+
 ## Idempotency and concurrency
 
 - Every state-changing route requires `idempotency_key` (1 to 128 of `[A-Za-z0-9_-]`).
