@@ -205,7 +205,9 @@ def test_activity_event_table_indexes_tool_calls_by_correlation(foundation_synth
     tables = _resources(foundation_synth, "beta", "metadata", "AWS::DynamoDB::Table")
     p = next(v["Properties"] for v in tables.values() if v["Properties"]["TableName"] == table_name("beta", "activity_event"))
     gsis = {g["IndexName"]: g for g in p["GlobalSecondaryIndexes"]}
-    assert set(gsis) == {"portfolio-index", "session-index", "correlation-index"}
+    assert set(gsis) == {"portfolio-index", "session-index", "correlation-index", "day-index"}
+    assert gsis["day-index"]["KeySchema"] == [{"AttributeName": "day_key", "KeyType": "HASH"}, {"AttributeName": "activity_event_id", "KeyType": "RANGE"}]
+    assert gsis["day-index"]["Projection"] == {"ProjectionType": "ALL"}
     assert gsis["correlation-index"]["KeySchema"] == [{"AttributeName": "correlation_id", "KeyType": "HASH"}, {"AttributeName": "activity_event_id", "KeyType": "RANGE"}]
     assert gsis["correlation-index"]["Projection"] == {"ProjectionType": "ALL"}
     assert {"AttributeName": "correlation_id", "AttributeType": "S"} in p["AttributeDefinitions"]

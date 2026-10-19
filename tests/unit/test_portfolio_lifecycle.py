@@ -399,6 +399,10 @@ def test_tool_call_arguments_and_result_are_stored_in_dynamodb(repo_any, artifac
     record = svc.repo.require("activity_event", stored["activity_event_id"])
     day = clock.now().date().isoformat()
     assert record.attrs["correlation_id"] == ctx.correlation_id and record.attrs["day_key"] == day
+    assert record.attrs["event_kind"] == "tool_call" and record.attrs["recorded_at"] == record.doc["recorded_at"]
+    assert record.attrs["artifact_key"] == record.doc["artifact_key"] and record.attrs["checksum"] == stored["checksum"]
+    by_day, _ = svc.repo.query_index("activity_event", "day-index", day)
+    assert [r.id for r in by_day] == [stored["activity_event_id"]] and by_day[0].attrs["event_kind"] == "tool_call"
     assert record.doc["artifact_key"] == f"activity-events/{day}/{stored['activity_event_id']}.json"
     parts = _content_items(svc, record.doc["artifact_key"])
     assert len(parts) == 1 and parts[0]["record_type"]["S"] == "artifact_content" and parts[0]["checksum"]["S"] == stored["checksum"]

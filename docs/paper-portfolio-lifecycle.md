@@ -100,8 +100,13 @@ encrypted with the platform KMS key). It holds two kinds of item:
 
 | Item | `pk` | Attributes |
 |---|---|---|
-| Index | `act_<ULID>` (time-sortable) | `event_kind`, `recorded_at`, `day_key` (UTC `YYYY-MM-DD`), `session_id`, `correlation_id`, `portfolio_id`, `artifact_key`, `checksum`, `doc` |
-| Content | `content#activity-events/<day>/<act_id>.json#<NNNN>` | `record_type=artifact_content`, `part`, `parts`, `size_bytes`, `checksum`, `encoding=gzip(RFC8785 JSON)`, `data` (binary) |
+| Index | `act_<ULID>` (time-sortable) | `activity_event_id`, `event_kind`, `recorded_at`, `day_key` (UTC `YYYY-MM-DD`), `correlation_id`, `session_id` and `portfolio_id` (when the event has them), `artifact_key`, `checksum`, `record_type=activity_event`, `contract_version`, `doc` (the same fields as canonical JSON) |
+| Content | `content#activity-events/<day>/<act_id>.json#<NNNN>` | `record_type=artifact_content`, `artifact_key`, `part`, `parts`, `size_bytes`, `checksum`, `encoding=gzip(RFC8785 JSON)`, `data` (binary) |
+
+Index items written before 2026-10-19 lack some of these top-level attributes; their
+`doc` attribute always holds all of them. `correlation_id` and `day_key` appear from
+commit 67fafce on. `event_kind`, `recorded_at`, `artifact_key` and `checksum` appear
+from the day-index change on. An index item without `day_key` is not in `day-index`.
 
 The full sanitized event document (`payload`, `session_id`, `correlation_id`,
 `caller`, `recorded_at`, ...) is the gzip of its canonical JSON, split into
@@ -130,12 +135,11 @@ appear in an index):
 - **By session:** `session-index` (`session_id`, `activity_event_id`), newest first
   with `--no-scan-index-forward`.
 - **By correlation id:** `correlation-index` (`correlation_id`, `activity_event_id`).
-  This index was added in a later stack update than the table. CloudFormation adds
-  one GSI per table update, so add any future index in its own push.
-- **By time:** `activity_event_id` is a ULID, so ids sort by recording time within
-  every index. A day or time window outside a session is a filtered scan on
-  `day_key` or on a `pk` ULID range. That is acceptable for beta volumes; there is
-  no time GSI.
+- **By day:** `day-index` (`day_key`, `activity_event_id`). `activity_event_id` is a
+  ULID, so each index returns events in recording order (`--no-scan-index-forward`
+  for newest first). Narrow a window within a day with a filter on `recorded_at`.
+- CloudFormation adds one GSI per table update: `correlation-index` and `day-index`
+  went out in separate pushes. Add any future index in its own push.
 
 ```bash
 T=finplan-beta-financialplanning-activity-event; R=us-east-2
@@ -146,9 +150,15 @@ aws dynamodb query --region $R --table-name $T --index-name session-index \
 # All events of one correlation id (one authenticated API request chain)
 aws dynamodb query --region $R --table-name $T --index-name correlation-index \
   --key-condition-expression "correlation_id = :c" --expression-attribute-values '{":c":{"S":"cor_..."}}'
-# Everything recorded on one UTC day (index items only)
-aws dynamodb scan --region $R --table-name $T --filter-expression "day_key = :d" \
-  --expression-attribute-values '{":d":{"S":"2026-10-19"}}' --projection-expression "pk,session_id,event_kind,recorded_at"
+# Everything recorded on one UTC day, newest first
+aws dynamodb query --region $R --table-name $T --index-name day-index \
+  --key-condition-expression "day_key = :d" --expression-attribute-values '{":d":{"S":"2026-10-19"}}' \
+  --no-scan-index-forward --projection-expression "pk,session_id,correlation_id,event_kind,recorded_at,artifact_key,checksum"
+# A time window within that day
+aws dynamodb query --region $R --table-name $T --index-name day-index \
+  --key-condition-expression "day_key = :d" --filter-expression "recorded_at BETWEEN :lo AND :hi" \
+  --expression-attribute-values '{":d":{"S":"2026-10-19"},":lo":{"S":"2026-10-19T13:00:00Z"},":hi":{"S":"2026-10-19T14:00:00Z"}}' \
+  --projection-expression "pk,session_id,event_kind,recorded_at"
 # Full document of one event: concatenate parts 0000..parts-1, then gunzip
 KEY=activity-events/2026-10-19/act_XXXXXXXXXXXXXXXXXXXXXXXXXX.json
 N=$(aws dynamodb get-item --region $R --table-name $T --key "{\"pk\":{\"S\":\"content#$KEY#0000\"}}" --query Item.parts.N --output text)

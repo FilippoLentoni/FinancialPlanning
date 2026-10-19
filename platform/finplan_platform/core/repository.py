@@ -178,8 +178,8 @@ TABLES: dict[str, TableSpec] = {
         # Index items only; the full documents are write-once ``content#<artifact_key>#<NNNN>``
         # items in the same table (core.content_mirror), which carry no GSI attributes.
         # CloudFormation adds at most one GSI per table update: add new indexes one push at a time.
-        indexes=(IndexSpec("portfolio-index", "portfolio_id", "activity_event_id"), IndexSpec("session-index", "session_id", "activity_event_id"), IndexSpec("correlation-index", "correlation_id", "activity_event_id")),
-        attribute_fields=("activity_event_id", "portfolio_id", "session_id", "correlation_id", "day_key"),
+        indexes=(IndexSpec("portfolio-index", "portfolio_id", "activity_event_id"), IndexSpec("session-index", "session_id", "activity_event_id"), IndexSpec("correlation-index", "correlation_id", "activity_event_id"), IndexSpec("day-index", "day_key", "activity_event_id")),
+        attribute_fields=("activity_event_id", "portfolio_id", "session_id", "correlation_id", "day_key", "event_kind", "recorded_at", "artifact_key", "checksum"),
     ),
     "research_input": TableSpec(
         "research_input", "research-input-table", "input_id",
