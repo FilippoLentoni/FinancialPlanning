@@ -189,6 +189,25 @@ def _tail(scenarios: Any, width: int, settings: Any) -> list | None:
     return [-sum(sorted(row[k] for row in scenarios)[:count]) / count for k in range(width)]
 
 
+def input_digest(payload: Any) -> dict | None:
+    """The parts of a captured input that the recommendation-change drivers read.
+
+    Reports keep large captured inputs only as compressed original bytes plus a summary, so
+    the drivers' fields are taken from the full payload while it is read and kept small.
+    """
+    if not isinstance(payload, dict):
+        return None
+    prepared = (payload.get("numeric") or {}).get("prepared") or {}
+    kept = {k: prepared[k] for k in ("algorithm", "instruments", "expected_returns", "covariance", "scenarios", "settings",
+                                     "observation_names", "observation") if k in prepared}
+    if isinstance(prepared.get("environment"), dict):
+        kept["environment"] = {k: prepared["environment"][k] for k in ("features", "rebalance_fraction") if k in prepared["environment"]}
+    news = payload.get("news") if isinstance(payload.get("news"), dict) else {}
+    holdings = payload.get("holdings") if isinstance(payload.get("holdings"), dict) else {}
+    return {"holdings": {"weights": holdings.get("weights")}, "numeric": {"prepared": kept},
+            "news": {"consumed": news.get("consumed"), "items": [{"headline": n.get("headline")} for n in news.get("items") or [] if isinstance(n, dict)]}}
+
+
 def _evolution(aid: str, runs: list[dict], inputs: dict[str, dict], family: str, adapter: str, direct: str | None) -> list[dict]:
     rows, previous, previous_input = [], None, None
     for run in sorted(runs, key=lambda r: _ts(r["decision_time"])):

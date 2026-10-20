@@ -159,3 +159,23 @@ def test_insight_failure_never_blocks_the_report():
                        mode="controlled_replay", comparison_policy={"first_scheduled_slot": "2026-10-10T15:00:00+00:00"})
     assert report["insights"] == {"version": "modeling-insights/1", "status": "unavailable", "reason": "ValueError: history unavailable"}
     assert report["leaderboard"]
+
+
+def test_large_captured_inputs_still_yield_solver_drivers():
+    # Inputs over 2 KiB are kept as compressed original bytes plus a summary payload; the
+    # insights read the solver inputs from the full payload while it is loaded.
+    from finplan_platform.reporting.reports import canonical, checksum
+    reader = Reader()
+    for i, run in enumerate(r for r in reader.runs if r["approach_id"] == "rule"):
+        capture = reader.inputs[run["input_id"]]
+        payload = capture["payload"]
+        payload["numeric"]["prepared"] = {"algorithm": "min_variance", "instruments": ["TEST", "OTHER"],
+                                          "covariance": [[(0.02 + 0.01 * i) ** 2, 0.0], [0.0, 0.0009]],
+                                          "scenarios": [[0.001 * k, -0.001 * k] for k in range(400)]}
+        capture["raw_bytes"] = canonical(payload)
+        capture["metadata"]["checksum"] = checksum(capture["raw_bytes"])
+        run.update(status="applied", target_weights=[{"instrument_id": "TEST", "weight": 0.5 + 0.1 * i}], cash_weight=0.5 - 0.1 * i)
+    report = aggregate(reader, experiment_id="test", registry=registry(), start_day=DAY, generated_at=DAY + "T16:00:00+00:00", mode="controlled_replay")
+    assert all(not report["inputs"][r["run_id"]].get("preview_is_complete", True) for r in reader.runs if r["approach_id"] == "rule")
+    latest = report["insights"]["evolution"]["rule"][-1]
+    assert latest["drivers"] == [{"input": "daily volatility TEST", "before": 0.02, "after": 0.03, "change": 0.01}]

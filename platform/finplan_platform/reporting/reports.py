@@ -26,6 +26,7 @@ from ..core.errors import PlatformError
 from .transport import compact_report, encode_transport, pack_transient_bytes, unpack_json_bytes, _summary
 from .reader import with_report_io, prefetched_inputs
 from .costs import collect_managed_cost_events, apply_managed_costs
+from .insights import input_digest
 
 EASTERN = ZoneInfo("America/New_York")
 REPORT_VERSION = "modeling-report/1"
@@ -654,6 +655,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     inputs: dict[str, dict] = {}
     artifact_chunks: dict[str, dict] = {}
     additional_inputs: dict[str, list[dict]] = {}
+    insight_inputs: dict[str, dict] = {}
     known = {r["approach_id"]: r for r in registry}
     slots: set[tuple[str, str]] = set()
     forecasts = []
@@ -673,6 +675,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
         try:
             inputs[run["run_id"]] = _input_for_run(reader, run, artifact_chunks, captured=prefetched)
             captured = inputs[run["run_id"]]
+            insight_inputs[run["run_id"]] = {"payload": input_digest(prefetched["payload"] if isinstance(prefetched, dict) else captured["payload"])}
             run["inference_invocation_state"] = captured["payload"].get("invocation_state")
             if known[aid].get("non_trading"):
                 run.update(non_trading=True, purpose="interim_research_no_primary_execution",
@@ -930,7 +933,7 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "evidence_failures": [{"run_id": r["run_id"], "error": r["evidence_error"]} for r in runs if r.get("evidence_error")],
               "next_daily_generation": next_eod.isoformat(),
               "source_record_ids": {"runs": [r["run_id"] for r in runs], "observations": [o["observation_id"] for o in observations + ancillary]}}
-    result["insights"] = _insights(reader, experiment_id=experiment_id, registry=registry, runs=runs, observations=observations, inputs=inputs,
+    result["insights"] = _insights(reader, experiment_id=experiment_id, registry=registry, runs=runs, observations=observations, inputs=insight_inputs,
                                    start=start, end=end, first_slot=first_slot, max_records=max_records)
     if hasattr(reader, "io_status"):
         result["report_io"] = reader.io_status()
@@ -973,7 +976,7 @@ def _insights(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
                     run[field] = output[field]
             if run.get("input_id") and timestamp(run["decision_time"]).astimezone(EASTERN).date() >= recent:
                 try:
-                    history_inputs[run["run_id"]] = {"payload": reader.read_input(run["input_id"])["payload"]}
+                    history_inputs[run["run_id"]] = {"payload": input_digest(reader.read_input(run["input_id"])["payload"])}
                 except (PlatformError, KeyError, ValueError):
                     pass
         for observation in history_observations:
