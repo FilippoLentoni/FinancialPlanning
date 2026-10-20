@@ -30,6 +30,8 @@ from .costs import collect_managed_cost_events, apply_managed_costs
 EASTERN = ZoneInfo("America/New_York")
 REPORT_VERSION = "modeling-report/1"
 BAD_STATUSES = {"failed", "unavailable", "skipped", "blocked", "running", "claimed", "pending"}
+INSIGHT_HISTORY_DAYS = 45
+INSIGHT_INPUT_DAYS = 3
 SECRET_KEYS = {"password", "secret_access_key", "aws_secret_access_key", "access_token", "api_key", "authorization", "session_token", "aws_session_token"}
 
 
@@ -928,6 +930,8 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
               "evidence_failures": [{"run_id": r["run_id"], "error": r["evidence_error"]} for r in runs if r.get("evidence_error")],
               "next_daily_generation": next_eod.isoformat(),
               "source_record_ids": {"runs": [r["run_id"] for r in runs], "observations": [o["observation_id"] for o in observations + ancillary]}}
+    result["insights"] = _insights(reader, experiment_id=experiment_id, registry=registry, runs=runs, observations=observations, inputs=inputs,
+                                   start=start, end=end, first_slot=first_slot, max_records=max_records)
     if hasattr(reader, "io_status"):
         result["report_io"] = reader.io_status()
     from .managed_evidence import collect as collect_managed_inference
@@ -936,6 +940,51 @@ def aggregate(reader: EvidenceReader, *, experiment_id: str, registry: list[dict
     return result
 
 
+
+
+def _insights(reader: EvidenceReader, *, experiment_id: str, registry: list[dict], runs: list[dict], observations: list[dict],
+              inputs: dict, start: date, end: date, first_slot: str | None, max_records: int) -> dict:
+    """Competition insights over the experiment's history up to this report's last day.
+
+    Days before the window are read as runs/observations only; captured inputs are read for
+    the last INSIGHT_INPUT_DAYS of that history so recommendation changes at the window's
+    start still compare against the previous decision's inputs. A failure here never blocks
+    the report: the section says why it is unavailable.
+    """
+    from .insights import build_insights
+    try:
+        first = timestamp(first_slot).astimezone(EASTERN).date() if first_slot else start
+        first = max(first, start - timedelta(days=INSIGHT_HISTORY_DAYS))
+        history_runs, history_observations = [], []
+        for offset in range((start - first).days):
+            day = (first + timedelta(days=offset)).isoformat()
+            history_runs.extend(_pages(reader, experiment_id, day, "runs", max_records=max_records))
+            history_observations.extend(_pages(reader, experiment_id, day, "observations", max_records=max_records))
+        known = {r["approach_id"] for r in registry}
+        history_runs = [r for r in _unique(history_runs, "run_id") if r.get("approach_id") in known and r.get("experiment_id", experiment_id) == experiment_id]
+        recent = start - timedelta(days=INSIGHT_INPUT_DAYS)
+        history_inputs = {}
+        for run in history_runs:
+            run.setdefault("decision_time", run.get("started_at", run.get("slot")))
+            output = run.get("outcome") if isinstance(run.get("outcome"), dict) else {}
+            run["output"] = output
+            for field in ("target_weights", "cash_weight", "rationale", "price_as_of"):
+                if field in output:
+                    run[field] = output[field]
+            if run.get("input_id") and timestamp(run["decision_time"]).astimezone(EASTERN).date() >= recent:
+                try:
+                    history_inputs[run["run_id"]] = {"payload": reader.read_input(run["input_id"])["payload"]}
+                except (PlatformError, KeyError, ValueError):
+                    pass
+        for observation in history_observations:
+            for key, value in (observation.get("payload") or {}).items():
+                if key not in {"experiment_id", "approach_id", "portfolio_id", "observation_id", "observed_at"}:
+                    observation[key] = value
+        window = {"start_day": first.isoformat(), "end_day": end.isoformat(), "report_start_day": start.isoformat()}
+        return build_insights(registry=registry, runs=history_runs + runs, observations=_unique(history_observations + observations, "observation_id"),
+                              inputs={**history_inputs, **inputs}, value_of=_value, valid=_valid, window=window)
+    except (EvidenceError, PlatformError, KeyError, ValueError, TypeError, ZeroDivisionError) as error:
+        return {"version": "modeling-insights/1", "status": "unavailable", "reason": f"{type(error).__name__}: {error}"}
 
 
 @with_report_io
