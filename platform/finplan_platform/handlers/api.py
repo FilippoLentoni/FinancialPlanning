@@ -198,6 +198,16 @@ _SNAPSHOTS = "finplan_platform.core.snapshot_reads"
 _LIFECYCLE = "finplan_platform.core.portfolio_lifecycle"
 BETA_LIFECYCLE_OPERATIONS = frozenset({"get_gdelt_intraday_metadata","get_gdelt_metadata","import_research_news","get_research_news","get_crypto_dataset","create_portfolio_decision", "get_portfolio_decision", "list_portfolio_decisions", "resolve_portfolio_decision", "get_portfolio_history", "list_portfolio_history", "list_market_snapshots", "record_activity_event", "list_activity_events"})
 
+ACTIVITY_ARCHIVE_OPERATIONS = frozenset({"record_activity_event", "list_activity_events"})
+
+
+def route_enabled(environment: str, route: Route) -> bool:
+    """Gamma promotes durable receipts only; paper lifecycle remains beta-only."""
+    return environment == "beta" or route.operation not in BETA_LIFECYCLE_OPERATIONS or (
+        environment == "gamma" and route.operation in ACTIVITY_ARCHIVE_OPERATIONS
+    )
+
+
 
 def _lazy_schema(target: str) -> Callable[[Mapping[str, Any]], Any]:
     """Response schema of a delegated route, imported when a response is checked (the owning

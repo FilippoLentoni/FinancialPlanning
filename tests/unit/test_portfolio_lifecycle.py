@@ -245,8 +245,8 @@ def test_routes_require_model_producer_or_confirmed_authenticated_writer(clients
     assert resolved["caller"]["on_behalf_of"] == caller
 
 
-def test_lifecycle_is_beta_only(svc, clock, ctx_factory):
-    ctx = ctx_factory(env="gamma", role_class="operator")
+def test_activity_archive_is_not_enabled_in_prod(svc, clock, ctx_factory):
+    ctx = ctx_factory(env="prod", role_class="operator")
     with pytest.raises(PlatformError) as exc:
         list_activity(ctx, svc, {"session_id": "x"})
     assert exc.value.code == "OPERATION_NOT_PERMITTED"
@@ -488,3 +488,16 @@ def test_list_pages_stay_under_the_response_budget(repo_any, artifacts, clock, c
         if not token:
             break
     assert seen == list(reversed(ids))
+
+
+def test_gamma_activity_archive_roundtrip_and_paper_decisions_remain_gated(svc, ctx_factory):
+    ctx = ctx_factory(env="gamma", role_class="reader")
+    request = {"event_kind": "tool_invocation", "correlation_id": ctx.correlation_id, "session_id": "gamma-archive", "payload": {"status": "OK"}, "idempotency_key": "gamma-archive-write"}
+    created = record_activity(ctx, svc, request)
+    again = record_activity(ctx, svc, request)
+    assert created.response == again.response
+    result = list_activity(ctx, svc, {"session_id": "gamma-archive"})
+    assert len(result["events"]) == 1
+    assert result["events"][0]["activity_event_id"] == created.response["activity_event_id"]
+    with pytest.raises(PlatformError):
+        create_decision(ctx, svc, "unused", {})

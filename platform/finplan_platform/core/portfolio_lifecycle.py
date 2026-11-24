@@ -390,7 +390,8 @@ def _sanitize(value: Any) -> Any:
 
 
 def record_activity(ctx: OperationContext, svc: Services, request: Mapping[str, Any]) -> IdempotentOutcome:
-    _check_beta(ctx)
+    if ctx.env not in ("beta", "gamma"):
+        raise PlatformError.not_permitted("durable activity archive is enabled only in beta and gamma")
     req = copy.deepcopy(dict(request))
     allowed = {"event_kind", "session_id", "correlation_id", "payload", "portfolio_id", "decision_id", "input_snapshot_id", "idempotency_key", "contract_version", "synthetic"}
     if set(req) - allowed or not isinstance(req.get("payload"), dict) or not isinstance(req.get("event_kind"), str) or not 1 <= len(req["event_kind"]) <= 128:
@@ -422,7 +423,8 @@ def record_activity(ctx: OperationContext, svc: Services, request: Mapping[str, 
 
 
 def list_activity(ctx: OperationContext, svc: Services, query: Mapping[str, Any]) -> dict[str, Any]:
-    _check_beta(ctx)
+    if ctx.env not in ("beta", "gamma"):
+        raise PlatformError.not_permitted("durable activity archive is enabled only in beta and gamma")
     if bool(query.get("portfolio_id")) == bool(query.get("session_id")):
         raise PlatformError.validation("exactly one portfolio_id or session_id is required")
     field = "portfolio_id" if query.get("portfolio_id") else "session_id"
