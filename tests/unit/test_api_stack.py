@@ -81,7 +81,9 @@ def resources(t: dict[str, Any], typ: str) -> list[dict[str, Any]]:
 def test_every_method_requires_iam_auth(api_synth: dict[str, Any], env: str) -> None:
     t = api_template(api_synth, env)
     methods = resources(t, "AWS::ApiGateway::Method")
-    assert len(methods) == len([route for route in ROUTES if env == "beta" or route.operation not in BETA_LIFECYCLE_OPERATIONS])
+    from finplan_platform.handlers.api import route_enabled
+
+    assert len(methods) == len([route for route in ROUTES if route_enabled(env, route)])
     assert {m["Properties"]["AuthorizationType"] for m in methods} == {"AWS_IAM"}
     api = resources(t, "AWS::ApiGateway::RestApi")
     assert len(api) == 1 and api[0]["Properties"]["EndpointConfiguration"]["Types"] == ["REGIONAL"] and api[0]["Properties"]["Policy"]
@@ -137,10 +139,12 @@ def test_ownership_check_on_api_templates(api_synth: dict[str, Any]) -> None:
 @pytest.mark.parametrize("env", ENVS)
 def test_resource_policy_grants_exactly_the_route_table(api_synth: dict[str, Any], env: str) -> None:
     policy = api_synth["policies"][env]
+    from finplan_platform.handlers.api import route_enabled
+
     for cls, name in roles(env).items():
         principal = Principal.role(name, WORST)
         for route in ROUTES:
-            if env != "beta" and route.operation in BETA_LIFECYCLE_OPERATIONS:
+            if not route_enabled(env, route):
                 continue
             res = simulate("execute-api:Invoke", invoke_arn(route), principal, resource_policy=policy)
             assert res.allowed == (route_allowed(route, cls) or beta_managed_read(route, env, name)), (env, cls, route.method, route.path, res)

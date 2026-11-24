@@ -46,7 +46,7 @@ from constructs import Construct
 from finplan_platform.core.config import BUCKET_ROLES, EnvConfig
 from finplan_platform.core.repository import TABLES, table_name
 from finplan_platform.core.upgrade import current_version
-from finplan_platform.handlers.api import BETA_LIFECYCLE_OPERATIONS, BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE, BETA_MANAGED_READ_OPERATIONS, CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed
+from finplan_platform.handlers.api import BETA_MANAGED_READER_ROLE, BETA_MANAGED_DISPATCHER_ROLE, BETA_MANAGED_READ_OPERATIONS, CONSUMER_CONFIG_KEYS, FINANCEMODEL_CLASSES, ROUTES, TOOL_CLASSES, Route, automation_role_patterns, route_allowed, route_enabled
 
 from .common import PlatformStack, StageContext, lambda_code, platform_role, resource_name, role_arn_pattern, ssm_name, tag_role
 
@@ -104,7 +104,7 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
             "Condition": {"ArnLike": {"aws:PrincipalArn": arn_for(f"finplan-{env}-financialplanning-research-news-publisher")}}})
     operators = [arn_for(name) for name in cfg.dev_desktop_role_names]
     allowed_patterns = [platform, *operators]
-    routes = tuple(r for r in ROUTES if cfg.env == "beta" or r.operation not in BETA_LIFECYCLE_OPERATIONS)
+    routes = tuple(r for r in ROUTES if route_enabled(cfg.env, r))
     tool_resources = {}
     tool_patterns = {}
     for cls in CONSUMER_CLASSES:
@@ -192,9 +192,9 @@ def resource_policy_document(cfg: EnvConfig, arn_for: Callable[[str], str]) -> d
             "Condition": {"ArnNotLike": {"aws:PrincipalArn": allowed_patterns}},
         }
     )
-    if env == "beta":
+    if env in ("beta", "gamma"):
         # Sid is optional IAM annotation, not an authorization condition. Omit
-        # annotations only in beta to retain API Gateway's existing size reserve;
+        # annotations in beta/gamma to retain API Gateway's existing size reserve;
         # every Allow/Deny, action, resource and condition remains present.
         statements = [{k: v for k, v in statement.items() if k != "Sid"} for statement in statements]
     return {"Version": "2012-10-17", "Statement": statements}
@@ -351,7 +351,7 @@ class ApiStack(PlatformStack):
         integration = apigw.LambdaIntegration(self.function, proxy=True, allow_test_invoke=False)
         resources: dict[str, apigw.IResource] = {"": self.rest_api.root}
         for route in ROUTES:
-            if env != "beta" and route.operation in BETA_LIFECYCLE_OPERATIONS:
+            if not route_enabled(env, route):
                 continue
             res = self._resource(resources, route.path)
             res.add_method(route.method, integration, authorization_type=apigw.AuthorizationType.IAM)
